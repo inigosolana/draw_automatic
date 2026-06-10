@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Ausarta Draw.io Local</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  </head>
+  <body>
+    <main class="page">
+      <section class="panel">
+        <header class="panel-header">
+          <h1>Generador local de .drawio</h1>
+          <p>Prueba el generador desde el navegador sin romper la CLI actual.</p>
+        </header>
+
+        {% if errors %}
+        <div class="message error">
+          <h2>Errores</h2>
+          <ul>
+            {% for error in errors %}
+            <li>{{ error }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+
+        {% if preview %}
+        <div class="message success">
+          <h2>Generacion completada</h2>
+          <p>Se ha preparado <strong>{{ preview.filename }}</strong>.</p>
+          <div class="preview-grid">
+            <div><strong>Cliente:</strong> {{ preview.cliente }}</div>
+            <div><strong>Sede:</strong> {{ preview.sede }}</div>
+            <div><strong>Direccion:</strong> {{ preview.direccion }}</div>
+            <div><strong>Plantilla:</strong> {{ preview.template }}</div>
+            <div><strong>Total equipos:</strong> {{ preview.total_equipment }}</div>
+          </div>
+          {% if preview.warnings %}
+          <div class="warnings">
+            <h3>Warnings</h3>
+            <ul>
+              {% for warning in preview.warnings %}
+              <li>{{ warning }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+          {% endif %}
+          <p><a class="button secondary" href="{{ preview.download_url }}">Descargar .drawio</a></p>
+          <script>
+            window.addEventListener("load", function () {
+              window.location.href = "{{ preview.download_url }}";
+            });
+          </script>
+        </div>
+        {% endif %}
+
+        <form method="post" action="{{ url_for('generate') }}" class="form-grid">
+          <section class="form-section">
+            <h2>Datos del cliente</h2>
+            <label>Cliente
+              <input type="text" name="cliente" value="{{ form_data.get('cliente', '') }}" required>
+            </label>
+            <label>CIF
+              <input type="text" name="cif" value="{{ form_data.get('cif', '') }}">
+            </label>
+            <label>Sede
+              <input type="text" name="sede" value="{{ form_data.get('sede', '') }}" required>
+            </label>
+            <label>Direccion / calle
+              <input type="text" name="direccion" value="{{ form_data.get('direccion', '') }}" required>
+            </label>
+          </section>
+
+          <section class="form-section">
+            <h2>Conectividad</h2>
+            <label>Tipo de internet
+              <input type="text" name="internet_tipo" value="{{ form_data.get('internet_tipo', '') }}" placeholder="FTTH">
+            </label>
+            <label>Velocidad
+              <input type="text" name="internet_velocidad" value="{{ form_data.get('internet_velocidad', '') }}" placeholder="1Gb">
+            </label>
+            <label>Modelo ONT
+              <input type="text" name="ont_modelo" value="{{ form_data.get('ont_modelo', '') }}" placeholder="ONT ZTE">
+            </label>
+            <label>Modelo router
+              <input type="text" name="router_modelo" value="{{ form_data.get('router_modelo', '') }}" placeholder="MikroTik hAP ac2">
+            </label>
+            <label>IP router
+              <input type="text" name="router_ip" value="{{ form_data.get('router_ip', '') }}" placeholder="192.168.0.1/24">
+            </label>
+          </section>
+
+          <section class="form-section full">
+            <h2>Equipos</h2>
+            <label>Equipamiento en texto natural
+              <textarea name="equipos_text" rows="8" placeholder="* 2 Fanvil V62, extensiones 2001 y 2002&#10;* 1 Yealink T31P, extension 2003&#10;* 1 switch TP-Link 16P&#10;* 3 PC">{{ form_data.get('equipos_text', '') }}</textarea>
+            </label>
+          </section>
+
+          <section class="form-section full">
+            <h2>Bloque completo opcional</h2>
+            <label>Pega aqui un bloque completo si prefieres rellenar todo de una vez
+              <textarea name="raw_text" rows="10" placeholder="Cliente: Pescados Gines e Hijos&#10;CIF: B20684866&#10;Sede: Esnabide 18&#10;Direccion: Esnabide 18, Pasaia, Gipuzkoa&#10;&#10;Internet: FTTH 1Gb&#10;ONT: ONT ZTE&#10;Router: MikroTik hAP ac2 - 192.168.0.1/24&#10;&#10;Equipos:&#10;* 2 Fanvil V62, extensiones 2001 y 2002&#10;* 1 Yealink T31P, extension 2003">{{ form_data.get('raw_text', '') }}</textarea>
+            </label>
+          </section>
+
+          <section class="form-section full">
+            <h2>Libreria</h2>
+            <label>Ruta de la libreria .xml
+              <input type="text" name="library_path" value="{{ form_data.get('library_path', 'libreria_Ausarta_JUN_2026.xml') }}">
+            </label>
+          </section>
+
+          <div class="actions">
+            <button type="submit" class="button primary">Generar .drawio</button>
+          </div>
+        </form>
+      </section>
+    </main>
+  </body>
+</html>

@@ -9,14 +9,40 @@ Generador de diagramas `.drawio` para instalaciones de telecomunicaciones.
 - Busca iconos por nombre y alias.
 - Genera un `.drawio` editable con cabecera, topologia, resumen y conexiones.
 - Soporte inicial para plantillas `rack` y `multisede`.
+- Incluye una interfaz web local para probar el generador desde el navegador.
 
-## Uso
+## Uso por consola
+
+La CLI actual sigue funcionando:
 
 ```bash
-python app.py --input examples/cliente_demo.json --library ..\libreria_Ausarta_JUN_2026.xml --output salida.drawio
-python app.py --input examples/cliente_demo.txt --library ..\libreria_Ausarta_JUN_2026.xml --output salida_texto.drawio
-python app.py --input examples\cliente_multisede.json --library ..\libreria_Ausarta_JUN_2026.xml --output salida_multi.drawio --template multisede
+python app.py --input examples/cliente_demo.json --library libreria_Ausarta_JUN_2026.xml --output salida.drawio
+python app.py --input examples/cliente_demo.txt --library libreria_Ausarta_JUN_2026.xml --output salida_texto.drawio
+python app.py --input examples\cliente_multisede.json --library libreria_Ausarta_JUN_2026.xml --output salida_multi.drawio --template multisede
 ```
+
+## Interfaz web local
+
+```bash
+pip install -r requirements.txt
+python web_app.py
+```
+
+Abrir:
+
+```text
+http://localhost:8000
+```
+
+La web permite:
+
+- introducir cliente, CIF, sede y direccion;
+- indicar internet, ONT, router e IP;
+- pegar equipos en texto natural;
+- pegar un bloque completo de texto natural;
+- indicar la ruta de la libreria `.xml`;
+- descargar automaticamente el `.drawio`;
+- ver una previsualizacion textual con plantilla inferida, total de equipos y warnings.
 
 ## Formato JSON soportado
 
@@ -108,7 +134,7 @@ Reglas actuales del parser:
 
 ## Tests
 
-Los tests ya no dependen de la libreria real de Ausarta y usan una fixture minima en `tests/fixtures/test_library.xml`.
+Los tests usan una fixture minima en `tests/fixtures/test_library.xml`.
 
 ```bash
 python -m unittest
