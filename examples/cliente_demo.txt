@@ -1,0 +1,14 @@
+Cliente: Pescados Ginés e Hijos
+CIF: B20684866
+Sede: Esnabide 18
+Dirección: Esnabide 18, Pasaia, Gipuzkoa
+
+Internet: FTTH 1Gb
+ONT: ONT ZTE
+Router: MikroTik hAP ac2 - 192.168.0.1/24
+
+Equipos:
+* 2 Fanvil V62, extensiones 2001 y 2002
+* 1 Yealink T31P, extensión 2003
+* 1 switch TP-Link 16P
+* 3 PC

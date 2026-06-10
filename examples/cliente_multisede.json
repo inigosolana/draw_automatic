@@ -1,0 +1,29 @@
+{
+  "cliente": "AUSARTA DEMO MULTISEDE",
+  "sede": "Central",
+  "direccion": "Bilbao",
+  "router": {
+    "modelo": "MikroTik hAP ac2"
+  },
+  "equipos": [
+    {
+      "tipo": "telefono",
+      "modelo": "Fanvil V62",
+      "cantidad": 2
+    }
+  ],
+  "sedes": [
+    {
+      "sede": "Bilbao",
+      "direccion": "Bilbao Centro"
+    },
+    {
+      "sede": "Donostia",
+      "direccion": "Donostia Centro"
+    },
+    {
+      "sede": "Vitoria",
+      "direccion": "Vitoria Centro"
+    }
+  ]
+}

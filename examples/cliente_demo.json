@@ -1,0 +1,41 @@
+{
+  "cliente": "PESCADOS GINES E HIJOS",
+  "cif": "B20684866",
+  "sede": "ESNABIDE 18",
+  "direccion": "Esnabide 18, Pasaia, Gipuzkoa",
+  "internet": {
+    "tipo": "FTTH",
+    "velocidad": "1Gb"
+  },
+  "ont": {
+    "modelo": "ONT ZTE"
+  },
+  "router": {
+    "modelo": "MikroTik hAP ac2",
+    "ip": "192.168.0.1/24"
+  },
+  "equipos": [
+    {
+      "tipo": "telefono",
+      "modelo": "Fanvil V62",
+      "cantidad": 2,
+      "extensiones": ["2001", "2002"]
+    },
+    {
+      "tipo": "telefono",
+      "modelo": "Yealink T31P",
+      "cantidad": 1,
+      "extensiones": ["2003"]
+    },
+    {
+      "tipo": "switch",
+      "modelo": "TP-Link 16P",
+      "cantidad": 1
+    },
+    {
+      "tipo": "pc",
+      "modelo": "PC",
+      "cantidad": 3
+    }
+  ]
+}
