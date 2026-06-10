@@ -4,7 +4,7 @@ import argparse
 from pathlib import Path
 
 from .drawio_writer import build_drawio
-from .layout_engine import build_layout
+from .layout_engine import build_layout, validate_input_data
 from .library_loader import load_library
 from .parser import load_input
 
@@ -21,8 +21,9 @@ def main() -> int:
     if args.template:
         data["template"] = args.template
     library = load_library(args.library)
+    warnings = validate_input_data(data)
     nodes, edges = build_layout(data)
-    result = build_drawio(nodes, edges, library)
+    result = build_drawio(nodes, edges, library, warnings=warnings)
 
     output_path = Path(args.output)
     output_path.write_text(result.xml, encoding="utf-8")

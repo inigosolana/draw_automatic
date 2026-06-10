@@ -25,20 +25,43 @@ class EdgeSpec:
     entry_y: float = 0.5
 
 
+def _safe(value: object) -> str:
+    return "" if value is None else str(value)
+
+
+def validate_input_data(data: dict) -> list[str]:
+    warnings: list[str] = []
+    for team in data.get("equipos", []):
+        qty = int(team.get("cantidad", 1))
+        extensions = team.get("extensiones") or []
+        if qty > len(extensions) and extensions:
+            warnings.append(
+                f"El equipo '{team.get('modelo', team.get('tipo', 'Equipo'))}' tiene cantidad {qty} y solo {len(extensions)} extension(es)."
+            )
+    return warnings
+
+
 def summarize_equipment(data: dict) -> str:
     lines = []
     for team in data.get("equipos", []):
         qty = team.get("cantidad", 1)
         model = team.get("modelo") or team.get("tipo", "Equipo")
-        lines.append(f"x{qty} {model}")
+        lines.append(f"x{qty} {_safe(model)}")
     total = sum(int(team.get("cantidad", 1)) for team in data.get("equipos", []))
     summary = [
         "<table style='width:100%;height:100%;border-collapse:collapse;' width='100%' height='100%' cellpadding='4' border='1'>",
         "<tbody>",
         "<tr style='background-color:#A7C942;color:#ffffff;border:1px solid #98bf21;'><th align='left'>Cliente</th><th align='left'>Internet</th><th align='left'>Total</th></tr>",
-        f"<tr style='border:1px solid #98bf21;'><td>{data['cliente']}</td><td>{data.get('internet', {}).get('tipo', '')} {data.get('internet', {}).get('velocidad', '')}</td><td>{total}</td></tr>",
+        (
+            f"<tr style='border:1px solid #98bf21;'><td>{_safe(data['cliente'])}</td>"
+            f"<td>{_safe(data.get('internet', {}).get('tipo', ''))} {_safe(data.get('internet', {}).get('velocidad', ''))}</td>"
+            f"<td>{total}</td></tr>"
+        ),
         "<tr style='background-color:#EAF2D3;border:1px solid #98bf21;'><th align='left'>Sede</th><th align='left'>Router</th><th align='left'>Equipos</th></tr>",
-        f"<tr style='border:1px solid #98bf21;'><td>{data['sede']}</td><td>{data.get('router', {}).get('modelo', '')}</td><td>{', '.join(lines) or '-'}</td></tr>",
+        (
+            f"<tr style='border:1px solid #98bf21;'><td>{_safe(data['sede'])}</td>"
+            f"<td>{_safe(data.get('router', {}).get('modelo', ''))}</td><td>{', '.join(lines) or '-'}</td></tr>"
+        ),
         "</tbody></table>",
     ]
     return "".join(summary)
@@ -59,9 +82,9 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
             key="header",
             kind="text",
             label=(
-                f"<div style='text-align:start;'><b>{data['cliente']}</b> - {data.get('cif', '')}</div>"
-                f"<div style='text-align:start;'>{data['sede']}</div>"
-                f"<div style='text-align:start;'>{data['direccion']}</div>"
+                f"<div style='text-align:start;'><b>{_safe(data['cliente'])}</b> - {_safe(data.get('cif', ''))}</div>"
+                f"<div style='text-align:start;'>{_safe(data['sede'])}</div>"
+                f"<div style='text-align:start;'>{_safe(data['direccion'])}</div>"
             ),
             x=860,
             y=10,
@@ -72,7 +95,10 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
         NodeSpec(
             key="ont",
             kind="device",
-            label=f"<b>ONT</b><br><b>{data.get('internet', {}).get('tipo', '')} {data.get('internet', {}).get('velocidad', '')}</b>",
+            label=(
+                f"<b>ONT</b><br><b>{_safe(data.get('internet', {}).get('tipo', ''))} "
+                f"{_safe(data.get('internet', {}).get('velocidad', ''))}</b>"
+            ),
             model=data.get("ont", {}).get("modelo", "ONT"),
             x=240,
             y=120,
@@ -83,8 +109,8 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
             key="router",
             kind="device",
             label=(
-                f"<b>{data.get('router', {}).get('modelo', 'Router')}</b><br>"
-                f"{data.get('router', {}).get('ip', '')}"
+                f"<b>{_safe(data.get('router', {}).get('modelo', 'Router'))}</b><br>"
+                f"{_safe(data.get('router', {}).get('ip', ''))}"
             ),
             model=data.get("router", {}).get("modelo", "Router"),
             x=470,
@@ -106,7 +132,7 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
             NodeSpec(
                 key="switch",
                 kind="device",
-                label=f"<b>{switch.get('modelo', 'Switch')}</b>",
+                label=f"<b>{_safe(switch.get('modelo', 'Switch'))}</b>",
                 model=switch.get("modelo", "Switch"),
                 x=720,
                 y=120,
@@ -130,9 +156,9 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
         exts = team.get("extensiones", [])
         for idx in range(qty):
             extension = exts[idx] if idx < len(exts) else ""
-            label = f"<b>{team.get('modelo', team.get('tipo', 'Equipo'))}</b>"
+            label = f"<b>{_safe(team.get('modelo', team.get('tipo', 'Equipo')))}</b>"
             if extension:
-                label += f"<br>EXT {extension}"
+                label += f"<br>EXT {_safe(extension)}"
             key = f"team_{team_index}"
             nodes.append(
                 NodeSpec(
@@ -197,14 +223,14 @@ def build_rack_layout(data: dict) -> tuple[list[NodeSpec], list[EdgeSpec]]:
 
 def build_multisite_layout(data: dict) -> tuple[list[NodeSpec], list[EdgeSpec]]:
     nodes = [
-        NodeSpec(key="header", kind="text", label=f"<b>{data['cliente']}</b><br>{data['direccion']}", x=860, y=10, width=280, height=60),
+        NodeSpec(key="header", kind="text", label=f"<b>{_safe(data['cliente'])}</b><br>{_safe(data['direccion'])}", x=860, y=10, width=280, height=60),
         NodeSpec(key="inet", kind="cloud", label="INET", x=480, y=40, width=140, height=90),
     ]
     edges: list[EdgeSpec] = []
     sites = data.get("sedes") or [{"sede": data["sede"], "direccion": data["direccion"]}]
     for index, site in enumerate(sites, start=1):
         x = 120 + (index - 1) * 320
-        nodes.append(NodeSpec(key=f"site_{index}", kind="device", label=f"<b>{site.get('sede', f'Sede {index}')}</b><br>{site.get('direccion', '')}", model=site.get("router", {}).get("modelo", data.get("router", {}).get("modelo", "Router")), x=x, y=240, width=150, height=150))
+        nodes.append(NodeSpec(key=f"site_{index}", kind="device", label=f"<b>{_safe(site.get('sede', f'Sede {index}'))}</b><br>{_safe(site.get('direccion', ''))}", model=site.get("router", {}).get("modelo", data.get("router", {}).get("modelo", "Router")), x=x, y=240, width=150, height=150))
         edges.append(EdgeSpec("inet", f"site_{index}", label=f"VPN {index}", exit_y=0.75, entry_y=0.0))
     nodes.append(NodeSpec(key="summary_title", kind="plain_text", label="Resumen Equipos", x=897, y=150, width=120, height=30))
     nodes.append(NodeSpec(key="summary", kind="table", label=summarize_equipment(data), x=765, y=190, width=385, height=170))

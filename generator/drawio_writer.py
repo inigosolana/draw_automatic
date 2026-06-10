@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from xml.sax.saxutils import escape
 import xml.etree.ElementTree as ET
 
 from .library_loader import LibraryIndex
@@ -47,10 +46,11 @@ def _text_cell(root: ET.Element, cell_id: str, value: str, style: str, x: int, y
     _geom(cell, x, y, width, height)
 
 
-def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryIndex) -> BuildResult:
-    warnings: list[str] = []
+def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryIndex, warnings: list[str] | None = None) -> BuildResult:
+    warnings = list(warnings or [])
     ids = IdFactory()
     node_ids: dict[str, str] = {}
+    page_height = max(827, max((node.y + node.height for node in nodes), default=0) + 120)
 
     mxfile = ET.Element(
         "mxfile",
@@ -79,7 +79,7 @@ def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryI
             "page": "1",
             "pageScale": "1",
             "pageWidth": "1169",
-            "pageHeight": "827",
+            "pageHeight": str(page_height),
             "math": "0",
             "shadow": "0",
         },
@@ -104,7 +104,7 @@ def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryI
             cell = ET.SubElement(root, "mxCell", {"id": cell_id, "value": "", "style": CLOUD_STYLE, "parent": "1", "vertex": "1"})
             _geom(cell, node.x, node.y, node.width, node.height)
             label_id = ids.next()
-            _text_cell(root, label_id, f"<font><b>{escape(node.label)}</b></font>", TEXT_STYLE, node.x + 25, node.y + 25, 70, 25)
+            _text_cell(root, label_id, f"<font><b>{node.label}</b></font>", TEXT_STYLE, node.x + 25, node.y + 25, 70, 25)
             continue
 
         item = library.find(node.model or "")
@@ -148,12 +148,10 @@ def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryI
                 "source": node_ids[edge_spec.source],
                 "target": node_ids[edge_spec.target],
                 "edge": "1",
+                "value": edge_spec.label or "",
             },
         )
         ET.SubElement(edge, "mxGeometry", {"relative": "1", "as": "geometry"})
-        if edge_spec.label:
-            label_id = ids.next()
-            _text_cell(root, label_id, edge_spec.label, TEXT_STYLE, 205 + (ids.value % 5) * 40, 320 + (ids.value % 7) * 25, 100, 30)
 
     xml = ET.tostring(mxfile, encoding="unicode")
     return BuildResult(xml=xml, warnings=warnings)

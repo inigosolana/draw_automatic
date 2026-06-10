@@ -4,13 +4,13 @@ import unittest
 
 from generator.aliases import resolve_alias
 from generator.drawio_writer import build_drawio
-from generator.layout_engine import build_layout
+from generator.layout_engine import build_layout, validate_input_data
 from generator.library_loader import load_library
 from generator.parser import load_input
 
 
 ROOT = Path(__file__).resolve().parents[1]
-LIBRARY = ROOT.parent / "libreria_Ausarta_JUN_2026.xml"
+LIBRARY = ROOT / "tests" / "fixtures" / "test_library.xml"
 EXAMPLE = ROOT / "examples" / "cliente_demo.json"
 TEXT_EXAMPLE = ROOT / "examples" / "cliente_demo.txt"
 MULTI_EXAMPLE = ROOT / "examples" / "cliente_multisede.json"
@@ -41,6 +41,7 @@ class BasicTests(unittest.TestCase):
         self.assertIn("<mxfile", result.xml)
         self.assertIn("source=", result.xml)
         self.assertIn("target=", result.xml)
+        self.assertIn('value="ETH1-WAN"', result.xml)
 
     def test_natural_text_input(self) -> None:
         data = load_input(TEXT_EXAMPLE)
@@ -64,6 +65,68 @@ class BasicTests(unittest.TestCase):
             output = Path(tmp) / "demo.drawio"
             output.write_text(result.xml, encoding="utf-8")
             self.assertTrue(output.exists())
+
+    def test_xml_escapes_dynamic_text(self) -> None:
+        data = {
+            "cliente": "A & B <Cliente>",
+            "cif": "X&Y",
+            "sede": "Sede > Norte",
+            "direccion": "Calle <1> & 2",
+            "internet": {"tipo": "FTTH & MPLS", "velocidad": "1Gb > 600Mb"},
+            "ont": {"modelo": "ONT ZTE"},
+            "router": {"modelo": "MikroTik hAP ac2", "ip": "10.0.0.1/24 & 10.0.0.2"},
+            "equipos": [{"tipo": "telefono", "modelo": "Fanvil & V62 <pro>", "cantidad": 1, "extensiones": ["20>01"]}],
+        }
+        library = load_library(LIBRARY)
+        nodes, edges = build_layout(data)
+        result = build_drawio(nodes, edges, library)
+        self.assertIn("A &amp; B &lt;Cliente&gt;", result.xml)
+        self.assertIn("Calle &lt;1&gt; &amp; 2", result.xml)
+        self.assertIn("20&gt;01", result.xml)
+
+    def test_validation_warning_for_missing_extensions(self) -> None:
+        data = {
+            "cliente": "Demo",
+            "sede": "Central",
+            "direccion": "Bilbao",
+            "internet": {"tipo": "FTTH", "velocidad": "1Gb"},
+            "ont": {"modelo": "ONT ZTE"},
+            "router": {"modelo": "MikroTik hAP ac2"},
+            "equipos": [{"tipo": "telefono", "modelo": "Fanvil V62", "cantidad": 3, "extensiones": ["2001", "2002"]}],
+        }
+        warnings = validate_input_data(data)
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("cantidad 3", warnings[0])
+
+    def test_missing_library_icon_warning_is_preserved(self) -> None:
+        data = {
+            "cliente": "Demo",
+            "sede": "Central",
+            "direccion": "Bilbao",
+            "internet": {"tipo": "FTTH", "velocidad": "1Gb"},
+            "ont": {"modelo": "ONT ZTE"},
+            "router": {"modelo": "Router Desconocido"},
+            "equipos": [],
+        }
+        library = load_library(LIBRARY)
+        nodes, edges = build_layout(data)
+        result = build_drawio(nodes, edges, library)
+        self.assertTrue(any("Router Desconocido" in warning for warning in result.warnings))
+
+    def test_page_height_grows_with_many_rows(self) -> None:
+        data = {
+            "cliente": "Demo",
+            "sede": "Central",
+            "direccion": "Bilbao",
+            "internet": {"tipo": "FTTH", "velocidad": "1Gb"},
+            "ont": {"modelo": "ONT ZTE"},
+            "router": {"modelo": "MikroTik hAP ac2"},
+            "equipos": [{"tipo": "pc", "modelo": "PC", "cantidad": 10}],
+        }
+        library = load_library(LIBRARY)
+        nodes, edges = build_layout(data)
+        result = build_drawio(nodes, edges, library)
+        self.assertIn('pageHeight="1370"', result.xml)
 
 
 if __name__ == "__main__":
