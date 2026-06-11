@@ -1,0 +1,34 @@
+{
+  "cliente": "North Iberian Control S.L",
+  "cif": "B39357124",
+  "sede": "Sede 1 - Oficina",
+  "direccion": "Calle Madrid, 8, 1, Oficina 4, Santander 39009, Cantabria",
+  "internet": {
+    "tipo": "Fibra+BU",
+    "velocidad": ""
+  },
+  "ont": {
+    "modelo": "GPON ONT"
+  },
+  "router": {
+    "modelo": "S53UG+5HaxD2HaxD-TC&RG650E-EU (CHATEAU 5G AX R17)",
+    "ip": ""
+  },
+  "equipos": [
+    {
+      "tipo": "telefono",
+      "modelo": "W70B",
+      "cantidad": 1
+    },
+    {
+      "tipo": "telefono",
+      "modelo": "W71H",
+      "cantidad": 1
+    },
+    {
+      "tipo": "telefono",
+      "modelo": "SIP-T31G",
+      "cantidad": 1
+    }
+  ]
+}

@@ -11,6 +11,7 @@ from .parser import infer_template, parse_equipment_line, parse_natural_text
 
 
 REQUIRED_FIELDS = ("cliente", "sede", "direccion")
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 @dataclass
@@ -103,7 +104,15 @@ def resolve_library_path(library_path: str | Path) -> Path:
     path = Path(library_path)
     if path.is_absolute():
         return path
-    return Path.cwd() / path
+    candidates = [
+        Path.cwd() / path,
+        PROJECT_ROOT / path,
+        PROJECT_ROOT.parent / path,
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
 
 
 def build_drawio_from_data(data: dict, library_path: str | Path) -> WebGenerationResult:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import re
 from dataclasses import dataclass
@@ -30,8 +31,16 @@ class LibraryIndex:
         return self.by_normalized.get(normalize_name(alias))
 
 
+def _load_local_icon(title: str, image_path: Path, width: int = 120, height: int = 120) -> LibraryItem | None:
+    if not image_path.exists():
+        return None
+    encoded = base64.b64encode(image_path.read_bytes()).decode("ascii")
+    return LibraryItem(title=title, data=f"data:image/png;base64,{encoded}", width=width, height=height)
+
+
 def load_library(path: str | Path) -> LibraryIndex:
-    text = Path(path).read_text(encoding="utf-8", errors="ignore")
+    library_path = Path(path)
+    text = library_path.read_text(encoding="utf-8", errors="ignore")
     match = re.search(r"<mxlibrary>(.*)</mxlibrary>", text, re.DOTALL)
     if not match:
         raise ValueError("No se ha encontrado <mxlibrary> en la libreria.")
@@ -51,4 +60,8 @@ def load_library(path: str | Path) -> LibraryIndex:
                 aspect=entry.get("aspect", "fixed"),
             )
         )
+
+    custom_icon = _load_local_icon("W71H", library_path.parent / "ausarta_drawio" / "assets" / "w71h.png")
+    if custom_icon:
+        items.append(custom_icon)
     return LibraryIndex(items)

@@ -2,3 +2,6 @@ __pycache__/
 *.pyc
 salida*.drawio
 prueba*.drawio
+*.err.log
+*.log
+NORTH_IBERIAN_CONTROL_S_L_SEDE_1_OFICINA.drawio

@@ -20,6 +20,9 @@ class BasicTests(unittest.TestCase):
     def test_alias_mapping(self) -> None:
         self.assertEqual(resolve_alias("MikroTik hAP ac2"), "Microtik_hAPc")
         self.assertEqual(resolve_alias("Yealink T31P"), "T-31")
+        self.assertEqual(resolve_alias("SIP-T31G"), "T-31")
+        self.assertEqual(resolve_alias("W70B"), "W60B")
+        self.assertEqual(resolve_alias("GPON ONT"), "ONT ZTE")
 
     def test_library_load(self) -> None:
         library = load_library(LIBRARY)

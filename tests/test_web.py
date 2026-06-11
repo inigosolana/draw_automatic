@@ -1,7 +1,7 @@
 from pathlib import Path
 import unittest
 
-from generator.web_adapter import build_drawio_from_data, form_to_data
+from generator.web_adapter import build_drawio_from_data, form_to_data, resolve_library_path
 from web_app import DOWNLOADS, create_app
 
 
@@ -42,6 +42,29 @@ class WebAdapterTests(unittest.TestCase):
         generated = build_drawio_from_data(data, LIBRARY)
         self.assertTrue(generated.filename.endswith(".drawio"))
         self.assertIn("<mxfile", generated.result.xml)
+
+    def test_resolve_library_path_checks_project_parent(self) -> None:
+        resolved = resolve_library_path("tests/fixtures/test_library.xml")
+        self.assertEqual(resolved.resolve(), (ROOT / "tests" / "fixtures" / "test_library.xml").resolve())
+
+    def test_real_library_loads_custom_w71h_icon(self) -> None:
+        real_library = ROOT.parent / "libreria_Ausarta_JUN_2026.xml"
+        if not real_library.exists():
+            self.skipTest("La libreria real no esta disponible en este entorno.")
+        generated = build_drawio_from_data(
+            form_to_data(
+                {
+                    "cliente": "Demo",
+                    "sede": "Central",
+                    "direccion": "Bilbao",
+                    "ont_modelo": "ONT ZTE",
+                    "router_modelo": "CHATEAU",
+                    "equipos_text": "* 1 W71H",
+                }
+            ),
+            real_library,
+        )
+        self.assertNotIn("No se ha encontrado icono para: W71H", generated.result.warnings)
 
 
 class WebAppTests(unittest.TestCase):
