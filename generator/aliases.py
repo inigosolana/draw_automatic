@@ -6,6 +6,8 @@ ALIASES = {
     "gpon ont": "ONT ZTE",
     "ont": "ONT",
     "fanvil v62": "FANVIL_V62",
+    "fanvil v64": "FANVIL_V62",
+    "fanvil_v64": "FANVIL_V62",
     "yealink t31p": "T-31",
     "yealink t31": "T-31",
     "sip-t31g": "T-31",
@@ -27,7 +29,8 @@ ALIASES = {
     "s53ug+5haxd2haxd-tc&rg650e-eu (chateau 5g ax r17)": "CHATEAU",
     "chateau 5g ax r17": "CHATEAU",
     "router zte": "Router ZTE",
-    "wap lte": "WAP LTE",
+    "wap lte": "Mikrotik LTE6",
+    "mikrotik lte6": "Mikrotik LTE6",
     "teltonika": "TELTONIKA",
 }
 

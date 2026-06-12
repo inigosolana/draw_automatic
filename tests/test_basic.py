@@ -27,6 +27,8 @@ class BasicTests(unittest.TestCase):
     def test_library_load(self) -> None:
         library = load_library(LIBRARY)
         self.assertIsNotNone(library.find("Fanvil V62"))
+        self.assertEqual(library.find("Fanvil V64"), library.find("Fanvil V62"))
+        self.assertEqual(library.find("WAP LTE").title, "Mikrotik LTE6")
         self.assertIsNotNone(library.find("MikroTik hAP ac2"))
 
     def test_multiple_devices_layout(self) -> None:
