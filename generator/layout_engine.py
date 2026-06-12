@@ -64,8 +64,20 @@ def _equipment_label(team: dict, extension: str = "") -> str:
     return "<br>".join(parts)
 
 
+def _ownership(team: dict) -> str:
+    return "ajeno" if _safe(team.get("propiedad", "propio")).lower() in {"ajeno", "no", "externo"} else "propio"
+
+
 def validate_input_data(data: dict) -> list[str]:
     warnings: list[str] = []
+    internet = data.get("internet", {})
+    router_model = _display_model(_safe(data.get("router", {}).get("modelo", "")))
+    if (
+        "BACK UP" in _safe(internet.get("tipo", "")).upper()
+        and router_model != "CHATEAU"
+        and not internet.get("backup")
+    ):
+        warnings.append("La conexion Fibra + Backup con hAP ac2 necesita seleccionar WAP LTE o TELTONIKA para ETH2.")
     for team in data.get("equipos", []):
         qty = int(team.get("cantidad", 1))
         extensions = team.get("extensiones") or []
@@ -141,6 +153,7 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
             label=(
                 f"<b>ONT</b><br><b>{_safe(data.get('internet', {}).get('tipo', ''))} "
                 f"{_safe(data.get('internet', {}).get('velocidad', ''))}</b>"
+                f"<br>{_safe(data.get('internet', {}).get('proveedor', ''))}"
             ),
             model=data.get("ont", {}).get("modelo", "ONT"),
             x=240,
@@ -165,6 +178,31 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
     ]
 
     current_anchor = "router"
+    internet = data.get("internet", {})
+    router_model = _display_model(_safe(data.get("router", {}).get("modelo", "")))
+    backup_model = _safe(internet.get("backup", ""))
+    has_backup_service = "BACK UP" in _safe(internet.get("tipo", "")).upper()
+    if has_backup_service and router_model == "CHATEAU":
+        router_node = next(node for node in nodes if node.key == "router")
+        router_node.label += "<br>BACKUP 4G INTEGRADO"
+    elif has_backup_service and backup_model:
+        nodes.append(
+            NodeSpec(
+                key="backup",
+                kind="device",
+                label=f"<b>{backup_model}</b><br>BACKUP",
+                model=backup_model,
+                x=470,
+                y=330,
+                width=150,
+                height=120,
+                meta={"propiedad": "propio"},
+            )
+        )
+        edges.append(
+            EdgeSpec("router", "backup", label="ETH2-BACKUP", exit_x=0.5, exit_y=1.0, entry_x=0.5, entry_y=0.0)
+        )
+
     switches = [eq for eq in data.get("equipos", []) if eq.get("tipo") == "switch"]
     if include_switch and switches:
         switch = switches[0]
@@ -178,9 +216,10 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
                 y=120,
                 width=150,
                 height=150,
+                meta={"propiedad": _ownership(switch)},
             )
         )
-        edges.append(EdgeSpec("router", "switch", label="ETH2-LAN1", exit_x=1.0, exit_y=0.5, entry_x=0.0, entry_y=0.5))
+        edges.append(EdgeSpec("router", "switch", label="ETH3-LAN", exit_x=1.0, exit_y=0.5, entry_x=0.0, entry_y=0.5))
         current_anchor = "switch"
 
     equipo_x = 250
@@ -188,7 +227,8 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
     column = 0
     row = 0
     team_index = 1
-    port_index = 3
+    router_port_index = 3
+    switch_port_index = 1
     dect_base_keys: list[str] = []
 
     def next_position() -> tuple[int, int]:
@@ -230,24 +270,33 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
                     y=node_y,
                     width=150,
                     height=150,
-                    meta={"tipo": team.get("tipo"), "dect_role": "handset" if is_dect_handset else ("base" if is_dect_base else "")},
+                    meta={
+                        "tipo": team.get("tipo"),
+                        "dect_role": "handset" if is_dect_handset else ("base" if is_dect_base else ""),
+                        "propiedad": _ownership(team),
+                    },
                 )
             )
             if is_dect_base:
                 dect_base_keys.append(key)
             if not is_dect_handset:
+                if current_anchor == "switch":
+                    cable_label = f"SW{switch_port_index}-ETH"
+                    switch_port_index += 1
+                else:
+                    cable_label = f"ETH{router_port_index}-LAN"
+                    router_port_index += 1
                 edges.append(
                     EdgeSpec(
                         current_anchor,
                         key,
-                        label=f"ETH{port_index}-LAN{port_index-1}",
+                        label=cable_label,
                         exit_x=0.5,
                         exit_y=1.0,
                         entry_x=0.5,
                         entry_y=0.0,
                     )
                 )
-                port_index += 1
                 advance_position()
             team_index += 1
 

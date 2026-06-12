@@ -125,11 +125,15 @@ def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryI
         _geom(cell, node.x, node.y, node.width, node.height)
 
         label_id = ids.next()
+        label_style = TEXT_STYLE
+        if node.meta and node.meta.get("propiedad"):
+            color = "#008000" if node.meta["propiedad"] == "propio" else "#d00000"
+            label_style += f"fontColor={color};fontStyle=1;"
         _text_cell(
             root,
             label_id,
             node.label,
-            TEXT_STYLE,
+            label_style,
             node.x - 10,
             node.y + node.height + 10,
             node.width + 20,
@@ -156,7 +160,9 @@ def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryI
                 "value": edge_spec.label or "",
             },
         )
-        ET.SubElement(edge, "mxGeometry", {"relative": "1", "as": "geometry"})
+        geometry = ET.SubElement(edge, "mxGeometry", {"relative": "1", "as": "geometry"})
+        if edge_spec.label:
+            ET.SubElement(geometry, "mxPoint", {"x": "0", "y": "-14", "as": "offset"})
 
     xml = ET.tostring(mxfile, encoding="unicode")
     return BuildResult(xml=xml, warnings=warnings)

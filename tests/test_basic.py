@@ -45,6 +45,7 @@ class BasicTests(unittest.TestCase):
         self.assertIn("source=", result.xml)
         self.assertIn("target=", result.xml)
         self.assertIn('value="ETH1-WAN"', result.xml)
+        self.assertIn('y="-14" as="offset"', result.xml)
         self.assertIn("image=data:image/png%3Bbase64,", result.xml)
         self.assertIn("exitX=0.5;exitY=1.0", result.xml)
 
@@ -212,6 +213,58 @@ class BasicTests(unittest.TestCase):
         self.assertIn("EXT 2001", phone_node.label)
         self.assertIn("SN SN-T31-001", phone_node.label)
         self.assertIn("MAC AA:BB:CC:DD:EE:03", phone_node.label)
+
+    def test_hap_backup_uses_eth2_and_phones_start_at_eth3(self) -> None:
+        data = {
+            "cliente": "Demo",
+            "sede": "Central",
+            "direccion": "Bilbao",
+            "internet": {"tipo": "FIBRA + BACK UP", "velocidad": "600 MB", "backup": "TELTONIKA"},
+            "ont": {"modelo": "ONT ZTE"},
+            "router": {"modelo": "MikroTik hAP ac2"},
+            "equipos": [{"tipo": "telefono", "modelo": "T-31", "cantidad": 2}],
+        }
+        nodes, edges = build_layout(data)
+        self.assertTrue(any(node.key == "backup" and node.model == "TELTONIKA" for node in nodes))
+        self.assertTrue(any(edge.target == "backup" and edge.label == "ETH2-BACKUP" for edge in edges))
+        phone_labels = [edge.label for edge in edges if edge.target.startswith("team_")]
+        self.assertEqual(phone_labels, ["ETH3-LAN", "ETH4-LAN"])
+
+    def test_chateau_backup_is_integrated(self) -> None:
+        data = {
+            "cliente": "Demo",
+            "sede": "Central",
+            "direccion": "Bilbao",
+            "internet": {"tipo": "FIBRA + BACK UP", "velocidad": "600 MB"},
+            "ont": {"modelo": "ONT ZTE"},
+            "router": {"modelo": "CHATEAU"},
+            "equipos": [],
+        }
+        nodes, edges = build_layout(data)
+        router = next(node for node in nodes if node.key == "router")
+        self.assertIn("BACKUP 4G INTEGRADO", router.label)
+        self.assertFalse(any(node.key == "backup" for node in nodes))
+        self.assertFalse(any(edge.label == "ETH2-BACKUP" for edge in edges))
+
+    def test_switch_uses_eth3_and_phones_use_switch_ports(self) -> None:
+        data = {
+            "cliente": "Demo",
+            "sede": "Central",
+            "direccion": "Bilbao",
+            "template": "con_switch",
+            "internet": {"tipo": "SOLO FIBRA", "velocidad": "600 MB"},
+            "ont": {"modelo": "ONT ZTE"},
+            "router": {"modelo": "MikroTik hAP ac2"},
+            "equipos": [
+                {"tipo": "switch", "modelo": "TP-Link 16P", "cantidad": 1},
+                {"tipo": "telefono", "modelo": "T-31", "cantidad": 2},
+            ],
+        }
+        _, edges = build_layout(data)
+        self.assertTrue(any(edge.target == "switch" and edge.label == "ETH3-LAN" for edge in edges))
+        phone_edges = [edge for edge in edges if edge.target.startswith("team_")]
+        self.assertEqual([edge.source for edge in phone_edges], ["switch", "switch"])
+        self.assertEqual([edge.label for edge in phone_edges], ["SW1-ETH", "SW2-ETH"])
 
 
 if __name__ == "__main__":

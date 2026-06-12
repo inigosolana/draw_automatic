@@ -72,6 +72,8 @@ def parse_equipment_line(line: str) -> dict | None:
         return None
     qty = int(match.group("qty"))
     rest = match.group("rest").strip()
+    ownership = "ajeno" if re.search(r"\b(ajeno|no nuestro)\b", rest, re.IGNORECASE) else "propio"
+    rest = re.sub(r"\s*[\[(]?\b(?:propio|nuestro|ajeno|no nuestro)\b[\])]?\s*", " ", rest, flags=re.IGNORECASE).strip()
     ext_match = re.search(r",?\s*extensi\S*nes?\s+(.+)$|,?\s*extensi\S*n\s+(.+)$", rest, re.IGNORECASE)
     extensions: list[str] = []
     if ext_match:
@@ -79,34 +81,37 @@ def parse_equipment_line(line: str) -> dict | None:
         extensions = re.findall(r"\d{2,6}", ext_text)
         rest = rest[: ext_match.start()].strip(" ,")
 
-    tipo = "otro"
+    tipo = "pc"
     lowered = rest.lower()
     if "switch" in lowered:
         tipo = "switch"
+    elif any(model in lowered for model in ("w60b", "w70b", "w80b", "w90b")):
+        tipo = "base_dect"
+    elif any(model in lowered for model in ("w71h", "w53", "w53h", "w73", "w73h")):
+        tipo = "terminal_dect"
+    elif "ont" in lowered:
+        tipo = "ont"
+    elif "router" in lowered or "chateau" in lowered or "mikrotik" in lowered:
+        tipo = "router"
+    elif "ata" in lowered:
+        tipo = "ata"
     elif (
         "telefono" in lowered
         or "fanvil" in lowered
         or "yealink" in lowered
-        or "w60b" in lowered
-        or "w70b" in lowered
-        or "w71h" in lowered
-        or "w53" in lowered
-        or "w73" in lowered
-        or "w80b" in lowered
-        or "w90b" in lowered
     ):
         tipo = "telefono"
     elif "pc" in lowered:
         tipo = "pc"
-    elif "camara" in lowered:
-        tipo = "camara"
-    elif "wifi" in lowered or "ap " in lowered:
-        tipo = "wifi"
-    elif "ata" in lowered:
-        tipo = "ata"
 
     model = rest.strip(" ,")
-    return {"tipo": tipo, "modelo": model, "cantidad": qty, "extensiones": extensions}
+    return {
+        "tipo": tipo,
+        "modelo": model,
+        "cantidad": qty,
+        "extensiones": extensions,
+        "propiedad": ownership,
+    }
 
 
 def infer_template(data: dict) -> None:

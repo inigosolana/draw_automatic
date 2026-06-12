@@ -31,7 +31,19 @@ python web_app.py
 Abrir:
 
 ```text
-http://localhost:8000
+http://127.0.0.1:8000
+```
+
+Para publicarlo en red o en un servidor:
+
+```bash
+set DRAWIO_HOST=0.0.0.0
+set DRAWIO_PORT=8000
+set GLPI_URL=https://glpi.example/apirest.php
+set GLPI_WEB_URL=https://glpi.example
+set GLPI_APP_TOKEN=tu_app_token
+set GLPI_USER_TOKEN=tu_user_token
+python web_app.py
 ```
 
 La web permite:
@@ -43,6 +55,12 @@ La web permite:
 - indicar la ruta de la libreria `.xml`;
 - descargar automaticamente el `.drawio`;
 - ver una previsualizacion textual con plantilla inferida, total de equipos y warnings.
+- seleccionar provincia, cliente y sede desde GLPI;
+- revisar el `.drawio` antes de confirmar su publicacion en GLPI;
+- subir diagramas antiguos desde la pestana `Subir draw antiguo`;
+- aprender iconos etiquetados de draws antiguos sin reemplazar la libreria oficial.
+
+Las credenciales GLPI solo se leen desde variables de entorno. No deben incluirse en el repositorio.
 
 ## Formato JSON soportado
 

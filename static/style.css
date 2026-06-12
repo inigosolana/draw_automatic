@@ -26,6 +26,32 @@ body {
   margin-top: 0;
 }
 
+.app-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 22px 0 20px;
+  border-bottom: 1px solid #ccd8e2;
+}
+
+.app-tab {
+  padding: 10px 16px;
+  color: #315268;
+  text-decoration: none;
+  border-bottom: 3px solid transparent;
+  font-weight: 700;
+}
+
+.app-tab.active {
+  color: #0d5f7e;
+  border-bottom-color: #0d789e;
+}
+
+.upload-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 18px;
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -51,6 +77,7 @@ label {
 }
 
 input,
+select,
 textarea {
   width: 100%;
   margin-top: 8px;
@@ -64,6 +91,88 @@ textarea {
 
 textarea {
   resize: vertical;
+}
+
+.search-select {
+  position: relative;
+  margin-top: 8px;
+  font-weight: 400;
+}
+
+.search-select-trigger {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  border: 1px solid #bccbda;
+  border-radius: 10px;
+  background: #fff;
+  color: #111;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.search-select.disabled .search-select-trigger {
+  background: #f4f6f8;
+  color: #7b8791;
+  cursor: not-allowed;
+}
+
+.search-select-arrow {
+  margin-left: 12px;
+}
+
+.search-select-menu {
+  position: absolute;
+  z-index: 50;
+  top: calc(100% + 4px);
+  display: none;
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid #bccbda;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(25, 48, 68, 0.2);
+}
+
+.search-select.open .search-select-menu {
+  display: block;
+}
+
+.search-select-filter {
+  width: calc(100% - 16px);
+  margin: 8px;
+  padding: 9px 10px;
+  border-radius: 6px;
+}
+
+.search-select-options {
+  max-height: 230px;
+  overflow-y: auto;
+  border-top: 1px solid #e0e7ed;
+}
+
+.search-select-option {
+  display: block;
+  width: 100%;
+  padding: 10px 14px;
+  border: 0;
+  background: #fff;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.search-select-option:hover,
+.search-select-option:focus {
+  background: #e8f0fb;
+}
+
+.search-select-empty {
+  padding: 12px 14px;
+  color: #6b7780;
 }
 
 .actions {
@@ -90,6 +199,12 @@ textarea {
 .button.secondary {
   background: #dcecf6;
   color: #10384f;
+}
+
+.button.glpi {
+  margin-left: 8px;
+  background: #a7c942;
+  color: #183000;
 }
 
 .message {
@@ -123,6 +238,12 @@ textarea {
   margin-top: 8px;
   color: #446176;
   font-size: 0.95rem;
+}
+
+.upload-error {
+  padding: 10px 12px;
+  border-left: 4px solid #c97322;
+  background: #fff5e8;
 }
 
 ul {

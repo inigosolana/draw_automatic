@@ -12,6 +12,10 @@
         <header class="panel-header">
           <h1>Generador local de .drawio</h1>
           <p>Prueba el generador desde el navegador sin romper la CLI actual.</p>
+          <nav class="app-tabs">
+            <a class="app-tab active" href="{{ url_for('index') }}">Crear diagrama</a>
+            <a class="app-tab" href="{{ url_for('upload_draw') }}">Subir draw antiguo</a>
+          </nav>
         </header>
 
         {% if errors %}
@@ -35,7 +39,13 @@
             <div><strong>Direccion:</strong> {{ preview.direccion }}</div>
             <div><strong>Plantilla:</strong> {{ preview.template }}</div>
             <div><strong>Total equipos:</strong> {{ preview.total_equipment }}</div>
+            {% if preview.glpi_diagram_id %}
+            <div><strong>GLPI:</strong> Diagrama #{{ preview.glpi_diagram_id }} creado</div>
+            {% endif %}
           </div>
+          {% if preview.glpi_upload_error %}
+          <p class="upload-error"><strong>No se ha podido subir a GLPI:</strong> {{ preview.glpi_upload_error }}</p>
+          {% endif %}
           {% if preview.warnings %}
           <div class="warnings">
             <h3>Warnings</h3>
@@ -46,6 +56,10 @@
             </ul>
           </div>
           {% endif %}
+          <details class="json-preview">
+            <summary>Ver JSON estructurado</summary>
+            <pre>{{ preview.structured_json }}</pre>
+          </details>
           <p>
             <button
               type="button"
@@ -56,7 +70,31 @@
             >
               Descargar .drawio
             </button>
+            {% if preview.glpi_diagram_url %}
+            <a
+              class="button glpi"
+              href="{{ preview.glpi_diagram_url }}"
+              target="_blank"
+              rel="noopener"
+            >
+              Abrir diagrama en GLPI
+            </a>
+            {% endif %}
+            {% if preview.confirm_url %}
+            <button
+              type="button"
+              class="button glpi"
+              id="confirm-glpi"
+              data-confirm-url="{{ preview.confirm_url }}"
+            >
+              Confirmar y subir a GLPI
+            </button>
+            {% endif %}
           </p>
+          {% if preview.confirm_url %}
+          <p class="helper-text">Primero revisa el archivo descargado. Solo se publicara en GLPI cuando pulses confirmar.</p>
+          <p id="glpi-confirm-result" class="helper-text"></p>
+          {% endif %}
           <p class="helper-text">
             Si el navegador bloquea la descarga directa, el boton la fuerza como archivo local.
           </p>
@@ -92,6 +130,31 @@
                 });
               });
 
+              const confirmButton = document.getElementById("confirm-glpi");
+              const confirmResult = document.getElementById("glpi-confirm-result");
+              if (confirmButton) {
+                confirmButton.addEventListener("click", async function () {
+                  confirmButton.disabled = true;
+                  confirmResult.textContent = "Subiendo y asociando el diagrama a la sede...";
+                  try {
+                    const response = await fetch(confirmButton.dataset.confirmUrl, {
+                      method: "POST",
+                      credentials: "same-origin"
+                    });
+                    const body = await response.text();
+                    if (!response.ok) {
+                      throw new Error(body);
+                    }
+                    const result = JSON.parse(body);
+                    confirmResult.innerHTML = `Diagrama #${result.id} publicado. <a href="${result.url}" target="_blank" rel="noopener">Abrir en GLPI</a>`;
+                    confirmButton.remove();
+                  } catch (error) {
+                    confirmResult.textContent = `No se ha podido subir: ${error.message}`;
+                    confirmButton.disabled = false;
+                  }
+                });
+              }
+
               triggerDownload().catch(function () {
                 console.warn("La descarga automatica no se ha podido completar.");
               });
@@ -101,36 +164,86 @@
         {% endif %}
 
         <form method="post" action="{{ url_for('generate') }}" class="form-grid">
+          <input type="hidden" id="glpi-entity-id" name="glpi_entity_id" value="{{ form_data.get('glpi_entity_id', '') }}">
           <section class="form-section">
             <h2>Datos del cliente</h2>
+            {% if glpi_customers %}
+            <label>Provincia de GLPI
+              <div class="search-select" id="glpi-province" data-placeholder="Selecciona una provincia"></div>
+            </label>
+            <label>Cliente de GLPI
+              <div class="search-select disabled" id="glpi-customer" data-placeholder="Selecciona primero una provincia"></div>
+            </label>
+            <label>Sede de GLPI
+              <div class="search-select disabled" id="glpi-site" data-placeholder="Selecciona primero un cliente"></div>
+            </label>
+            {% elif glpi_error %}
+            <p class="helper-text">{{ glpi_error }} Puedes rellenar los datos manualmente.</p>
+            {% endif %}
             <label>Cliente
-              <input type="text" name="cliente" value="{{ form_data.get('cliente', '') }}" required>
+              <input type="text" id="cliente" name="cliente" value="{{ form_data.get('cliente', '') }}" required>
             </label>
             <label>CIF
-              <input type="text" name="cif" value="{{ form_data.get('cif', '') }}">
+              <input type="text" id="cif" name="cif" value="{{ form_data.get('cif', '') }}">
             </label>
             <label>Sede
-              <input type="text" name="sede" value="{{ form_data.get('sede', '') }}" required>
+              <input type="text" id="sede" name="sede" value="{{ form_data.get('sede', '') }}" required>
             </label>
             <label>Direccion / calle
-              <input type="text" name="direccion" value="{{ form_data.get('direccion', '') }}" required>
+              <input type="text" id="direccion" name="direccion" value="{{ form_data.get('direccion', '') }}" required>
             </label>
           </section>
 
           <section class="form-section">
             <h2>Conectividad</h2>
             <label>Tipo de internet
-              <input type="text" name="internet_tipo" value="{{ form_data.get('internet_tipo', '') }}" placeholder="FTTH">
+              <select name="internet_tipo">
+                <option value="">Selecciona el tipo de internet</option>
+                {% for internet_type in ['FIBRA + BACK UP', 'SOLO 4G MONITORIZADO', 'SOLO FIBRA'] %}
+                <option value="{{ internet_type }}" {% if form_data.get('internet_tipo') == internet_type %}selected{% endif %}>{{ internet_type }}</option>
+                {% endfor %}
+              </select>
             </label>
             <label>Velocidad
-              <input type="text" name="internet_velocidad" value="{{ form_data.get('internet_velocidad', '') }}" placeholder="1Gb">
+              <select name="internet_velocidad">
+                <option value="">Selecciona una velocidad</option>
+                {% for speed in ['300 MB', '600 MB', '1 GB'] %}
+                <option value="{{ speed }}" {% if form_data.get('internet_velocidad') == speed %}selected{% endif %}>{{ speed }}</option>
+                {% endfor %}
+              </select>
+            </label>
+            <label>Proveedor
+              <select name="internet_proveedor">
+                <option value="">Selecciona un proveedor</option>
+                {% for provider in ['AIRE', 'ADAMO', 'MAS MOVIL', 'EUSKALTEL', 'SARENET', 'SARENET ORANGE'] %}
+                <option value="{{ provider }}" {% if form_data.get('internet_proveedor') == provider %}selected{% endif %}>{{ provider }}</option>
+                {% endfor %}
+              </select>
             </label>
             <label>Modelo ONT
-              <input type="text" name="ont_modelo" value="{{ form_data.get('ont_modelo', '') }}" placeholder="ONT ZTE">
+              <select name="ont_modelo">
+                <option value="">Selecciona una ONT</option>
+                {% for ont_model in ['ONT ZTE', 'ONT ADAMO'] %}
+                <option value="{{ ont_model }}" {% if form_data.get('ont_modelo') == ont_model %}selected{% endif %}>{{ ont_model }}</option>
+                {% endfor %}
+              </select>
             </label>
             <label>Modelo router
-              <input type="text" name="router_modelo" value="{{ form_data.get('router_modelo', '') }}" placeholder="MikroTik hAP ac2">
+              <select name="router_modelo">
+                <option value="">Selecciona un router</option>
+                <option value="MikroTik hAP ac2" {% if form_data.get('router_modelo') == 'MikroTik hAP ac2' %}selected{% endif %}>MikroTik hAP ac2</option>
+                <option value="CHATEAU" {% if form_data.get('router_modelo') == 'CHATEAU' %}selected{% endif %}>CHATEAU</option>
+              </select>
             </label>
+            <label>Tipo de backup
+              <select name="backup_modelo">
+                <option value="">Sin equipo de backup</option>
+                {% for backup_model in ['WAP LTE', 'TELTONIKA'] %}
+                <option value="{{ backup_model }}" {% if form_data.get('backup_modelo') == backup_model %}selected{% endif %}>{{ backup_model }}</option>
+                {% endfor %}
+              </select>
+            </label>
+            <p class="helper-text">Con CHATEAU el backup 4G va integrado. Con hAP ac2 y Fibra + Backup selecciona WAP LTE o TELTONIKA para ETH2.</p>
             <label>IP router
               <input type="text" name="router_ip" value="{{ form_data.get('router_ip', '') }}" placeholder="192.168.0.1/24">
             </label>
@@ -139,12 +252,12 @@
           <section class="form-section full">
             <h2>Equipos</h2>
             <label>Equipamiento en texto natural
-              <textarea name="equipos_text" rows="8" placeholder="* 2 Fanvil V62, extensiones 2001 y 2002&#10;* 1 Yealink T31P, extension 2003&#10;* 1 switch TP-Link 16P&#10;* 3 PC">{{ form_data.get('equipos_text', '') }}</textarea>
+              <textarea name="equipos_text" rows="8" placeholder="* 2 Fanvil V62 propio, extensiones 2001 y 2002&#10;* 1 Yealink T31P ajeno, extension 2003&#10;* 1 switch TP-Link 16P propio&#10;* 3 PC ajeno">{{ form_data.get('equipos_text', '') }}</textarea>
             </label>
             <label>Detalle de terminales de telefonia
-              <textarea name="terminal_details" rows="5" placeholder="2001 | SN123456 | AA:BB:CC:DD:EE:01&#10;2002 | SN123457 | AA:BB:CC:DD:EE:02">{{ form_data.get('terminal_details', '') }}</textarea>
+              <textarea name="terminal_details" rows="5" placeholder="2001 | SN123456 | AA:BB:CC:DD:EE:01 | propio&#10;2002 | SN123457 | AA:BB:CC:DD:EE:02 | ajeno">{{ form_data.get('terminal_details', '') }}</textarea>
             </label>
-            <p class="helper-text">Una linea por terminal telefonico: extension | serial number | MAC</p>
+            <p class="helper-text">Una linea por terminal: extension | serial number | MAC | propio/ajeno. Propio se muestra en verde y ajeno en rojo.</p>
           </section>
 
           <section class="form-section full">
@@ -165,6 +278,119 @@
             <button type="submit" class="button primary">Generar .drawio</button>
           </div>
         </form>
+        {% if glpi_customers %}
+        <script>
+          const glpiCustomers = {{ glpi_customers | tojson }};
+          const fields = {
+            cliente: document.getElementById("cliente"),
+            cif: document.getElementById("cif"),
+            sede: document.getElementById("sede"),
+            direccion: document.getElementById("direccion")
+          };
+          const glpiEntityId = document.getElementById("glpi-entity-id");
+
+          function createSearchSelect(element, onSelect) {
+            let items = [];
+            let selected = null;
+            element.innerHTML = `
+              <button type="button" class="search-select-trigger">
+                <span>${element.dataset.placeholder}</span><span class="search-select-arrow">▾</span>
+              </button>
+              <div class="search-select-menu">
+                <input type="search" class="search-select-filter" placeholder="Buscar...">
+                <div class="search-select-options"></div>
+              </div>`;
+            const trigger = element.querySelector(".search-select-trigger");
+            const label = trigger.querySelector("span");
+            const filter = element.querySelector(".search-select-filter");
+            const options = element.querySelector(".search-select-options");
+
+            function render(query = "") {
+              const normalized = query.toLocaleLowerCase("es");
+              options.innerHTML = "";
+              items
+                .filter(item => item.nombre.toLocaleLowerCase("es").includes(normalized))
+                .forEach(item => {
+                  const button = document.createElement("button");
+                  button.type = "button";
+                  button.className = "search-select-option";
+                  button.textContent = item.nombre;
+                  button.addEventListener("click", function () {
+                    selected = item;
+                    label.textContent = item.nombre;
+                    element.classList.remove("open");
+                    filter.value = "";
+                    onSelect(item);
+                  });
+                  options.appendChild(button);
+                });
+              if (!options.children.length) {
+                options.innerHTML = '<div class="search-select-empty">Sin resultados</div>';
+              }
+            }
+
+            trigger.addEventListener("click", function () {
+              if (element.classList.contains("disabled")) return;
+              document.querySelectorAll(".search-select.open").forEach(other => {
+                if (other !== element) other.classList.remove("open");
+              });
+              element.classList.toggle("open");
+              if (element.classList.contains("open")) {
+                render();
+                filter.focus();
+              }
+            });
+            filter.addEventListener("input", () => render(filter.value));
+
+            return {
+              setItems(newItems, placeholder) {
+                items = newItems;
+                selected = null;
+                label.textContent = placeholder;
+                element.dataset.placeholder = placeholder;
+                element.classList.toggle("disabled", !newItems.length);
+                render();
+              },
+              getSelected() {
+                return selected;
+              }
+            };
+          }
+
+          let provinceControl;
+          let customerControl;
+          let siteControl;
+
+          siteControl = createSearchSelect(document.getElementById("glpi-site"), function (site) {
+            const customer = customerControl.getSelected();
+            fields.sede.value = site.nombre || "Sede Principal";
+            fields.direccion.value = site.direccion || customer.direccion || "";
+            glpiEntityId.value = String(site.id);
+          });
+
+          customerControl = createSearchSelect(document.getElementById("glpi-customer"), function (customer) {
+            fields.cliente.value = customer.nombre || "";
+            fields.cif.value = customer.cif || "";
+            fields.direccion.value = customer.direccion || "";
+            glpiEntityId.value = "";
+            siteControl.setItems(customer.sedes, "Selecciona una sede");
+          });
+
+          provinceControl = createSearchSelect(document.getElementById("glpi-province"), function (province) {
+            glpiEntityId.value = "";
+            customerControl.setItems(province.clientes, "Selecciona un cliente");
+            siteControl.setItems([], "Selecciona primero un cliente");
+          });
+
+          provinceControl.setItems(glpiCustomers, "Selecciona una provincia");
+
+          document.addEventListener("click", function (event) {
+            if (!event.target.closest(".search-select")) {
+              document.querySelectorAll(".search-select.open").forEach(element => element.classList.remove("open"));
+            }
+          });
+        </script>
+        {% endif %}
       </section>
     </main>
   </body>

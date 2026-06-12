@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Subir Draw a GLPI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  </head>
+  <body>
+    <main class="page">
+      <section class="panel">
+        <header class="panel-header">
+          <h1>Subir draw antiguo a GLPI</h1>
+          <p>Asocia diagramas existentes al cliente y sede correctos.</p>
+          <nav class="app-tabs">
+            <a class="app-tab" href="{{ url_for('index') }}">Crear diagrama</a>
+            <a class="app-tab active" href="{{ url_for('upload_draw') }}">Subir draw antiguo</a>
+          </nav>
+        </header>
+
+        {% if upload_error %}
+        <div class="message error"><strong>{{ upload_error }}</strong></div>
+        {% endif %}
+        {% if upload_result %}
+        <div class="message success">
+          <h2>Diagrama subido</h2>
+          <p><strong>{{ upload_result.filename }}</strong> se ha asociado a {{ upload_result.cliente }} / {{ upload_result.sede }}.</p>
+          {% if upload_result.learned_models %}
+          <p><strong>Base de conocimiento:</strong> se han aprendido {{ upload_result.learned_models | length }} modelo(s): {{ upload_result.learned_models | join(', ') }}.</p>
+          {% else %}
+          <p class="helper-text">No se encontraron iconos nuevos con una etiqueta suficientemente clara para aprenderlos.</p>
+          {% endif %}
+          <a class="button glpi" href="{{ upload_result.url }}" target="_blank" rel="noopener">Abrir diagrama #{{ upload_result.id }} en GLPI</a>
+        </div>
+        {% endif %}
+
+        <form method="post" enctype="multipart/form-data" class="upload-form">
+          <input type="hidden" id="upload-entity-id" name="glpi_entity_id">
+          <input type="hidden" id="upload-client-name" name="glpi_cliente">
+          <input type="hidden" id="upload-site-name" name="glpi_sede">
+          <section class="form-section">
+            <h2>Destino en GLPI</h2>
+            {% if glpi_customers %}
+            <label>Provincia
+              <div class="search-select" id="upload-province" data-placeholder="Selecciona una provincia"></div>
+            </label>
+            <label>Cliente
+              <div class="search-select disabled" id="upload-customer" data-placeholder="Selecciona primero una provincia"></div>
+            </label>
+            <label>Sede
+              <div class="search-select disabled" id="upload-site" data-placeholder="Selecciona primero un cliente"></div>
+            </label>
+            {% else %}
+            <p class="upload-error">{{ glpi_error }}</p>
+            {% endif %}
+          </section>
+
+          <section class="form-section">
+            <h2>Archivo existente</h2>
+            <label>Archivo .drawio
+              <input type="file" name="drawio_file" accept=".drawio,.xml,application/xml,text/xml" required>
+            </label>
+            <p class="helper-text">El archivo se valida antes de subirlo y se conserva sin modificar.</p>
+          </section>
+
+          <div class="actions">
+            <button type="submit" class="button primary">Subir draw a GLPI</button>
+          </div>
+        </form>
+      </section>
+    </main>
+    {% if glpi_customers %}
+    <script>
+      const catalog = {{ glpi_customers | tojson }};
+      function createSearchSelect(element, onSelect) {
+        let items = [];
+        let selected = null;
+        element.innerHTML = `<button type="button" class="search-select-trigger"><span>${element.dataset.placeholder}</span><span class="search-select-arrow">▾</span></button><div class="search-select-menu"><input type="search" class="search-select-filter" placeholder="Buscar..."><div class="search-select-options"></div></div>`;
+        const trigger = element.querySelector(".search-select-trigger");
+        const text = trigger.querySelector("span");
+        const filter = element.querySelector(".search-select-filter");
+        const options = element.querySelector(".search-select-options");
+        function render(query = "") {
+          const normalized = query.toLocaleLowerCase("es");
+          options.innerHTML = "";
+          items.filter(item => item.nombre.toLocaleLowerCase("es").includes(normalized)).forEach(item => {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "search-select-option";
+            button.textContent = item.nombre;
+            button.onclick = () => {
+              selected = item;
+              text.textContent = item.nombre;
+              element.classList.remove("open");
+              filter.value = "";
+              onSelect(item);
+            };
+            options.appendChild(button);
+          });
+          if (!options.children.length) options.innerHTML = '<div class="search-select-empty">Sin resultados</div>';
+        }
+        trigger.onclick = () => {
+          if (element.classList.contains("disabled")) return;
+          document.querySelectorAll(".search-select.open").forEach(other => {
+            if (other !== element) other.classList.remove("open");
+          });
+          element.classList.toggle("open");
+          if (element.classList.contains("open")) {
+            render();
+            filter.focus();
+          }
+        };
+        filter.oninput = () => render(filter.value);
+        return {
+          setItems(newItems, placeholder) {
+            items = newItems;
+            selected = null;
+            text.textContent = placeholder;
+            element.classList.toggle("disabled", !newItems.length);
+            render();
+          }
+        };
+      }
+      let customerControl;
+      let siteControl;
+      siteControl = createSearchSelect(document.getElementById("upload-site"), site => {
+        document.getElementById("upload-entity-id").value = site.id;
+        document.getElementById("upload-site-name").value = site.nombre;
+      });
+      customerControl = createSearchSelect(document.getElementById("upload-customer"), customer => {
+        document.getElementById("upload-client-name").value = customer.nombre;
+        document.getElementById("upload-entity-id").value = "";
+        siteControl.setItems(customer.sedes, "Selecciona una sede");
+      });
+      const provinceControl = createSearchSelect(document.getElementById("upload-province"), province => {
+        customerControl.setItems(province.clientes, "Selecciona un cliente");
+        siteControl.setItems([], "Selecciona primero un cliente");
+      });
+      provinceControl.setItems(catalog, "Selecciona una provincia");
+      document.addEventListener("click", event => {
+        if (!event.target.closest(".search-select")) {
+          document.querySelectorAll(".search-select.open").forEach(element => element.classList.remove("open"));
+        }
+      });
+    </script>
+    {% endif %}
+  </body>
+</html>

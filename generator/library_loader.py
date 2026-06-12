@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .aliases import normalize_name, resolve_alias
+from .knowledge_base import load_learned_items
 
 
 @dataclass
@@ -64,4 +65,18 @@ def load_library(path: str | Path) -> LibraryIndex:
     custom_icon = _load_local_icon("W71H", library_path.parent / "ausarta_drawio" / "assets" / "w71h.png")
     if custom_icon:
         items.append(custom_icon)
+    known_titles = {normalize_name(item.title) for item in items}
+    for entry in load_learned_items():
+        title = entry.get("title", "")
+        data = entry.get("data", "")
+        if not title or not data or normalize_name(title) in known_titles:
+            continue
+        items.append(
+            LibraryItem(
+                title=title,
+                data=data,
+                width=int(entry.get("width", 120)),
+                height=int(entry.get("height", 120)),
+            )
+        )
     return LibraryIndex(items)
