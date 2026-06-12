@@ -1,6 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from .aliases import resolve_alias
+
+
+DECT_BASE_MODELS = {"w60b", "w70b", "w80b", "w90b"}
+DECT_HANDSET_MODELS = {"w71h", "w53", "w53h", "w73", "w73h"}
 
 
 @dataclass
@@ -21,12 +26,42 @@ class EdgeSpec:
     source: str
     target: str
     label: str | None = None
+    exit_x: float = 1.0
     exit_y: float = 0.5
+    entry_x: float = 0.5
     entry_y: float = 0.5
 
 
 def _safe(value: object) -> str:
     return "" if value is None else str(value)
+
+
+def _normalized_model(team: dict) -> str:
+    return _safe(team.get("modelo", team.get("tipo", ""))).strip().lower()
+
+
+def _display_model(value: str) -> str:
+    return resolve_alias(value or "")
+
+
+def _router_label(router: dict) -> str:
+    alias = _display_model(_safe(router.get("modelo", "Router")))
+    ip_value = _safe(router.get("ip", ""))
+    if alias == "CHATEAU":
+        return f"<b>CHATEAU</b><br>LAN {ip_value}" if ip_value else "<b>CHATEAU</b>"
+    return f"<b>{alias or 'Router'}</b><br>{ip_value}"
+
+
+def _equipment_label(team: dict, extension: str = "") -> str:
+    display_model = _display_model(_safe(team.get("modelo", team.get("tipo", "Equipo"))))
+    parts = [f"<b>{display_model}</b>"]
+    if extension:
+        parts.append(f"EXT {_safe(extension)}")
+    if team.get("serial_number"):
+        parts.append(f"SN {_safe(team.get('serial_number'))}")
+    if team.get("mac"):
+        parts.append(f"MAC {_safe(team.get('mac'))}")
+    return "<br>".join(parts)
 
 
 def validate_input_data(data: dict) -> list[str]:
@@ -42,26 +77,34 @@ def validate_input_data(data: dict) -> list[str]:
 
 
 def summarize_equipment(data: dict) -> str:
-    lines = []
+    voip_lines: list[str] = []
+    router_lines: list[str] = []
+
+    router_model = _display_model(_safe(data.get("router", {}).get("modelo", "")))
+    ont_model = _display_model(_safe(data.get("ont", {}).get("modelo", "")))
+    if router_model:
+        router_lines.append(router_model)
+    if ont_model:
+        router_lines.append(ont_model)
+
     for team in data.get("equipos", []):
         qty = team.get("cantidad", 1)
-        model = team.get("modelo") or team.get("tipo", "Equipo")
-        lines.append(f"x{qty} {_safe(model)}")
-    total = sum(int(team.get("cantidad", 1)) for team in data.get("equipos", []))
+        model = _display_model(_safe(team.get("modelo") or team.get("tipo", "Equipo")))
+        tipo = _safe(team.get("tipo", "")).lower()
+        if tipo in {"telefono", "ata"}:
+            voip_lines.append(f"x{qty} {model}")
+        elif tipo in {"switch", "wifi", "otro"} and model in {"CHATEAU", "ONT ZTE", "Microtik_hAPc", "Router ZTE"}:
+            router_lines.append(model)
+
+    voip_html = "<br>".join(voip_lines) if voip_lines else "&nbsp;"
+    router_html = "<br>".join(router_lines) if router_lines else "&nbsp;"
     summary = [
         "<table style='width:100%;height:100%;border-collapse:collapse;' width='100%' height='100%' cellpadding='4' border='1'>",
         "<tbody>",
-        "<tr style='background-color:#A7C942;color:#ffffff;border:1px solid #98bf21;'><th align='left'>Cliente</th><th align='left'>Internet</th><th align='left'>Total</th></tr>",
-        (
-            f"<tr style='border:1px solid #98bf21;'><td>{_safe(data['cliente'])}</td>"
-            f"<td>{_safe(data.get('internet', {}).get('tipo', ''))} {_safe(data.get('internet', {}).get('velocidad', ''))}</td>"
-            f"<td>{total}</td></tr>"
-        ),
-        "<tr style='background-color:#EAF2D3;border:1px solid #98bf21;'><th align='left'>Sede</th><th align='left'>Router</th><th align='left'>Equipos</th></tr>",
-        (
-            f"<tr style='border:1px solid #98bf21;'><td>{_safe(data['sede'])}</td>"
-            f"<td>{_safe(data.get('router', {}).get('modelo', ''))}</td><td>{', '.join(lines) or '-'}</td></tr>"
-        ),
+        "<tr style='background-color:#A7C942;color:#ffffff;border:1px solid #98bf21;'><th align='left'>Puestos Voip</th><th align='left'>Routers/ONT</th></tr>",
+        f"<tr style='border:1px solid #98bf21;'><td>{voip_html}</td><td>{router_html}</td></tr>",
+        "<tr style='border:1px solid #98bf21;'><td>&nbsp;</td><td>&nbsp;</td></tr>",
+        "<tr style='border:1px solid #98bf21;'><td>&nbsp;</td><td>&nbsp;</td></tr>",
         "</tbody></table>",
     ]
     return "".join(summary)
@@ -108,10 +151,7 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
         NodeSpec(
             key="router",
             kind="device",
-            label=(
-                f"<b>{_safe(data.get('router', {}).get('modelo', 'Router'))}</b><br>"
-                f"{_safe(data.get('router', {}).get('ip', ''))}"
-            ),
+            label=_router_label(data.get("router", {})),
             model=data.get("router", {}).get("modelo", "Router"),
             x=470,
             y=120,
@@ -120,8 +160,8 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
         ),
     ]
     edges: list[EdgeSpec] = [
-        EdgeSpec("inet", "ont", exit_y=0.25, entry_y=0.0),
-        EdgeSpec("ont", "router", label="ETH1-WAN", exit_y=0.5, entry_y=0.0),
+        EdgeSpec("inet", "ont", exit_x=1.0, exit_y=0.5, entry_x=0.0, entry_y=0.5),
+        EdgeSpec("ont", "router", label="ETH1-WAN", exit_x=1.0, exit_y=0.5, entry_x=0.0, entry_y=0.5),
     ]
 
     current_anchor = "router"
@@ -140,7 +180,7 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
                 height=150,
             )
         )
-        edges.append(EdgeSpec("router", "switch", label="ETH2-LAN1", exit_y=0.5, entry_y=0.0))
+        edges.append(EdgeSpec("router", "switch", label="ETH2-LAN1", exit_x=1.0, exit_y=0.5, entry_x=0.0, entry_y=0.5))
         current_anchor = "switch"
 
     equipo_x = 250
@@ -149,37 +189,67 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
     row = 0
     team_index = 1
     port_index = 3
+    dect_base_keys: list[str] = []
+
+    def next_position() -> tuple[int, int]:
+        return equipo_x + column * 180, equipo_y + row * 190
+
+    def advance_position() -> None:
+        nonlocal column, row
+        column += 1
+        if column == 3:
+            column = 0
+            row += 1
+
     for team in data.get("equipos", []):
         if team.get("tipo") == "switch":
             continue
         qty = int(team.get("cantidad", 1))
         exts = team.get("extensiones", [])
+        normalized_model = _normalized_model(team)
+        is_dect_base = normalized_model in DECT_BASE_MODELS
+        is_dect_handset = normalized_model in DECT_HANDSET_MODELS
         for idx in range(qty):
             extension = exts[idx] if idx < len(exts) else ""
-            label = f"<b>{_safe(team.get('modelo', team.get('tipo', 'Equipo')))}</b>"
-            if extension:
-                label += f"<br>EXT {_safe(extension)}"
+            label = _equipment_label(team, extension=extension)
             key = f"team_{team_index}"
+            if is_dect_handset and dect_base_keys:
+                base_index = min(idx, len(dect_base_keys) - 1)
+                base_node = next(node for node in nodes if node.key == dect_base_keys[base_index])
+                node_x = base_node.x
+                node_y = base_node.y + 190
+            else:
+                node_x, node_y = next_position()
             nodes.append(
                 NodeSpec(
                     key=key,
                     kind="device",
                     label=label,
                     model=team.get("modelo", team.get("tipo", "Equipo")),
-                    x=equipo_x + column * 180,
-                    y=equipo_y + row * 190,
+                    x=node_x,
+                    y=node_y,
                     width=150,
                     height=150,
-                    meta={"tipo": team.get("tipo")},
+                    meta={"tipo": team.get("tipo"), "dect_role": "handset" if is_dect_handset else ("base" if is_dect_base else "")},
                 )
             )
-            edges.append(EdgeSpec(current_anchor, key, label=f"ETH{port_index}-LAN{port_index-1}", exit_y=min(0.25 * ((column % 3) + 1), 0.75), entry_y=0.0))
+            if is_dect_base:
+                dect_base_keys.append(key)
+            if not is_dect_handset:
+                edges.append(
+                    EdgeSpec(
+                        current_anchor,
+                        key,
+                        label=f"ETH{port_index}-LAN{port_index-1}",
+                        exit_x=0.5,
+                        exit_y=1.0,
+                        entry_x=0.5,
+                        entry_y=0.0,
+                    )
+                )
+                port_index += 1
+                advance_position()
             team_index += 1
-            column += 1
-            port_index += 1
-            if column == 3:
-                column = 0
-                row += 1
 
     nodes.append(
         NodeSpec(
@@ -231,7 +301,7 @@ def build_multisite_layout(data: dict) -> tuple[list[NodeSpec], list[EdgeSpec]]:
     for index, site in enumerate(sites, start=1):
         x = 120 + (index - 1) * 320
         nodes.append(NodeSpec(key=f"site_{index}", kind="device", label=f"<b>{_safe(site.get('sede', f'Sede {index}'))}</b><br>{_safe(site.get('direccion', ''))}", model=site.get("router", {}).get("modelo", data.get("router", {}).get("modelo", "Router")), x=x, y=240, width=150, height=150))
-        edges.append(EdgeSpec("inet", f"site_{index}", label=f"VPN {index}", exit_y=0.75, entry_y=0.0))
+        edges.append(EdgeSpec("inet", f"site_{index}", label=f"VPN {index}", exit_x=0.5, exit_y=1.0, entry_x=0.5, entry_y=0.0))
     nodes.append(NodeSpec(key="summary_title", kind="plain_text", label="Resumen Equipos", x=897, y=150, width=120, height=30))
     nodes.append(NodeSpec(key="summary", kind="table", label=summarize_equipment(data), x=765, y=190, width=385, height=170))
     return nodes, edges

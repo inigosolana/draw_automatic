@@ -83,7 +83,18 @@ def parse_equipment_line(line: str) -> dict | None:
     lowered = rest.lower()
     if "switch" in lowered:
         tipo = "switch"
-    elif "telefono" in lowered or "fanvil" in lowered or "yealink" in lowered or "w60b" in lowered or "w70b" in lowered:
+    elif (
+        "telefono" in lowered
+        or "fanvil" in lowered
+        or "yealink" in lowered
+        or "w60b" in lowered
+        or "w70b" in lowered
+        or "w71h" in lowered
+        or "w53" in lowered
+        or "w73" in lowered
+        or "w80b" in lowered
+        or "w90b" in lowered
+    ):
         tipo = "telefono"
     elif "pc" in lowered:
         tipo = "pc"

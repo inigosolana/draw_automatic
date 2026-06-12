@@ -141,6 +141,10 @@
             <label>Equipamiento en texto natural
               <textarea name="equipos_text" rows="8" placeholder="* 2 Fanvil V62, extensiones 2001 y 2002&#10;* 1 Yealink T31P, extension 2003&#10;* 1 switch TP-Link 16P&#10;* 3 PC">{{ form_data.get('equipos_text', '') }}</textarea>
             </label>
+            <label>Detalle de terminales de telefonia
+              <textarea name="terminal_details" rows="5" placeholder="2001 | SN123456 | AA:BB:CC:DD:EE:01&#10;2002 | SN123457 | AA:BB:CC:DD:EE:02">{{ form_data.get('terminal_details', '') }}</textarea>
+            </label>
+            <p class="helper-text">Una linea por terminal telefonico: extension | serial number | MAC</p>
           </section>
 
           <section class="form-section full">

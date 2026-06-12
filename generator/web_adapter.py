@@ -50,6 +50,19 @@ def _parse_equipment_block(text: str) -> list[dict]:
     return equipos
 
 
+def _apply_terminal_details(equipos: list[dict], details_text: str) -> None:
+    detail_lines = [line.strip() for line in details_text.splitlines() if line.strip()]
+    phone_equipos = [team for team in equipos if team.get("tipo") == "telefono"]
+    for team, line in zip(phone_equipos, detail_lines):
+        parts = [part.strip() for part in line.split("|")]
+        if len(parts) >= 1 and parts[0]:
+            team["extensiones"] = [parts[0]]
+        if len(parts) >= 2 and parts[1]:
+            team["serial_number"] = parts[1]
+        if len(parts) >= 3 and parts[2]:
+            team["mac"] = parts[2]
+
+
 def sanitize_filename(cliente: str, sede: str) -> str:
     base = f"{_clean_text(cliente)}_{_clean_text(sede)}"
     normalized = re.sub(r"\s+", "_", base)
@@ -87,6 +100,10 @@ def form_to_data(form: dict) -> dict:
         data["equipos"] = _parse_equipment_block(equipment_text)
     else:
         data.setdefault("equipos", [])
+
+    terminal_details = _clean_text(form.get("terminal_details"))
+    if terminal_details:
+        _apply_terminal_details(data["equipos"], terminal_details)
 
     infer_template(data)
     return data

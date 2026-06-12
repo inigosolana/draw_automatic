@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from urllib.parse import quote
 import xml.etree.ElementTree as ET
 
 from .library_loader import LibraryIndex
@@ -44,6 +45,10 @@ def _geom(parent: ET.Element, x: int, y: int, width: int, height: int) -> None:
 def _text_cell(root: ET.Element, cell_id: str, value: str, style: str, x: int, y: int, width: int, height: int) -> None:
     cell = ET.SubElement(root, "mxCell", {"id": cell_id, "value": value, "style": style, "parent": "1", "vertex": "1"})
     _geom(cell, x, y, width, height)
+
+
+def _drawio_image_uri(value: str) -> str:
+    return quote(value, safe=":/,=+")
 
 
 def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryIndex, warnings: list[str] | None = None) -> BuildResult:
@@ -111,7 +116,7 @@ def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryI
         if item:
             style = (
                 "shape=image;verticalLabelPosition=bottom;verticalAlign=top;"
-                f"imageAspect=0;image={item.data}"
+                f"imageAspect=0;image={_drawio_image_uri(item.data)}"
             )
         else:
             style = GENERIC_DEVICE_STYLE
@@ -135,8 +140,8 @@ def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryI
         edge_id = ids.next()
         style = EDGE_STYLE.replace("rounded=1", "rounded=0" if edge_spec.label and edge_spec.label.startswith("ETH1") else "rounded=1")
         style += (
-            f"exitX=1;exitY={edge_spec.exit_y};exitDx=0;exitDy=0;exitPerimeter=0;"
-            f"entryX=0.5;entryY={edge_spec.entry_y};entryDx=0;entryDy=0;"
+            f"exitX={edge_spec.exit_x};exitY={edge_spec.exit_y};exitDx=0;exitDy=0;exitPerimeter=0;"
+            f"entryX={edge_spec.entry_x};entryY={edge_spec.entry_y};entryDx=0;entryDy=0;"
         )
         edge = ET.SubElement(
             root,

@@ -22,12 +22,14 @@ class WebAdapterTests(unittest.TestCase):
             "router_modelo": "MikroTik hAP ac2",
             "router_ip": "192.168.1.1/24",
             "equipos_text": "* 2 Fanvil V62, extensiones 2001 y 2002\n* 1 switch TP-Link 16P",
+            "terminal_details": "2001 | SN1 | AA:BB:CC:DD:EE:01",
         }
         data = form_to_data(form)
         self.assertEqual(data["cliente"], "Cliente Demo")
         self.assertEqual(data["router"]["ip"], "192.168.1.1/24")
         self.assertEqual(len(data["equipos"]), 2)
         self.assertEqual(data["template"], "con_switch")
+        self.assertEqual(data["equipos"][0]["serial_number"], "SN1")
 
     def test_build_drawio_from_data_generates_filename(self) -> None:
         data = form_to_data(
@@ -36,12 +38,14 @@ class WebAdapterTests(unittest.TestCase):
                 "sede": "Esnabide 18",
                 "direccion": "Pasaia",
                 "ont_modelo": "ONT ZTE",
-                "router_modelo": "MikroTik hAP ac2",
+                "router_modelo": "CHATEAU",
+                "router_ip": "192.168.0.1/24",
             }
         )
         generated = build_drawio_from_data(data, LIBRARY)
         self.assertTrue(generated.filename.endswith(".drawio"))
         self.assertIn("<mxfile", generated.result.xml)
+        self.assertIn("LAN 192.168.0.1/24", generated.result.xml)
 
     def test_resolve_library_path_checks_project_parent(self) -> None:
         resolved = resolve_library_path("tests/fixtures/test_library.xml")

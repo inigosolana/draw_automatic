@@ -4,7 +4,7 @@ import unittest
 
 from generator.aliases import resolve_alias
 from generator.drawio_writer import build_drawio
-from generator.layout_engine import build_layout, validate_input_data
+from generator.layout_engine import build_layout, summarize_equipment, validate_input_data
 from generator.library_loader import load_library
 from generator.parser import load_input
 
@@ -45,6 +45,8 @@ class BasicTests(unittest.TestCase):
         self.assertIn("source=", result.xml)
         self.assertIn("target=", result.xml)
         self.assertIn('value="ETH1-WAN"', result.xml)
+        self.assertIn("image=data:image/png%3Bbase64,", result.xml)
+        self.assertIn("exitX=0.5;exitY=1.0", result.xml)
 
     def test_natural_text_input(self) -> None:
         data = load_input(TEXT_EXAMPLE)
@@ -130,6 +132,86 @@ class BasicTests(unittest.TestCase):
         nodes, edges = build_layout(data)
         result = build_drawio(nodes, edges, library)
         self.assertIn('pageHeight="1370"', result.xml)
+
+    def test_dect_handset_is_placed_below_base_without_router_edge(self) -> None:
+        data = {
+            "cliente": "Demo",
+            "sede": "Central",
+            "direccion": "Bilbao",
+            "internet": {"tipo": "FTTH", "velocidad": "1Gb"},
+            "ont": {"modelo": "ONT ZTE"},
+            "router": {"modelo": "MikroTik hAP ac2"},
+            "equipos": [
+                {"tipo": "telefono", "modelo": "W70B", "cantidad": 1},
+                {"tipo": "telefono", "modelo": "W71H", "cantidad": 1},
+            ],
+        }
+        nodes, edges = build_layout(data)
+        base_node = next(node for node in nodes if node.model == "W70B")
+        handset_node = next(node for node in nodes if node.model == "W71H")
+        self.assertEqual(handset_node.x, base_node.x)
+        self.assertGreater(handset_node.y, base_node.y)
+        self.assertFalse(any(edge.target == handset_node.key for edge in edges))
+
+    def test_summary_lists_one_equipment_per_line(self) -> None:
+        data = {
+            "cliente": "Demo",
+            "sede": "Central",
+            "direccion": "Bilbao",
+            "internet": {"tipo": "FTTH", "velocidad": "1Gb"},
+            "ont": {"modelo": "ONT ZTE"},
+            "router": {"modelo": "CHATEAU"},
+            "equipos": [
+                {"tipo": "telefono", "modelo": "W70B", "cantidad": 1},
+                {"tipo": "telefono", "modelo": "SIP-T31G", "cantidad": 1},
+                {"tipo": "telefono", "modelo": "W71H", "cantidad": 1},
+            ],
+        }
+        summary = summarize_equipment(data)
+        self.assertIn("Puestos Voip", summary)
+        self.assertIn("Routers/ONT", summary)
+        self.assertIn("x1 W60B<br>x1 T-31<br>x1 W71H", summary)
+        self.assertIn("CHATEAU<br>ONT ZTE", summary)
+
+    def test_chateau_label_is_short_and_shows_lan(self) -> None:
+        data = {
+            "cliente": "Demo",
+            "sede": "Central",
+            "direccion": "Bilbao",
+            "internet": {"tipo": "FTTH", "velocidad": "1Gb"},
+            "ont": {"modelo": "ONT ZTE"},
+            "router": {"modelo": "S53UG+5HaxD2HaxD-TC&RG650E-EU (CHATEAU 5G AX R17)", "ip": "192.168.0.1/24"},
+            "equipos": [],
+        }
+        nodes, _ = build_layout(data)
+        router_node = next(node for node in nodes if node.key == "router")
+        self.assertIn("<b>CHATEAU</b>", router_node.label)
+        self.assertIn("LAN 192.168.0.1/24", router_node.label)
+
+    def test_phone_label_includes_extension_serial_and_mac(self) -> None:
+        data = {
+            "cliente": "Demo",
+            "sede": "Central",
+            "direccion": "Bilbao",
+            "internet": {"tipo": "FTTH", "velocidad": "1Gb"},
+            "ont": {"modelo": "ONT ZTE"},
+            "router": {"modelo": "CHATEAU", "ip": "192.168.0.1/24"},
+            "equipos": [
+                {
+                    "tipo": "telefono",
+                    "modelo": "SIP-T31G",
+                    "cantidad": 1,
+                    "extensiones": ["2001"],
+                    "serial_number": "SN-T31-001",
+                    "mac": "AA:BB:CC:DD:EE:03",
+                }
+            ],
+        }
+        nodes, _ = build_layout(data)
+        phone_node = next(node for node in nodes if node.key.startswith("team_"))
+        self.assertIn("EXT 2001", phone_node.label)
+        self.assertIn("SN SN-T31-001", phone_node.label)
+        self.assertIn("MAC AA:BB:CC:DD:EE:03", phone_node.label)
 
 
 if __name__ == "__main__":
