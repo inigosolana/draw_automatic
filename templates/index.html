@@ -4,12 +4,17 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Ausarta Draw.io Local</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='images/ausarta-drawio-32.png') }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='images/ausarta-drawio-180.png') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   </head>
   <body>
     <main class="page">
       <section class="panel">
         <header class="panel-header">
+          <div class="app-brand">
+            <img src="{{ url_for('static', filename='images/ausarta-transparent.png') }}" alt="Ausarta">
+          </div>
           <h1>Generador local de .drawio</h1>
           <p>Prueba el generador desde el navegador sin romper la CLI actual.</p>
           {% if technician %}

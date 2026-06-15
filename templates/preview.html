@@ -4,11 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Previsualización - {{ filename }}</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='images/ausarta-drawio-32.png') }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='images/ausarta-drawio-180.png') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   </head>
   <body>
     <main class="preview-page">
       <header class="preview-toolbar">
+        <img class="preview-logo" src="{{ url_for('static', filename='images/ausarta-logo-light.png') }}" alt="Ausarta">
         <strong>{{ filename }}</strong>
         <span>Previsualización previa a GLPI</span>
       </header>

@@ -26,6 +26,34 @@ body {
   margin-top: 0;
 }
 
+.app-brand {
+  margin-bottom: 18px;
+}
+
+.app-brand img {
+  display: block;
+  width: 180px;
+  max-width: 60%;
+  height: auto;
+}
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 26px;
+  color: #446176;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.login-brand img {
+  width: min(330px, 90%);
+  height: auto;
+}
+
 .technician-bar,
 .preview-toolbar {
   display: flex;
@@ -288,6 +316,13 @@ textarea {
 
 .preview-toolbar {
   border-radius: 0;
+  background: #203e52;
+  color: #fff;
+}
+
+.preview-logo {
+  width: 125px;
+  height: auto;
 }
 
 .drawio-preview {
@@ -298,6 +333,23 @@ textarea {
 
 .login-panel {
   max-width: 430px;
+  text-align: center;
+}
+
+.login-panel form,
+.login-panel .helper-text {
+  text-align: left;
+}
+
+@media (max-width: 640px) {
+  .app-brand img {
+    width: 145px;
+    max-width: 75%;
+  }
+
+  .app-tabs {
+    overflow-x: auto;
+  }
 }
 
 .preview-grid {
