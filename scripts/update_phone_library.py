@@ -15,7 +15,7 @@ LIBRARY_PATH = ROOT / "libreria_Ausarta_JUN_2026.xml"
 MAX_DIMENSION = 520
 
 PHONE_SOURCES = {
-    "T-30": "https://storage.googleapis.com/nxl-content/yealink/t30p-image-1.jpg",
+    "T-30": str(ROOT / "assets" / "yealink_t30.png"),
     "T-33": str(ROOT / "assets" / "yealink_t33g.png"),
     "T-43": str(ROOT / "assets" / "yealink_t43u.png"),
     "T-44": str(ROOT / "assets" / "yealink_t44u.png"),
