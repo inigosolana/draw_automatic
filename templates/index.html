@@ -9,27 +9,9 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   </head>
   <body>
-    <main class="page">
-      <section class="panel">
-        <header class="panel-header">
-          <div class="app-brand">
-            <img src="{{ url_for('static', filename='images/ausarta-transparent.png') }}" alt="Ausarta">
-          </div>
-          <h1>Generador local de .drawio</h1>
-          <p>Prueba el generador desde el navegador sin romper la CLI actual.</p>
-          {% if technician %}
-          <div class="technician-bar">
-            <span><strong>Técnico:</strong> {{ technician.name or technician.username }}</span>
-            <form method="post" action="{{ url_for('logout') }}"><button type="submit" class="link-button">Cerrar sesión</button></form>
-          </div>
-          {% endif %}
-          <nav class="app-tabs">
-            <a class="app-tab active" href="{{ url_for('index') }}">Crear diagrama</a>
-            <a class="app-tab" href="{{ url_for('upload_draw') }}">Subir draw antiguo</a>
-            <a class="app-tab" href="{{ url_for('diagrams') }}">Consultar diagramas</a>
-            <a class="app-tab" href="{{ url_for('my_diagrams') }}">Mis diagramas</a>
-          </nav>
-        </header>
+    {% include "_app_header.html" %}
+    <main class="page page-wide">
+      <section class="panel creation-panel">
 
         {% if errors %}
         <div class="message error">
@@ -192,23 +174,29 @@
         </div>
         {% endif %}
 
-        <form method="post" action="{{ url_for('generate') }}" class="form-grid">
+        <form method="post" action="{{ url_for('generate') }}" class="creation-form">
           <input type="hidden" id="glpi-entity-id" name="glpi_entity_id" value="{{ form_data.get('glpi_entity_id', '') }}">
-          <section class="form-section">
-            <h2>Datos del cliente</h2>
+          <div class="creation-top-grid">
+          <section class="form-section destination-card">
+            <h2><span class="section-icon">◆</span> Destino GLPI</h2>
             {% if glpi_customers %}
-            <label>Provincia de GLPI
+            <div class="field-grid two-columns glpi-picker-grid">
+            <label>Provincia GLPI
               <div class="search-select" id="glpi-province" data-placeholder="Selecciona una provincia"></div>
             </label>
-            <label>Cliente de GLPI
+            <label>Cliente GLPI
               <div class="search-select disabled" id="glpi-customer" data-placeholder="Selecciona primero una provincia"></div>
             </label>
-            <label>Sede de GLPI
+            <label class="full-field">Sede GLPI
               <div class="search-select disabled" id="glpi-site" data-placeholder="Selecciona primero un cliente"></div>
             </label>
+            </div>
             {% elif glpi_error %}
             <p class="helper-text">{{ glpi_error }} Puedes rellenar los datos manualmente.</p>
             {% endif %}
+            <fieldset class="autofill-box">
+              <legend><span aria-hidden="true">✣</span> Autocompletado</legend>
+              <div class="field-grid two-columns">
             <label>Cliente
               <input type="text" id="cliente" name="cliente" value="{{ form_data.get('cliente', '') }}" required>
             </label>
@@ -221,15 +209,18 @@
             <label>Direccion / calle
               <input type="text" id="direccion" name="direccion" value="{{ form_data.get('direccion', '') }}" required>
             </label>
+              </div>
+            </fieldset>
             <p class="helper-text" id="address-source">
               Puedes corregir la calle. Al generar el draw se guardará para esta sede y se reutilizará la próxima vez.
             </p>
           </section>
 
-          <section class="form-section">
-            <h2>Conectividad</h2>
+          <section class="form-section connectivity-card">
+            <h2><span class="section-icon">▣</span> Conectividad</h2>
+            <div class="field-grid two-columns">
             <label>Tipo de internet
-              <select name="internet_tipo">
+              <select name="internet_tipo" id="internet-tipo">
                 <option value="">Selecciona el tipo de internet</option>
                 {% for internet_type in ['FIBRA + BACK UP', 'SOLO 4G MONITORIZADO', 'SOLO FIBRA'] %}
                 <option value="{{ internet_type }}" {% if form_data.get('internet_tipo') == internet_type %}selected{% endif %}>{{ internet_type }}</option>
@@ -261,53 +252,70 @@
               </select>
             </label>
             <label>Modelo router
-              <select name="router_modelo">
+              <select name="router_modelo" id="router-modelo">
                 <option value="">Selecciona un router</option>
                 <option value="MikroTik hAP ac2" {% if form_data.get('router_modelo') == 'MikroTik hAP ac2' %}selected{% endif %}>MikroTik hAP ac2</option>
                 <option value="CHATEAU" {% if form_data.get('router_modelo') == 'CHATEAU' %}selected{% endif %}>CHATEAU</option>
               </select>
             </label>
             <label>Tipo de backup
-              <select name="backup_modelo">
+              <select name="backup_modelo" id="backup-modelo">
                 <option value="">Sin equipo de backup</option>
                 {% for backup_model in ['WAP LTE', 'TELTONIKA'] %}
                 <option value="{{ backup_model }}" {% if form_data.get('backup_modelo') == backup_model %}selected{% endif %}>{{ backup_model }}</option>
                 {% endfor %}
               </select>
             </label>
-            <p class="helper-text">Con CHATEAU el backup 4G va integrado. Con hAP ac2 y Fibra + Backup selecciona WAP LTE o TELTONIKA para ETH2.</p>
-            <label>IP router
+            <label class="full-field">IP router
               <input type="text" name="router_ip" value="{{ form_data.get('router_ip', '') }}" placeholder="192.168.0.1/24">
             </label>
+            </div>
+            <p class="info-callout"><span aria-hidden="true">ⓘ</span> <span id="backup-help">Con CHATEAU el backup 4G va integrado. Con hAP ac2 y Fibra + Backup selecciona WAP LTE o TELTONIKA para ETH2.</span></p>
+          </section>
+          </div>
+
+          <section class="form-section equipment-card">
+            <h2><span class="section-icon">▣</span> Equipos y Detalles de Terminal</h2>
+            <div class="equipment-grid">
+              <div class="equipment-description">
+                <label>Descripción libre de equipamiento
+                  <textarea name="equipos_text" rows="10" placeholder="Ej: 1 switch TP-Link 16P propio&#10;1 patch panel 24 puertos propio&#10;1 firewall FortiGate 60F ajeno&#10;3 PC ajeno&#10;1 servidor propio&#10;2 puntos de acceso WiFi propio">{{ form_data.get('equipos_text', '') }}</textarea>
+                </label>
+                <p class="tip-callout"><span aria-hidden="true">♧</span> Añade aquí infraestructura adicional: switches, patch panels, firewalls, PCs, servidores, puntos de acceso u otros equipos. Los teléfonos se añaden individualmente en el panel de Telefonía.</p>
+              </div>
+              <div class="terminal-description">
+                <div class="terminal-heading">
+                  <div>
+                    <strong>Telefonía (Terminales)</strong>
+                    <p>Añade cada terminal por separado para copiar y pegar sus datos cómodamente.</p>
+                  </div>
+                  <button type="button" class="add-terminal-label" id="add-terminal"><span aria-hidden="true">⊕</span> Añadir terminal</button>
+                </div>
+                <div class="terminal-columns" aria-hidden="true">
+                  <strong>MODELO</strong><strong>EXTENSIÓN</strong><strong>SERIAL NUMBER</strong><strong>MAC</strong><strong>PROPIEDAD</strong><strong></strong>
+                </div>
+                <div id="terminal-rows" class="terminal-rows"></div>
+                <input type="hidden" name="terminal_details" id="terminal-details" value="{{ form_data.get('terminal_details', '') }}">
+                <input type="hidden" name="terminal_equipment_text" id="terminal-equipment-text">
+              </div>
+            </div>
           </section>
 
-          <section class="form-section full">
-            <h2>Equipos</h2>
-            <label>Equipamiento en texto natural
-              <textarea name="equipos_text" rows="8" placeholder="* 2 Fanvil V62 propio, extensiones 2001 y 2002&#10;* 1 Yealink T31P ajeno, extension 2003&#10;* 1 switch TP-Link 16P propio&#10;* 3 PC ajeno">{{ form_data.get('equipos_text', '') }}</textarea>
-            </label>
-            <label>Detalle de terminales de telefonia
-              <textarea name="terminal_details" rows="5" placeholder="2001 | SN123456 | AA:BB:CC:DD:EE:01 | propio&#10;2002 | SN123457 | AA:BB:CC:DD:EE:02 | ajeno">{{ form_data.get('terminal_details', '') }}</textarea>
-            </label>
-            <p class="helper-text">Una linea por terminal: extension | serial number | MAC | propio/ajeno. Propio se muestra en verde y ajeno en rojo.</p>
-          </section>
+          <details class="advanced-fields">
+            <summary>Opciones avanzadas</summary>
+            <div class="advanced-fields-grid">
+              <label>Bloque completo opcional
+                <textarea name="raw_text" rows="7" placeholder="Cliente: Pescados Gines e Hijos&#10;CIF: B20684866&#10;Sede: Esnabide 18&#10;Direccion: Esnabide 18, Pasaia, Gipuzkoa&#10;&#10;Internet: FTTH 1Gb&#10;ONT: ONT ZTE&#10;Router: MikroTik hAP ac2 - 192.168.0.1/24">{{ form_data.get('raw_text', '') }}</textarea>
+              </label>
+              <label>Ruta de la librería .xml
+                <input type="text" name="library_path" value="{{ form_data.get('library_path', 'libreria_Ausarta_JUN_2026.xml') }}">
+              </label>
+            </div>
+          </details>
 
-          <section class="form-section full">
-            <h2>Bloque completo opcional</h2>
-            <label>Pega aqui un bloque completo si prefieres rellenar todo de una vez
-              <textarea name="raw_text" rows="10" placeholder="Cliente: Pescados Gines e Hijos&#10;CIF: B20684866&#10;Sede: Esnabide 18&#10;Direccion: Esnabide 18, Pasaia, Gipuzkoa&#10;&#10;Internet: FTTH 1Gb&#10;ONT: ONT ZTE&#10;Router: MikroTik hAP ac2 - 192.168.0.1/24&#10;&#10;Equipos:&#10;* 2 Fanvil V62, extensiones 2001 y 2002&#10;* 1 Yealink T31P, extension 2003">{{ form_data.get('raw_text', '') }}</textarea>
-            </label>
-          </section>
-
-          <section class="form-section full">
-            <h2>Libreria</h2>
-            <label>Ruta de la libreria .xml
-              <input type="text" name="library_path" value="{{ form_data.get('library_path', 'libreria_Ausarta_JUN_2026.xml') }}">
-            </label>
-          </section>
-
-          <div class="actions">
-            <button type="submit" class="button primary">Generar .drawio</button>
+          <div class="creation-actions">
+            <button type="reset" class="button quiet">Limpiar formulario</button>
+            <button type="submit" class="button primary"><span aria-hidden="true">⌘</span> Generar diagrama</button>
           </div>
         </form>
         {% if glpi_customers %}
@@ -427,6 +435,135 @@
           });
         </script>
         {% endif %}
+        <script>
+          const internetType = document.getElementById("internet-tipo");
+          const routerModel = document.getElementById("router-modelo");
+          const backupModel = document.getElementById("backup-modelo");
+          const backupHelp = document.getElementById("backup-help");
+
+          function updateBackupSelector() {
+            const usesBackup = internetType.value === "FIBRA + BACK UP";
+            const isChateau = routerModel.value === "CHATEAU";
+            const canUseExternalBackup = usesBackup && !isChateau && routerModel.value === "MikroTik hAP ac2";
+
+            if (isChateau) {
+              backupModel.value = "";
+              backupModel.disabled = true;
+              backupModel.options[0].textContent = usesBackup
+                ? "Integrado en CHATEAU"
+                : "No necesario con CHATEAU";
+              backupHelp.textContent = usesBackup
+                ? "El backup 4G está integrado en el propio CHATEAU. No se añade ningún dispositivo externo."
+                : "CHATEAU incluye conectividad móvil integrada; no necesita un equipo de backup independiente.";
+              return;
+            }
+
+            backupModel.disabled = !canUseExternalBackup;
+            backupModel.options[0].textContent = canUseExternalBackup
+              ? "Selecciona WAP LTE o TELTONIKA"
+              : "Sin equipo de backup";
+            if (!canUseExternalBackup) {
+              backupModel.value = "";
+            }
+            backupHelp.textContent = canUseExternalBackup
+              ? "Con hAP ac2 y Fibra + Backup selecciona WAP LTE o TELTONIKA para conectarlo a ETH2."
+              : "El equipo de backup externo solo se utiliza con Fibra + Backup y MikroTik hAP ac2.";
+          }
+
+          internetType.addEventListener("change", updateBackupSelector);
+          routerModel.addEventListener("change", updateBackupSelector);
+          updateBackupSelector();
+
+          const terminalRows = document.getElementById("terminal-rows");
+          const terminalDetails = document.getElementById("terminal-details");
+          const terminalEquipmentText = document.getElementById("terminal-equipment-text");
+          const terminalModels = ["FANVIL V62", "FANVIL V64", "T-31", "W71H", "W53H", "W73H"];
+
+          function syncTerminalRows() {
+            const detailLines = [];
+            const equipmentLines = [];
+            terminalRows.querySelectorAll(".terminal-row").forEach(function (row) {
+              const model = row.querySelector('[data-field="model"]').value.trim();
+              const extension = row.querySelector('[data-field="extension"]').value.trim();
+              const serial = row.querySelector('[data-field="serial"]').value.trim();
+              const mac = row.querySelector('[data-field="mac"]').value.trim();
+              const ownership = row.querySelector('[data-field="ownership"]').value;
+              if (!model && !extension && !serial && !mac) return;
+              detailLines.push([extension, serial, mac, ownership].join(" | "));
+              if (model) {
+                const extensionText = extension ? `, extension ${extension}` : "";
+                equipmentLines.push(`1 ${model}${extensionText} ${ownership}`);
+              }
+            });
+            terminalDetails.value = detailLines.join("\n");
+            terminalEquipmentText.value = equipmentLines.join("\n");
+          }
+
+          function escapeAttribute(value) {
+            return String(value || "")
+              .replaceAll("&", "&amp;")
+              .replaceAll('"', "&quot;")
+              .replaceAll("<", "&lt;")
+              .replaceAll(">", "&gt;");
+          }
+
+          function addTerminalRow(values = {}) {
+            const row = document.createElement("div");
+            row.className = "terminal-row";
+            const modelOptions = ['<option value="">Selecciona un modelo</option>']
+              .concat(terminalModels.map(function (model) {
+                return `<option value="${model}"${values.model === model ? " selected" : ""}>${model}</option>`;
+              }))
+              .join("");
+            row.innerHTML = `
+              <select data-field="model" aria-label="Modelo de terminal">${modelOptions}</select>
+              <input data-field="extension" type="text" inputmode="numeric" placeholder="Extensión" value="${escapeAttribute(values.extension)}" aria-label="Extensión">
+              <input data-field="serial" type="text" placeholder="Serial number" value="${escapeAttribute(values.serial)}" aria-label="Serial number">
+              <input data-field="mac" type="text" placeholder="MAC" value="${escapeAttribute(values.mac)}" aria-label="MAC">
+              <select data-field="ownership" aria-label="Propiedad">
+                <option value="propio"${values.ownership !== "ajeno" ? " selected" : ""}>Propio</option>
+                <option value="ajeno"${values.ownership === "ajeno" ? " selected" : ""}>Ajeno</option>
+              </select>
+              <button type="button" class="remove-terminal" title="Eliminar terminal" aria-label="Eliminar terminal">×</button>`;
+            row.querySelectorAll("input, select").forEach(function (field) {
+              field.addEventListener("input", syncTerminalRows);
+              field.addEventListener("change", syncTerminalRows);
+            });
+            row.querySelector(".remove-terminal").addEventListener("click", function () {
+              row.remove();
+              if (!terminalRows.children.length) addTerminalRow();
+              syncTerminalRows();
+            });
+            terminalRows.appendChild(row);
+            syncTerminalRows();
+          }
+
+          function loadExistingTerminalRows() {
+            const lines = terminalDetails.value.split(/\r?\n/).filter(function (line) {
+              return line.trim();
+            });
+            if (!lines.length) {
+              addTerminalRow();
+              return;
+            }
+            lines.forEach(function (line) {
+              const parts = line.split("|").map(function (part) { return part.trim(); });
+              addTerminalRow({
+                extension: parts[0] || "",
+                serial: parts[1] || "",
+                mac: parts[2] || "",
+                ownership: (parts[3] || "propio").toLocaleLowerCase("es")
+              });
+            });
+          }
+
+          document.getElementById("add-terminal").addEventListener("click", function () {
+            addTerminalRow();
+            terminalRows.lastElementChild.querySelector('[data-field="model"]').focus();
+          });
+          document.querySelector(".creation-form").addEventListener("submit", syncTerminalRows);
+          loadExistingTerminalRows();
+        </script>
       </section>
     </main>
   </body>

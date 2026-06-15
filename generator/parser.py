@@ -142,6 +142,8 @@ def parse_equipment_line(line: str) -> dict | None:
         "telefono" in lowered
         or "fanvil" in lowered
         or "yealink" in lowered
+        or "t-31" in lowered
+        or "t31" in lowered
     ):
         tipo = "telefono"
     elif "pc" in lowered:

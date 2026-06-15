@@ -4,6 +4,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from .aliases import resolve_alias
 from .drawio_writer import BuildResult, build_drawio
 from .layout_engine import build_layout, validate_input_data
 from .library_loader import load_library
@@ -214,8 +215,17 @@ def _form_to_legacy_data(form: dict) -> dict:
     merged_model, merged_ip = _parse_router_ip(router.get("modelo", ""), router.get("ip", ""))
     router["modelo"] = merged_model
     router["ip"] = merged_ip
+    if resolve_alias(router["modelo"]) == "CHATEAU":
+        internet["backup"] = ""
 
-    equipment_text = _clean_text(form.get("equipos_text"))
+    equipment_text = "\n".join(
+        text
+        for text in (
+            _clean_text(form.get("equipos_text")),
+            _clean_text(form.get("terminal_equipment_text")),
+        )
+        if text
+    )
     if equipment_text:
         data["equipos"] = _parse_equipment_block(equipment_text)
     else:

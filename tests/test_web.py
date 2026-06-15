@@ -345,6 +345,43 @@ class WebAdapterTests(unittest.TestCase):
         self.assertEqual(data["template"], "con_switch")
         self.assertEqual(data["equipos"][0]["serial_number"], "SN1")
 
+    def test_chateau_discards_external_backup_device(self) -> None:
+        data = form_to_data(
+            {
+                "cliente": "Cliente Demo",
+                "sede": "Sede 1",
+                "direccion": "Calle Mayor 1",
+                "internet_tipo": "FIBRA + BACK UP",
+                "router_modelo": "CHATEAU",
+                "backup_modelo": "WAP LTE",
+            }
+        )
+
+        self.assertEqual(data["internet"]["backup"], "")
+
+    def test_terminal_rows_add_equipment_and_details(self) -> None:
+        data = form_to_data(
+            {
+                "cliente": "Cliente Demo",
+                "sede": "Sede 1",
+                "direccion": "Calle Mayor 1",
+                "router_modelo": "CHATEAU",
+                "terminal_equipment_text": (
+                    "1 FANVIL V62, extension 2001 propio\n"
+                    "1 T-31, extension 2002 ajeno"
+                ),
+                "terminal_details": (
+                    "2001 | SN1 | AA:BB:CC:DD:EE:01 | propio\n"
+                    "2002 | SN2 | AA:BB:CC:DD:EE:02 | ajeno"
+                ),
+            }
+        )
+
+        self.assertEqual(len(data["equipos"]), 2)
+        self.assertEqual(data["equipos"][0]["serial_number"], "SN1")
+        self.assertEqual(data["equipos"][1]["mac"], "AA:BB:CC:DD:EE:02")
+        self.assertEqual(data["equipos"][1]["propiedad"], "ajeno")
+
     def test_owned_and_external_devices_use_green_and_red_labels(self) -> None:
         data = form_to_data(
             {
@@ -489,6 +526,14 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         with self.client.session_transaction() as browser_session:
             self.assertEqual(browser_session["technician"]["name"], "Tecnico Prueba")
+
+    def test_login_allows_browser_password_managers(self) -> None:
+        response = self.client.get("/login")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'autocomplete="on"', response.data)
+        self.assertIn(b'autocomplete="username"', response.data)
+        self.assertIn(b'autocomplete="current-password"', response.data)
 
     def test_preview_page_loads_pending_diagram(self) -> None:
         DOWNLOADS["preview-token"] = {

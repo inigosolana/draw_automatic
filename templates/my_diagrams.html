@@ -9,24 +9,12 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   </head>
   <body>
+    {% include "_app_header.html" %}
     <main class="page">
       <section class="panel">
         <header class="panel-header">
-          <div class="app-brand">
-            <img src="{{ url_for('static', filename='images/ausarta-transparent.png') }}" alt="Ausarta">
-          </div>
           <h1>Mis diagramas</h1>
-          <p>Diagramas que has publicado en GLPI desde esta aplicacion.</p>
-          <div class="technician-bar">
-            <span><strong>Técnico:</strong> {{ technician.name or technician.username }}</span>
-            <form method="post" action="{{ url_for('logout') }}"><button type="submit" class="link-button">Cerrar sesión</button></form>
-          </div>
-          <nav class="app-tabs">
-            <a class="app-tab" href="{{ url_for('index') }}">Crear diagrama</a>
-            <a class="app-tab" href="{{ url_for('upload_draw') }}">Subir draw antiguo</a>
-            <a class="app-tab" href="{{ url_for('diagrams') }}">Consultar diagramas</a>
-            <a class="app-tab active" href="{{ url_for('my_diagrams') }}">Mis diagramas</a>
-          </nav>
+          <p>Gestiona y revisa los diagramas de red que has publicado.</p>
         </header>
 
         <section class="form-section full diagram-results">
@@ -38,7 +26,7 @@
               </thead>
               <tbody>
                 {% for diagram in diagrams %}
-                <tr>
+                <tr class="diagram-row">
                   <td>{{ diagram.created_label }}</td>
                   <td>#{{ diagram.diagram_id }}</td>
                   <td>{{ diagram.client_name }}</td>
@@ -63,5 +51,16 @@
         </section>
       </section>
     </main>
+    <script>
+      const diagramFilter = document.getElementById("diagram-filter");
+      if (diagramFilter) {
+        diagramFilter.addEventListener("input", function () {
+          const query = diagramFilter.value.toLocaleLowerCase("es").trim();
+          document.querySelectorAll(".diagram-row").forEach(function (row) {
+            row.hidden = query && !row.textContent.toLocaleLowerCase("es").includes(query);
+          });
+        });
+      }
+    </script>
   </body>
 </html>

@@ -1,0 +1,27 @@
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="topbar-brand" href="{{ url_for('index') }}" aria-label="Ausarta Draw.io">
+      <img src="{{ url_for('static', filename='images/ausarta-transparent.png') }}" alt="Ausarta">
+    </a>
+    <nav class="topbar-nav" aria-label="Navegación principal">
+      <a class="topbar-link {{ 'active' if request.endpoint in ('index', 'generate') else '' }}" href="{{ url_for('index') }}">Crear diagrama</a>
+      <a class="topbar-link {{ 'active' if request.endpoint == 'upload_draw' else '' }}" href="{{ url_for('upload_draw') }}">Subir draw antiguo</a>
+      <a class="topbar-link {{ 'active' if request.endpoint == 'diagrams' else '' }}" href="{{ url_for('diagrams') }}">Consultar diagramas</a>
+      <a class="topbar-link {{ 'active' if request.endpoint == 'my_diagrams' else '' }}" href="{{ url_for('my_diagrams') }}">Mis diagramas</a>
+    </nav>
+    <div class="topbar-actions">
+      {% if request.endpoint == 'my_diagrams' %}
+      <label class="topbar-search">
+        <span aria-hidden="true">&#128269;</span>
+        <input id="diagram-filter" type="search" placeholder="Buscar..." aria-label="Buscar en mis diagramas">
+      </label>
+      {% endif %}
+      {% if technician %}
+      <span class="technician-pill" title="Técnico conectado">{{ technician.name or technician.username }}</span>
+      <form method="post" action="{{ url_for('logout') }}">
+        <button type="submit" class="icon-button" title="Cerrar sesión" aria-label="Cerrar sesión">&#10140;</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</header>
