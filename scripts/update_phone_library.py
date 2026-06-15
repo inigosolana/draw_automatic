@@ -17,7 +17,7 @@ MAX_DIMENSION = 520
 PHONE_SOURCES = {
     "T-30": "https://storage.googleapis.com/nxl-content/yealink/t30p-image-1.jpg",
     "T-43": str(ROOT / "assets" / "yealink_t43u.png"),
-    "T-44": "https://www.yealink.com/website-service/attachment/product/image/20240204/202402040838195943dde6ca24a7ea9c38bcb6629b9dd.png",
+    "T-44": str(ROOT / "assets" / "yealink_t44u.png"),
     "T-73": "https://www.yealink.com/website-service/download/002.png",
     "FANVIL_V64": "https://cdn11.bigcommerce.com/s-pbm1b2ubzb/images/stencil/1280x1280/products/2914/3946/1354b606zf05945.1687178785.png?c=1",
     "GXP2170": "https://content.grandstream.com/hubfs/Product%20Images/GXP/gxp2170_front_web.png",
