@@ -314,6 +314,34 @@ class BasicTests(unittest.TestCase):
         self.assertEqual([edge.source for edge in phone_edges], ["switch", "switch"])
         self.assertEqual([edge.label for edge in phone_edges], ["SW1-ETH", "SW2-ETH"])
 
+    def test_summary_table_does_not_overlap_switch(self) -> None:
+        data = {
+            "cliente": "Demo",
+            "sede": "Central",
+            "direccion": "Bilbao",
+            "template": "con_switch",
+            "internet": {"tipo": "SOLO FIBRA", "velocidad": "600 MB"},
+            "ont": {"modelo": "ONT ZTE"},
+            "router": {"modelo": "MikroTik hAP ac2"},
+            "equipos": [
+                {"tipo": "switch", "modelo": "TP-Link 16P", "cantidad": 1},
+                {"tipo": "telefono", "modelo": "T-44", "cantidad": 1},
+            ],
+        }
+        nodes, _ = build_layout(data)
+        switch = next(node for node in nodes if node.key == "switch")
+        summary = next(node for node in nodes if node.key == "summary")
+        switch_box = (switch.x, switch.y, switch.x + switch.width, switch.y + switch.height)
+        summary_box = (summary.x, summary.y, summary.x + summary.width, summary.y + summary.height)
+        overlaps = not (
+            switch_box[2] <= summary_box[0]
+            or summary_box[2] <= switch_box[0]
+            or switch_box[3] <= summary_box[1]
+            or summary_box[3] <= switch_box[1]
+        )
+        self.assertFalse(overlaps)
+        self.assertGreater(summary.y, switch.y + switch.height - 20)
+
 
 if __name__ == "__main__":
     unittest.main()

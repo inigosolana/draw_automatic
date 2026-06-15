@@ -110,9 +110,10 @@ def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryI
 
         item = library.find(node.model or "")
         if item:
+            aspect = "1" if getattr(item, "aspect", "fixed") == "fixed" else "0"
             style = (
                 "shape=image;verticalLabelPosition=bottom;verticalAlign=top;"
-                f"imageAspect=0;image={_drawio_image_uri(item.data)}"
+                f"aspect={aspect};imageAspect=0;image={_drawio_image_uri(item.data)}"
             )
         else:
             style = GENERIC_DEVICE_STYLE

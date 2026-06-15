@@ -208,7 +208,8 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
         )
 
     switches = [eq for eq in data.get("equipos", []) if eq.get("tipo") == "switch"]
-    if include_switch and switches:
+    has_switch = include_switch and bool(switches)
+    if has_switch:
         switch = switches[0]
         nodes.append(
             NodeSpec(
@@ -226,8 +227,11 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
         edges.append(EdgeSpec("router", "switch", label="ETH3-LAN", exit_x=1.0, exit_y=0.5, entry_x=0.0, entry_y=0.5))
         current_anchor = "switch"
 
+    summary_title_y = 300 if has_switch else 80
+    summary_y = 340 if has_switch else 120
+    equipo_y = 560 if has_switch else 530
+
     equipo_x = 250
-    equipo_y = 530
     column = 0
     row = 0
     team_index = 1
@@ -311,7 +315,7 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
             kind="plain_text",
             label="Resumen Equipos",
             x=897,
-            y=70,
+            y=summary_title_y,
             width=120,
             height=30,
         )
@@ -322,7 +326,7 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
             kind="table",
             label=summarize_equipment(data),
             x=765,
-            y=110,
+            y=summary_y,
             width=385,
             height=170,
         )

@@ -17,8 +17,8 @@ MAX_DIMENSION = 520
 PHONE_SOURCES = {
     "T-30": "https://storage.googleapis.com/nxl-content/yealink/t30p-image-1.jpg",
     "T-43": "https://www.yealink.com/website-service/attachment/product/image/20220411/20220411105712296386c052c4461b54e15e1265968eb.png",
-    "T-44": "https://www.yealink.com/website-service/attachment/product/image/20240201/20240201093245689c1bb7a3043e28c6ca82a8196d7fb.png",
-    "T-73": "https://www.yealink.com/website-service/attachment/product/image/20250820/20250820062227606405d.jpg",
+    "T-44": "https://www.yealink.com/website-service/attachment/product/image/20240204/202402040838195943dde6ca24a7ea9c38bcb6629b9dd.png",
+    "T-73": "https://www.yealink.com/website-service/download/002.png",
     "FANVIL_V64": "https://cdn11.bigcommerce.com/s-pbm1b2ubzb/images/stencil/1280x1280/products/2914/3946/1354b606zf05945.1687178785.png?c=1",
     "GXP2170": "https://content.grandstream.com/hubfs/Product%20Images/GXP/gxp2170_front_web.png",
 }
@@ -64,20 +64,20 @@ def save_entries(entries: list[dict]) -> None:
 
 
 def upsert_phone(entries: list[dict], title: str, source: str) -> None:
-    existing = next((entry for entry in entries if entry.get("title") == title), None)
-    if existing:
-        print(f"skip existing: {title}")
-        return
     data_uri, width, height = image_to_data_uri(download_image(source))
-    entries.append(
-        {
-            "title": title,
-            "data": data_uri,
-            "w": width,
-            "h": height,
-            "aspect": "fixed",
-        }
-    )
+    payload = {
+        "title": title,
+        "data": data_uri,
+        "w": width,
+        "h": height,
+        "aspect": "fixed",
+    }
+    for index, entry in enumerate(entries):
+        if entry.get("title") == title:
+            entries[index] = payload
+            print(f"updated: {title} ({width}x{height})")
+            return
+    entries.append(payload)
     print(f"added: {title} ({width}x{height})")
 
 
