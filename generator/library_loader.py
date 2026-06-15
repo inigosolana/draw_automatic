@@ -67,6 +67,7 @@ def load_library(path: str | Path) -> LibraryIndex:
     for icon_title, icon_file in [
         ("W71H", "w71h.png"),
         ("W70B", "yealink_w70b.png"),
+        ("Mikrotik wAP LTE", "mikrotik_wap_lte.png"),
     ]:
         custom_icon = _load_local_icon(icon_title, PROJECT_ROOT / "assets" / icon_file)
         if custom_icon:

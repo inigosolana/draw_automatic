@@ -74,8 +74,10 @@ ALIASES = {
     "s53ug+5haxd2haxd-tc&rg650e-eu (chateau 5g ax r17)": "CHATEAU",
     "chateau 5g ax r17": "CHATEAU",
     "router zte": "Router ZTE",
-    "wap lte": "Mikrotik LTE6",
-    "mikrotik lte6": "Mikrotik LTE6",
+    "wap lte": "Mikrotik wAP LTE",
+    "mikrotik lte6": "Mikrotik wAP LTE",
+    "mikrotik wap lte": "Mikrotik wAP LTE",
+    "wap lte6": "Mikrotik wAP LTE",
     "teltonika": "TELTONIKA",
 }
 
