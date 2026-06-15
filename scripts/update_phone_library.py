@@ -14,12 +14,13 @@ ROOT = Path(__file__).resolve().parents[1]
 LIBRARY_PATH = ROOT / "libreria_Ausarta_JUN_2026.xml"
 MAX_DIMENSION = 520
 
-PHONE_SOURCES = {
+LIBRARY_SOURCES = {
     "T-30": str(ROOT / "assets" / "yealink_t30.png"),
     "T-33": str(ROOT / "assets" / "yealink_t33g.png"),
     "T-43": str(ROOT / "assets" / "yealink_t43u.png"),
     "T-44": str(ROOT / "assets" / "yealink_t44u.png"),
     "T-73": str(ROOT / "assets" / "yealink_t73w.png"),
+    "TP-Link 8P": str(ROOT / "assets" / "tplink_8p.png"),
     "FANVIL_V64": "https://cdn11.bigcommerce.com/s-pbm1b2ubzb/images/stencil/1280x1280/products/2914/3946/1354b606zf05945.1687178785.png?c=1",
     "GXP2170": "https://content.grandstream.com/hubfs/Product%20Images/GXP/gxp2170_front_web.png",
 }
@@ -95,7 +96,7 @@ def upsert_phone(entries: list[dict], title: str, source: str) -> None:
 
 def main() -> None:
     entries = load_entries()
-    for title, source in PHONE_SOURCES.items():
+    for title, source in LIBRARY_SOURCES.items():
         upsert_phone(entries, title, source)
     entries = [entry for entry in entries if not str(entry.get("title", "")).startswith("Yealink_T33G")]
     save_entries(entries)
