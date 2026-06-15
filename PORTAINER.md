@@ -2,15 +2,11 @@
 
 ## Preparacion del servidor
 
-1. Crea el directorio persistente:
+1. Renueva los tokens GLPI y utiliza una cuenta tecnica con permisos minimos.
 
-```bash
-sudo mkdir -p /opt/ausarta-drawio
-sudo cp libreria_Ausarta_JUN_2026.xml /opt/ausarta-drawio/
-sudo chmod 644 /opt/ausarta-drawio/libreria_Ausarta_JUN_2026.xml
-```
-
-2. Renueva los tokens GLPI y utiliza una cuenta tecnica con permisos minimos.
+La libreria `libreria_Ausarta_JUN_2026.xml` viaja dentro de la imagen Docker.
+No hace falta copiarla manualmente al servidor salvo que quieras sustituirla
+con un volumen propio.
 
 ## Stack desde GitHub
 
@@ -22,8 +18,6 @@ sudo chmod 644 /opt/ausarta-drawio/libreria_Ausarta_JUN_2026.xml
    Genera `DRAWIO_SECRET_KEY` con una cadena aleatoria de al menos 32 bytes.
    Mantén `DRAWIO_CATALOG_TTL=300` para evitar consultar todas las entidades de GLPI
    en cada navegacion.
-   `DRAWIO_LIBRARY_HOST_PATH` es opcional si la libreria se ha copiado en
-   `/opt/ausarta-drawio/libreria_Ausarta_JUN_2026.xml`.
 6. Despliega el stack.
 
 ## Comprobaciones

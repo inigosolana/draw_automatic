@@ -1,5 +1,6 @@
 from pathlib import Path
 from io import BytesIO
+import tempfile
 import time
 import unittest
 from unittest.mock import patch
@@ -416,6 +417,14 @@ class WebAdapterTests(unittest.TestCase):
         resolved = resolve_library_path("tests/fixtures/test_library.xml")
         self.assertEqual(resolved.resolve(), (ROOT / "tests" / "fixtures" / "test_library.xml").resolve())
 
+    def test_resolve_library_path_falls_back_when_mount_is_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            broken_mount = Path(directory) / "libreria_Ausarta_JUN_2026.xml"
+            broken_mount.mkdir()
+            resolved = resolve_library_path(broken_mount)
+            self.assertTrue(resolved.is_file())
+            self.assertEqual(resolved.name, "libreria_Ausarta_JUN_2026.xml")
+
     def test_real_library_loads_custom_w71h_icon(self) -> None:
         real_library = ROOT.parent / "libreria_Ausarta_JUN_2026.xml"
         if not real_library.exists():
@@ -575,15 +584,16 @@ class WebAppTests(unittest.TestCase):
         self.assertIn(b"obligatorio", response.data)
 
     def test_post_fails_when_library_does_not_exist(self) -> None:
-        response = self.client.post(
-            "/generate",
-            data={
-                "cliente": "Cliente Demo",
-                "sede": "Bilbao",
-                "direccion": "Gran Via 1",
-                "library_path": "missing_library.xml",
-            },
-        )
+        with patch("generator.web_adapter.BUNDLED_LIBRARY", Path("/missing/bundled.xml")):
+            response = self.client.post(
+                "/generate",
+                data={
+                    "cliente": "Cliente Demo",
+                    "sede": "Bilbao",
+                    "direccion": "Gran Via 1",
+                    "library_path": "missing_library.xml",
+                },
+            )
         self.assertEqual(response.status_code, 400)
         self.assertIn(b"No se ha encontrado la libreria", response.data)
 

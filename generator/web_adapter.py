@@ -23,6 +23,8 @@ ALLOWED_EQUIPMENT_TYPES = {
     "ont",
 }
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_LIBRARY_NAME = "libreria_Ausarta_JUN_2026.xml"
+BUNDLED_LIBRARY = PROJECT_ROOT / DEFAULT_LIBRARY_NAME
 
 
 @dataclass
@@ -249,17 +251,32 @@ def validate_web_data(data: dict) -> list[str]:
 
 def resolve_library_path(library_path: str | Path) -> Path:
     path = Path(library_path)
+    candidates: list[Path] = []
     if path.is_absolute():
-        return path
-    candidates = [
-        Path.cwd() / path,
-        PROJECT_ROOT / path,
-        PROJECT_ROOT.parent / path,
-    ]
+        candidates.append(path)
+    else:
+        candidates.extend(
+            [
+                Path.cwd() / path,
+                PROJECT_ROOT / path,
+                PROJECT_ROOT.parent / path,
+            ]
+        )
+
     for candidate in candidates:
-        if candidate.exists():
+        if candidate.is_file():
             return candidate
-    return candidates[0]
+        if candidate.is_dir():
+            named = candidate / DEFAULT_LIBRARY_NAME
+            if named.is_file():
+                return named
+            for xml_file in sorted(candidate.glob("*.xml")):
+                if xml_file.is_file():
+                    return xml_file
+
+    if BUNDLED_LIBRARY.is_file():
+        return BUNDLED_LIBRARY
+    return candidates[0] if candidates else path
 
 
 def build_drawio_from_data(data: dict, library_path: str | Path) -> WebGenerationResult:
@@ -268,7 +285,7 @@ def build_drawio_from_data(data: dict, library_path: str | Path) -> WebGeneratio
         raise ValueError("\n".join(errors))
 
     resolved_library = resolve_library_path(library_path)
-    if not resolved_library.exists():
+    if not resolved_library.is_file():
         raise FileNotFoundError("No se ha encontrado la libreria. Revisa la ruta.")
 
     library = load_library(resolved_library)

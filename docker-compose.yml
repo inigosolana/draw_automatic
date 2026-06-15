@@ -12,7 +12,7 @@ services:
       GLPI_WEB_URL: "${GLPI_WEB_URL}"
       GLPI_APP_TOKEN: "${GLPI_APP_TOKEN}"
       GLPI_USER_TOKEN: "${GLPI_USER_TOKEN}"
-      DRAWIO_LIBRARY_PATH: "/app/library/libreria_Ausarta_JUN_2026.xml"
+      DRAWIO_LIBRARY_PATH: "/app/libreria_Ausarta_JUN_2026.xml"
       DRAWIO_DOWNLOAD_DB: "/app/data/downloads.sqlite3"
       DRAWIO_SITE_DB: "/app/data/sites.sqlite3"
       DRAWIO_CATALOG_DB: "/app/data/catalog.sqlite3"
@@ -26,7 +26,6 @@ services:
       DRAWIO_PREVIEW_URL: "${DRAWIO_PREVIEW_URL:-https://embed.diagrams.net/}"
     volumes:
       - drawio_data:/app/data
-      - "${DRAWIO_LIBRARY_HOST_PATH:-/opt/ausarta-drawio/libreria_Ausarta_JUN_2026.xml}:/app/library/libreria_Ausarta_JUN_2026.xml:ro"
     networks:
       - drawio_network
 
