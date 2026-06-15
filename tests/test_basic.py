@@ -374,6 +374,31 @@ class BasicTests(unittest.TestCase):
         self.assertFalse(any(node.key == "backup" for node in nodes))
         self.assertFalse(any(edge.label == "ETH2-BACKUP" for edge in edges))
 
+    def test_switch_is_below_router_and_backup_is_to_the_right(self) -> None:
+        data = {
+            "cliente": "Demo",
+            "sede": "Central",
+            "direccion": "Bilbao",
+            "template": "con_switch",
+            "internet": {"tipo": "FIBRA + BACK UP", "velocidad": "600 MB", "backup": "WAP LTE"},
+            "ont": {"modelo": "ONT ZTE"},
+            "router": {"modelo": "MikroTik hAP ac2"},
+            "equipos": [
+                {"tipo": "switch", "modelo": "TP-Link 16P", "cantidad": 1},
+                {"tipo": "telefono", "modelo": "T-33", "cantidad": 1},
+            ],
+        }
+        nodes, edges = build_layout(data)
+        router = next(node for node in nodes if node.key == "router")
+        switch = next(node for node in nodes if node.key == "switch")
+        backup = next(node for node in nodes if node.key == "backup")
+        self.assertGreater(switch.y, router.y + router.height)
+        self.assertAlmostEqual(switch.x + switch.width / 2, router.x + router.width / 2, delta=20)
+        self.assertGreater(backup.x, router.x + router.width)
+        self.assertLess(abs((backup.y + backup.height / 2) - (router.y + router.height / 2)), 40)
+        self.assertTrue(any(edge.label == "ETH3-LAN" and edge.target == "switch" for edge in edges))
+        self.assertTrue(any(edge.label == "ETH2-BACKUP" and edge.target == "backup" for edge in edges))
+
     def test_switch_uses_eth3_and_phones_use_switch_ports(self) -> None:
         data = {
             "cliente": "Demo",

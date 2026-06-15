@@ -25,6 +25,8 @@ DECT_HANDSET_OFFSET_Y = 200
 SLOT_SPACING = 200
 MIN_LEFT_MARGIN = 60
 SWITCH_FALLBACK_ICON = "TP-Link 8P"
+ROUTER_BACKUP_GAP = 70
+ROUTER_SWITCH_GAP = 90
 
 
 def _count_device_slots(equipos: list) -> int:
@@ -321,16 +323,17 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
         router_node.label += "<br>BACKUP 4G INTEGRADO"
     elif has_backup_service and backup_model:
         router_node = next(node for node in nodes if node.key == "router")
+        backup_height = 120
         nodes.append(
             NodeSpec(
                 key="backup",
                 kind="device",
                 label=f"<b>{backup_model}</b><br>BACKUP",
                 model=backup_model,
-                x=max(80, router_node.x - 190),
-                y=router_node.y + 210,
+                x=router_node.x + router_node.width + ROUTER_BACKUP_GAP,
+                y=router_node.y + max(0, (router_node.height - backup_height) // 2),
                 width=150,
-                height=120,
+                height=backup_height,
                 meta={"propiedad": "propio"},
             )
         )
@@ -339,34 +342,49 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
                 "router",
                 "backup",
                 label="ETH2-BACKUP",
-                exit_x=0.35,
-                exit_y=1.0,
-                entry_x=0.5,
-                entry_y=0.0,
-                label_offset_x=-28,
-                label_offset_y=18,
+                exit_x=1.0,
+                exit_y=0.5,
+                entry_x=0.0,
+                entry_y=0.5,
+                label_offset_x=0,
+                label_offset_y=-12,
             )
         )
 
     switches = [eq for eq in data.get("equipos", []) if eq.get("tipo") == "switch"]
     has_switch = include_switch and bool(switches)
     if has_switch:
+        router_node = next(node for node in nodes if node.key == "router")
         switch = switches[0]
+        switch_width = 150
+        switch_height = 150
         nodes.append(
             NodeSpec(
                 key="switch",
                 kind="device",
                 label=f"<b>{_safe(switch.get('modelo', 'Switch'))}</b>",
                 model=switch.get("modelo", "Switch"),
-                x=720,
-                y=120,
-                width=150,
-                height=150,
+                x=router_node.x + (router_node.width - switch_width) // 2,
+                y=router_node.y + router_node.height + ROUTER_SWITCH_GAP,
+                width=switch_width,
+                height=switch_height,
                 meta={"propiedad": _ownership(switch)},
                 icon_model=SWITCH_FALLBACK_ICON,
             )
         )
-        edges.append(EdgeSpec("router", "switch", label="ETH3-LAN", exit_x=1.0, exit_y=0.5, entry_x=0.0, entry_y=0.5))
+        edges.append(
+            EdgeSpec(
+                "router",
+                "switch",
+                label="ETH3-LAN",
+                exit_x=0.5,
+                exit_y=1.0,
+                entry_x=0.5,
+                entry_y=0.0,
+                label_offset_x=18,
+                label_offset_y=-36,
+            )
+        )
         current_anchor = "switch"
 
     summary_title_y = SUMMARY_TITLE_Y
@@ -377,9 +395,9 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
     anchor_node = next(node for node in nodes if node.key == current_anchor)
     backup_node = next((n for n in nodes if n.key == "backup"), None)
     anchor_bottom = anchor_node.y + anchor_node.height
-    if backup_node:
+    if backup_node and not has_switch:
         anchor_bottom = max(anchor_bottom, backup_node.y + backup_node.height)
-    equipo_y = anchor_bottom + (200 if backup_node else 140)
+    equipo_y = anchor_bottom + 140
     max_per_row, _ = _max_slots_per_row(total_slots) if total_slots else (1, SLOT_SPACING)
 
     slot_index = 0
@@ -561,12 +579,16 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
 
 def build_rack_layout(data: dict) -> tuple[list[NodeSpec], list[EdgeSpec]]:
     nodes, edges = build_office_layout(data, include_switch=True)
+    router = next(node for node in nodes if node.key == "router")
     for node in nodes:
         if node.key == "router":
             node.y = 240
         elif node.key == "switch":
-            node.x = 970
-            node.y = 240
+            node.x = router.x + (router.width - node.width) // 2
+            node.y = router.y + router.height + ROUTER_SWITCH_GAP
+        elif node.key == "backup":
+            node.x = router.x + router.width + ROUTER_BACKUP_GAP
+            node.y = router.y + max(0, (router.height - node.height) // 2)
         elif node.key.startswith("team_"):
             node.y += 80
         elif node.key == "ont":
