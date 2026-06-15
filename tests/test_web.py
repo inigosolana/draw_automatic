@@ -5,6 +5,8 @@ import unittest
 from unittest.mock import patch
 from urllib.error import HTTPError, URLError
 
+from generator.catalog_cache import CatalogCache
+from generator.diagram_activity import DiagramActivity
 from generator.download_store import DownloadStore
 from generator.glpi_client import GlpiClient, GlpiError, build_customer_catalog
 from generator.knowledge_base import learn_from_drawio, load_learned_items
@@ -193,6 +195,48 @@ class WebAdapterTests(unittest.TestCase):
                 connection.close()
             self.assertEqual(len(store), 0)
             self.assertIsNone(store.get("token"))
+
+    def test_catalog_cache_is_shared_and_expires(self) -> None:
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "catalog.sqlite3"
+            writer = CatalogCache(path, ttl_seconds=1)
+            reader = CatalogCache(path, ttl_seconds=1)
+            catalog = [{"nombre": "Vizcaya", "clientes": []}]
+
+            writer.set("glpi_customer_catalog", catalog)
+            self.assertEqual(reader.get("glpi_customer_catalog"), catalog)
+
+            with patch("generator.catalog_cache.time.time", return_value=time.time() + 2):
+                self.assertIsNone(reader.get("glpi_customer_catalog"))
+
+    def test_diagram_activity_is_filtered_by_technician(self) -> None:
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as directory:
+            activity = DiagramActivity(Path(directory) / "activity.sqlite3")
+            activity.add(
+                diagram_id=101,
+                entity_id=7,
+                diagram_name="Cliente - Sede",
+                client_name="Cliente",
+                site_name="Sede",
+                technician={"username": "tecnico.uno", "name": "Tecnico Uno"},
+                source="Generado",
+            )
+            activity.add(
+                diagram_id=102,
+                entity_id=8,
+                diagram_name="Otro - Sede",
+                client_name="Otro",
+                site_name="Sede",
+                technician={"username": "tecnico.dos", "name": "Tecnico Dos"},
+                source="Archivo antiguo",
+            )
+
+            rows = activity.list_for_technician("tecnico.uno")
+            self.assertEqual([row["diagram_id"] for row in rows], [101])
 
     def test_site_address_is_persisted_by_entity_id(self) -> None:
         from tempfile import TemporaryDirectory
@@ -394,6 +438,34 @@ class WebAppTests(unittest.TestCase):
             response = self.client.get("/diagrams")
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Consultar diagramas publicados", response.data)
+
+    def test_my_diagrams_page_uses_authenticated_technician(self) -> None:
+        self.app.config["AUTH_REQUIRED"] = True
+        with self.client.session_transaction() as browser_session:
+            browser_session["technician"] = {
+                "username": "tecnico.uno",
+                "name": "Tecnico Uno",
+            }
+        rows = [
+            {
+                "diagram_id": 101,
+                "entity_id": 7,
+                "diagram_name": "Cliente - Sede",
+                "client_name": "Cliente",
+                "site_name": "Sede",
+                "technician_name": "Tecnico Uno",
+                "source": "Generado",
+                "created_at": time.time(),
+            }
+        ]
+        with patch("web_app.ACTIVITY.list_for_technician", return_value=rows) as list_activity:
+            with patch("web_app.GlpiClient.from_environment", return_value=None):
+                response = self.client.get("/my-diagrams")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Mis diagramas", response.data)
+        self.assertIn(b"Cliente - Sede", response.data)
+        list_activity.assert_called_once_with("tecnico.uno")
 
     def test_authentication_redirects_to_login_when_enabled(self) -> None:
         self.app.config["AUTH_REQUIRED"] = True

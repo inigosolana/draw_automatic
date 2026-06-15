@@ -20,6 +20,8 @@ sudo chmod 644 /opt/ausarta-drawio/libreria_Ausarta_JUN_2026.xml
 4. Usa `docker-compose.yml` como ruta del fichero Compose.
 5. Configura las variables de `.env.example` en `Environment variables`.
    Genera `DRAWIO_SECRET_KEY` con una cadena aleatoria de al menos 32 bytes.
+   Mantén `DRAWIO_CATALOG_TTL=300` para evitar consultar todas las entidades de GLPI
+   en cada navegacion.
    `DRAWIO_LIBRARY_HOST_PATH` es opcional si la libreria se ha copiado en
    `/opt/ausarta-drawio/libreria_Ausarta_JUN_2026.xml`.
 6. Despliega el stack.
@@ -45,12 +47,16 @@ Manager, Traefik o el proxy corporativo con:
 - autenticacion corporativa o SSO;
 - cabeceras `X-Forwarded-For` y `X-Forwarded-Proto`.
 
+Usa `DRAWIO_COOKIE_SECURE=0` mientras accedas directamente por HTTP e IP. Cambialo a
+`1` cuando la aplicacion se publique exclusivamente mediante HTTPS.
+
 ## Copias de seguridad
 
 Haz copia diaria del volumen `drawio_data`. Los diagramas definitivos permanecen en
 GLPI, pero el volumen contiene borradores pendientes y la base de conocimiento local.
 Tambien contiene `sites.sqlite3`, donde se conservan las direcciones exactas corregidas
-por los tecnicos para cada ID de sede GLPI.
+por los tecnicos para cada ID de sede GLPI. `catalog.sqlite3` conserva temporalmente el
+catalogo de GLPI para acelerar la interfaz.
 
 ## Integracion futura con CRM
 

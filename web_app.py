@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import uuid
+from datetime import datetime
 from functools import wraps
 from pathlib import Path
 
@@ -10,6 +11,8 @@ from defusedxml import ElementTree as DefusedET
 from defusedxml.common import DefusedXmlException
 from flask import Flask, Response, redirect, render_template, request, session, url_for
 
+from generator.catalog_cache import CatalogCache
+from generator.diagram_activity import DiagramActivity
 from generator.download_store import DownloadStore
 from generator.glpi_client import GlpiClient, GlpiError, build_customer_catalog
 from generator.knowledge_base import learn_from_drawio
@@ -24,6 +27,13 @@ DOWNLOADS = DownloadStore(
 )
 SITES = SiteDirectory(
     os.environ.get("DRAWIO_SITE_DB", PROJECT_ROOT / "data" / "sites.sqlite3")
+)
+CATALOG = CatalogCache(
+    os.environ.get("DRAWIO_CATALOG_DB", PROJECT_ROOT / "data" / "catalog.sqlite3"),
+    ttl_seconds=int(os.environ.get("DRAWIO_CATALOG_TTL", "300")),
+)
+ACTIVITY = DiagramActivity(
+    os.environ.get("DRAWIO_ACTIVITY_DB", PROJECT_ROOT / "data" / "activity.sqlite3")
 )
 DEFAULT_HOST = os.environ.get("DRAWIO_HOST", "0.0.0.0")
 DEFAULT_PORT = int(os.environ.get("DRAWIO_PORT", os.environ.get("PORT", "8000")))
@@ -64,11 +74,15 @@ def create_app() -> Flask:
         return wrapped
 
     def load_glpi_catalog() -> tuple[list[dict], str]:
+        cached = CATALOG.get("glpi_customer_catalog")
+        if cached is not None:
+            return apply_saved_addresses(cached, SITES.all()), ""
         client = GlpiClient.from_environment()
         if not client:
             return [], "GLPI no esta configurado."
         try:
             catalog = build_customer_catalog(client.list_entities())
+            CATALOG.set("glpi_customer_catalog", catalog)
             return apply_saved_addresses(catalog, SITES.all()), ""
         except GlpiError as exc:
             return [], str(exc)
@@ -153,6 +167,23 @@ def create_app() -> Flask:
             technician=current_technician(),
         )
 
+    @app.get("/my-diagrams")
+    @login_required
+    def my_diagrams() -> str:
+        technician = current_technician()
+        username = technician.get("username") or technician.get("name") or "local"
+        client = GlpiClient.from_environment()
+        rows = []
+        for item in ACTIVITY.list_for_technician(username):
+            item["created_label"] = datetime.fromtimestamp(item["created_at"]).strftime("%d/%m/%Y %H:%M")
+            item["url"] = client.diagram_url(item["diagram_id"]) if client else ""
+            rows.append(item)
+        return render_template(
+            "my_diagrams.html",
+            diagrams=rows,
+            technician=technician,
+        )
+
     @app.route("/upload-draw", methods=["GET", "POST"])
     @login_required
     def upload_draw() -> str:
@@ -198,6 +229,15 @@ def create_app() -> Flask:
                             f"Subido por {current_technician()['name']}"
                         ),
                         graph_xml=xml,
+                    )
+                    ACTIVITY.add(
+                        diagram_id=diagram_id,
+                        entity_id=validated_entity_id,
+                        diagram_name=Path(uploaded_file.filename).stem,
+                        client_name=client_name,
+                        site_name=site_name,
+                        technician=current_technician(),
+                        source="Archivo antiguo",
                     )
                     learned_models = learn_from_drawio(xml, uploaded_file.filename)
                     upload_result = {
@@ -372,6 +412,15 @@ def create_app() -> Flask:
                     f"Subido por {technician.get('name') or technician.get('username')}"
                 ),
                 graph_xml=payload["xml"],
+            )
+            ACTIVITY.add(
+                diagram_id=diagram_id,
+                entity_id=entity_id,
+                diagram_name=f"{payload['cliente']} - {payload['sede']}",
+                client_name=payload["cliente"],
+                site_name=payload["sede"],
+                technician=technician,
+                source="Generado",
             )
         except ValueError as exc:
             return Response(str(exc), status=400, mimetype="text/plain; charset=utf-8")

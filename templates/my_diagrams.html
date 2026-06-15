@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Mis diagramas</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='images/ausarta-drawio-32.png') }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='images/ausarta-drawio-180.png') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  </head>
+  <body>
+    <main class="page">
+      <section class="panel">
+        <header class="panel-header">
+          <div class="app-brand">
+            <img src="{{ url_for('static', filename='images/ausarta-transparent.png') }}" alt="Ausarta">
+          </div>
+          <h1>Mis diagramas</h1>
+          <p>Diagramas que has publicado en GLPI desde esta aplicacion.</p>
+          <div class="technician-bar">
+            <span><strong>Técnico:</strong> {{ technician.name or technician.username }}</span>
+            <form method="post" action="{{ url_for('logout') }}"><button type="submit" class="link-button">Cerrar sesión</button></form>
+          </div>
+          <nav class="app-tabs">
+            <a class="app-tab" href="{{ url_for('index') }}">Crear diagrama</a>
+            <a class="app-tab" href="{{ url_for('upload_draw') }}">Subir draw antiguo</a>
+            <a class="app-tab" href="{{ url_for('diagrams') }}">Consultar diagramas</a>
+            <a class="app-tab active" href="{{ url_for('my_diagrams') }}">Mis diagramas</a>
+          </nav>
+        </header>
+
+        <section class="form-section full diagram-results">
+          {% if diagrams %}
+          <div class="diagram-table-wrap">
+            <table class="diagram-table">
+              <thead>
+                <tr><th>Fecha</th><th>ID</th><th>Cliente</th><th>Sede</th><th>Nombre</th><th>Origen</th><th></th></tr>
+              </thead>
+              <tbody>
+                {% for diagram in diagrams %}
+                <tr>
+                  <td>{{ diagram.created_label }}</td>
+                  <td>#{{ diagram.diagram_id }}</td>
+                  <td>{{ diagram.client_name }}</td>
+                  <td>{{ diagram.site_name }}</td>
+                  <td>{{ diagram.diagram_name }}</td>
+                  <td>{{ diagram.source }}</td>
+                  <td>
+                    {% if diagram.url %}
+                    <a class="button glpi" href="{{ diagram.url }}" target="_blank" rel="noopener">Abrir</a>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="message">
+            <strong>Todavia no has publicado diagramas desde esta aplicacion.</strong>
+          </div>
+          {% endif %}
+        </section>
+      </section>
+    </main>
+  </body>
+</html>
