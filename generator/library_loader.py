@@ -9,6 +9,8 @@ from pathlib import Path
 from .aliases import normalize_name, resolve_alias
 from .knowledge_base import load_learned_items
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
 
 @dataclass
 class LibraryItem:
@@ -62,7 +64,7 @@ def load_library(path: str | Path) -> LibraryIndex:
             )
         )
 
-    custom_icon = _load_local_icon("W71H", library_path.parent / "ausarta_drawio" / "assets" / "w71h.png")
+    custom_icon = _load_local_icon("W71H", PROJECT_ROOT / "assets" / "w71h.png")
     if custom_icon:
         items.append(custom_icon)
     known_titles = {normalize_name(item.title) for item in items}

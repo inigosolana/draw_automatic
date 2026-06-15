@@ -5,7 +5,7 @@ prueba*.drawio
 *.err.log
 *.log
 .env
-data/learned_library.json
+/*.drawio
 data/downloads.sqlite3*
 data/sites.sqlite3*
 data/catalog.sqlite3*
