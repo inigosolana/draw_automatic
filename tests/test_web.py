@@ -397,6 +397,52 @@ class WebAdapterTests(unittest.TestCase):
         self.assertIn("fontColor=#008000", generated.result.xml)
         self.assertIn("fontColor=#d00000", generated.result.xml)
 
+    def test_device_catalog_includes_switch_models(self) -> None:
+        from generator.device_catalog import SWITCH_MODELS, build_device_catalog
+
+        catalog = build_device_catalog(str(ROOT / "tests" / "fixtures" / "test_library.xml"))
+        switch_category = next(item for item in catalog if item["id"] == "switch")
+        for model in SWITCH_MODELS:
+            self.assertIn(model, switch_category["models"])
+        otros = next(item for item in catalog if item["id"] == "otros")
+        self.assertTrue(otros.get("custom"))
+
+    def test_index_page_renders_device_picker(self) -> None:
+        app = create_app()
+        app.config["AUTH_REQUIRED"] = False
+        client = app.test_client()
+        response = client.get("/")
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        self.assertIn("Dispositivos", body)
+        self.assertIn("devices-json", body)
+        self.assertIn("TP-Link 16P", body)
+
+    def test_devices_json_populates_switch_and_custom_devices(self) -> None:
+        import json
+
+        payload = json.dumps(
+            [
+                {"category": "switch", "tipo": "switch", "modelo": "TP-Link 16P", "cantidad": 1, "propiedad": "propio"},
+                {"category": "otros", "tipo": "otro", "modelo": "Servidor Dell", "cantidad": 1, "propiedad": "ajeno"},
+            ]
+        )
+        data = form_to_data(
+            {
+                "cliente": "Demo",
+                "sede": "Central",
+                "direccion": "Bilbao",
+                "ont_modelo": "ONT ZTE",
+                "router_modelo": "CHATEAU",
+                "devices_json": payload,
+            }
+        )
+        switches = [item for item in data["equipos"] if item.get("tipo") == "switch"]
+        others = [item for item in data["equipos"] if item.get("modelo") == "Servidor Dell"]
+        self.assertEqual(len(switches), 1)
+        self.assertIn("switch", switches[0]["modelo"].lower())
+        self.assertEqual(others[0]["propiedad"], "ajeno")
+
     def test_build_drawio_from_data_generates_filename(self) -> None:
         data = form_to_data(
             {

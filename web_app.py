@@ -17,6 +17,7 @@ from generator.download_store import DownloadStore
 from generator.glpi_client import GlpiClient, GlpiError, build_customer_catalog
 from generator.knowledge_base import learn_from_drawio
 from generator.site_directory import SiteDirectory, apply_saved_addresses
+from generator.device_catalog import build_device_catalog
 from generator.web_adapter import build_drawio_from_data, form_to_data, form_to_structured_data
 
 
@@ -112,16 +113,23 @@ def create_app() -> Flask:
         session.clear()
         return redirect(url_for("login"))
 
+    def index_context(**extra):
+        glpi_customers, glpi_error = load_glpi_catalog()
+        context = {
+            "device_catalog": build_device_catalog(app.config["DEFAULT_LIBRARY"]),
+            "glpi_customers": glpi_customers,
+            "glpi_error": glpi_error,
+            "technician": current_technician(),
+        }
+        context.update(extra)
+        return context
+
     @app.get("/")
     @login_required
     def index() -> str:
-        glpi_customers, glpi_error = load_glpi_catalog()
         return render_template(
             "index.html",
-            form_data={"library_path": app.config["DEFAULT_LIBRARY"]},
-            glpi_customers=glpi_customers,
-            glpi_error=glpi_error,
-            technician=current_technician(),
+            **index_context(form_data={"library_path": app.config["DEFAULT_LIBRARY"]}),
         )
 
     @app.get("/health")
@@ -271,13 +279,18 @@ def create_app() -> Flask:
         except FileNotFoundError:
             return render_template(
                 "index.html",
-                form_data=form_data,
-                errors=["No se ha encontrado la libreria. Revisa la ruta."],
-                preview=None,
+                **index_context(
+                    form_data=form_data,
+                    errors=["No se ha encontrado la libreria. Revisa la ruta."],
+                    preview=None,
+                ),
             ), 400
         except ValueError as exc:
             errors = [line for line in str(exc).splitlines() if line.strip()]
-            return render_template("index.html", form_data=form_data, errors=errors, preview=None), 400
+            return render_template(
+                "index.html",
+                **index_context(form_data=form_data, errors=errors, preview=None),
+            ), 400
 
         glpi_entity_id = form_data.get("glpi_entity_id", "").strip()
         if glpi_entity_id:
@@ -286,11 +299,7 @@ def create_app() -> Flask:
             except ValueError as exc:
                 return render_template(
                     "index.html",
-                    form_data=form_data,
-                    errors=[str(exc)],
-                    preview=None,
-                    glpi_customers=[],
-                    glpi_error="",
+                    **index_context(form_data=form_data, errors=[str(exc)], preview=None),
                 ), 400
             technician = current_technician()
             SITES.set(
@@ -348,12 +357,7 @@ def create_app() -> Flask:
         }
         return render_template(
             "index.html",
-            form_data=form_data,
-            preview=preview,
-            errors=[],
-            glpi_customers=[],
-            glpi_error="",
-            technician=technician,
+            **index_context(form_data=form_data, preview=preview, errors=[]),
         )
 
     @app.get("/download/<token>")

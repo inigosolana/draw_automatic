@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .aliases import resolve_alias
+from .device_catalog import devices_json_to_equipos
 from .drawio_writer import BuildResult, build_drawio
 from .layout_engine import build_layout, validate_input_data
 from .library_loader import load_library
@@ -21,6 +22,8 @@ ALLOWED_EQUIPMENT_TYPES = {
     "ata",
     "pc",
     "ont",
+    "wifi",
+    "otro",
 }
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_LIBRARY_NAME = "libreria_Ausarta_JUN_2026.xml"
@@ -220,16 +223,21 @@ def _form_to_legacy_data(form: dict) -> dict:
     if resolve_alias(router["modelo"]) == "CHATEAU":
         internet["backup"] = ""
 
+    device_equipos = devices_json_to_equipos(_clean_text(form.get("devices_json")))
+    legacy_equipos_text = _clean_text(form.get("equipos_text"))
+    if legacy_equipos_text:
+        device_equipos.extend(_parse_equipment_block(legacy_equipos_text))
+
     equipment_text = "\n".join(
         text
         for text in (
-            _clean_text(form.get("equipos_text")),
             _clean_text(form.get("terminal_equipment_text")),
         )
         if text
     )
-    if equipment_text:
-        data["equipos"] = _parse_equipment_block(equipment_text)
+    terminal_equipos = _parse_equipment_block(equipment_text) if equipment_text else []
+    if device_equipos or terminal_equipos:
+        data["equipos"] = [*device_equipos, *terminal_equipos]
     else:
         data.setdefault("equipos", [])
 

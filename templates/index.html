@@ -277,11 +277,20 @@
           <section class="form-section equipment-card">
             <h2><span class="section-icon">▣</span> Equipos y Detalles de Terminal</h2>
             <div class="equipment-grid">
-              <div class="equipment-description">
-                <label>Descripción libre de equipamiento
-                  <textarea name="equipos_text" rows="10" placeholder="Ej: 1 switch TP-Link 16P propio&#10;1 patch panel 24 puertos propio&#10;1 firewall FortiGate 60F ajeno&#10;3 PC ajeno&#10;1 servidor propio&#10;2 puntos de acceso WiFi propio">{{ form_data.get('equipos_text', '') }}</textarea>
-                </label>
-                <p class="tip-callout"><span aria-hidden="true">♧</span> Añade aquí infraestructura adicional: switches, patch panels, firewalls, PCs, servidores, puntos de acceso u otros equipos. Los teléfonos se añaden individualmente en el panel de Telefonía.</p>
+              <div class="devices-panel">
+                <div class="devices-heading">
+                  <div>
+                    <strong>Dispositivos</strong>
+                    <p>Selecciona equipos de la librería. Para switches y otros dispositivos usa el desplegable.</p>
+                  </div>
+                  <button type="button" class="add-device-label" id="add-device"><span aria-hidden="true">⊕</span> Añadir dispositivo</button>
+                </div>
+                <div class="device-columns" aria-hidden="true">
+                  <strong>TIPO</strong><strong>MODELO</strong><strong>CANT.</strong><strong>PROPIEDAD</strong><strong></strong>
+                </div>
+                <div id="device-rows" class="device-rows"></div>
+                <input type="hidden" name="devices_json" id="devices-json" value="{{ form_data.get('devices_json', '') }}">
+                <p class="tip-callout"><span aria-hidden="true">♧</span> En <strong>Otros</strong> puedes escribir un modelo que no esté en la librería.</p>
               </div>
               <div class="terminal-description">
                 <div class="terminal-heading">
@@ -435,6 +444,155 @@
           });
         </script>
         {% endif %}
+        <script>
+          const deviceCatalog = {{ device_catalog | tojson }};
+          const deviceRows = document.getElementById("device-rows");
+          const devicesJson = document.getElementById("devices-json");
+
+          function escapeAttribute(value) {
+            return String(value || "")
+              .replaceAll("&", "&amp;")
+              .replaceAll('"', "&quot;")
+              .replaceAll("<", "&lt;")
+              .replaceAll(">", "&gt;");
+          }
+
+          function categoryById(categoryId) {
+            return deviceCatalog.find(function (category) {
+              return category.id === categoryId;
+            }) || deviceCatalog[deviceCatalog.length - 1];
+          }
+
+          function modelOptionsForCategory(categoryId, selectedModel) {
+            const category = categoryById(categoryId);
+            if (category.custom) {
+              return "";
+            }
+            const options = ['<option value="">Selecciona modelo</option>'];
+            (category.models || []).forEach(function (model) {
+              options.push(
+                `<option value="${escapeAttribute(model)}"${selectedModel === model ? " selected" : ""}>${escapeAttribute(model)}</option>`
+              );
+            });
+            return options.join("");
+          }
+
+          function syncDeviceRows() {
+            const payload = [];
+            deviceRows.querySelectorAll(".device-row").forEach(function (row) {
+              const categoryId = row.querySelector('[data-field="category"]').value;
+              const category = categoryById(categoryId);
+              const modelField = row.querySelector('[data-field="model"]');
+              const customField = row.querySelector('[data-field="custom-model"]');
+              const modelo = category.custom
+                ? (customField ? customField.value.trim() : "")
+                : modelField.value.trim();
+              const cantidad = Math.max(1, parseInt(row.querySelector('[data-field="quantity"]').value || "1", 10));
+              const propiedad = row.querySelector('[data-field="ownership"]').value;
+              if (!modelo) return;
+              payload.push({
+                category: categoryId,
+                tipo: category.tipo,
+                modelo: modelo,
+                cantidad: cantidad,
+                propiedad: propiedad,
+              });
+            });
+            devicesJson.value = JSON.stringify(payload);
+          }
+
+          function updateModelField(row) {
+            const categoryId = row.querySelector('[data-field="category"]').value;
+            const category = categoryById(categoryId);
+            const modelSelect = row.querySelector('[data-field="model"]');
+            const customInput = row.querySelector('[data-field="custom-model"]');
+            if (category.custom) {
+              modelSelect.hidden = true;
+              modelSelect.disabled = true;
+              customInput.hidden = false;
+              customInput.disabled = false;
+            } else {
+              modelSelect.hidden = false;
+              modelSelect.disabled = false;
+              customInput.hidden = true;
+              customInput.disabled = true;
+              modelSelect.innerHTML = modelOptionsForCategory(categoryId, modelSelect.value);
+            }
+            syncDeviceRows();
+          }
+
+          function addDeviceRow(values) {
+            values = values || {};
+            const row = document.createElement("div");
+            row.className = "device-row";
+            const categoryOptions = deviceCatalog.map(function (category) {
+              return `<option value="${category.id}"${values.category === category.id ? " selected" : ""}>${escapeAttribute(category.label)}</option>`;
+            }).join("");
+            row.innerHTML = `
+              <select data-field="category" aria-label="Tipo de dispositivo">${categoryOptions}</select>
+              <div class="device-model-field">
+                <select data-field="model" aria-label="Modelo de dispositivo"></select>
+                <input data-field="custom-model" type="text" placeholder="Modelo personalizado" value="${escapeAttribute(values.modelo)}" aria-label="Modelo personalizado" hidden disabled>
+              </div>
+              <input data-field="quantity" type="number" min="1" value="${escapeAttribute(values.cantidad || 1)}" aria-label="Cantidad">
+              <select data-field="ownership" aria-label="Propiedad">
+                <option value="propio"${values.propiedad !== "ajeno" ? " selected" : ""}>Propio</option>
+                <option value="ajeno"${values.propiedad === "ajeno" ? " selected" : ""}>Ajeno</option>
+              </select>
+              <button type="button" class="remove-device" title="Eliminar dispositivo" aria-label="Eliminar dispositivo">×</button>`;
+            const categoryField = row.querySelector('[data-field="category"]');
+            if (values.category) {
+              categoryField.value = values.category;
+            }
+            const modelField = row.querySelector('[data-field="model"]');
+            if (values.modelo && !categoryById(categoryField.value).custom) {
+              modelField.innerHTML = modelOptionsForCategory(categoryField.value, values.modelo);
+            }
+            categoryField.addEventListener("change", function () {
+              modelField.value = "";
+              row.querySelector('[data-field="custom-model"]').value = "";
+              updateModelField(row);
+            });
+            row.querySelectorAll("input, select").forEach(function (field) {
+              field.addEventListener("input", syncDeviceRows);
+              field.addEventListener("change", syncDeviceRows);
+            });
+            row.querySelector(".remove-device").addEventListener("click", function () {
+              row.remove();
+              if (!deviceRows.children.length) addDeviceRow();
+              syncDeviceRows();
+            });
+            deviceRows.appendChild(row);
+            updateModelField(row);
+            if (values.modelo && categoryById(categoryField.value).custom) {
+              row.querySelector('[data-field="custom-model"]').value = values.modelo;
+            }
+            syncDeviceRows();
+          }
+
+          function loadExistingDeviceRows() {
+            let items = [];
+            try {
+              items = JSON.parse(devicesJson.value || "[]");
+            } catch (error) {
+              items = [];
+            }
+            if (!items.length) {
+              addDeviceRow({ category: "switch" });
+              return;
+            }
+            items.forEach(function (item) {
+              addDeviceRow(item);
+            });
+          }
+
+          document.getElementById("add-device").addEventListener("click", function () {
+            addDeviceRow({ category: "switch" });
+            deviceRows.lastElementChild.querySelector('[data-field="category"]').focus();
+          });
+          document.querySelector(".creation-form").addEventListener("submit", syncDeviceRows);
+          loadExistingDeviceRows();
+        </script>
         <script>
           const internetType = document.getElementById("internet-tipo");
           const routerModel = document.getElementById("router-modelo");
