@@ -77,6 +77,12 @@ class BasicTests(unittest.TestCase):
         self.assertEqual(equipment["extensiones"], ["2001"])
         self.assertEqual(equipment["tipo"], "telefono")
 
+    def test_equipment_line_parses_dect_base(self) -> None:
+        equipment = parse_equipment_line("1 W71H, extension 3003, base W80B propio")
+        self.assertEqual(equipment["modelo"], "W71H")
+        self.assertEqual(equipment["dect_base"], "W80B")
+        self.assertEqual(equipment["extensiones"], ["3003"])
+
     def test_empty_equipment_line_is_ignored(self) -> None:
         self.assertIsNone(parse_equipment_line("   "))
 
@@ -231,6 +237,50 @@ class BasicTests(unittest.TestCase):
         self.assertTrue(any(edge.target == base_node.key and edge.label == "SW1-ETH" for edge in edges))
         self.assertFalse(any(edge.target == handset_node.key and edge.label and edge.label.endswith("-ETH") for edge in edges))
         self.assertTrue(any(edge.target == handset_node.key and edge.label == "DECT" for edge in edges))
+
+    def test_dect_handset_uses_selected_base_model(self) -> None:
+        data = {
+            "cliente": "Demo",
+            "sede": "Central",
+            "direccion": "Bilbao",
+            "template": "con_switch",
+            "internet": {"tipo": "SOLO FIBRA", "velocidad": "600 MB"},
+            "ont": {"modelo": "ONT ZTE"},
+            "router": {"modelo": "CHATEAU"},
+            "equipos": [
+                {"tipo": "switch", "modelo": "TP-Link 8P", "cantidad": 1},
+                {
+                    "tipo": "terminal_dect",
+                    "modelo": "W71H",
+                    "cantidad": 1,
+                    "extension": "3003",
+                    "dect_base": "W70B",
+                },
+            ],
+        }
+        nodes, _ = build_layout(data)
+        base_node = next(node for node in nodes if node.meta and node.meta.get("dect_role") == "base")
+        self.assertEqual(base_node.model, "W70B")
+        self.assertIn("SW1", base_node.label)
+
+    def test_switch_port_is_shown_on_device_label(self) -> None:
+        data = {
+            "cliente": "Demo",
+            "sede": "Central",
+            "direccion": "Bilbao",
+            "template": "con_switch",
+            "internet": {"tipo": "SOLO FIBRA", "velocidad": "600 MB"},
+            "ont": {"modelo": "ONT ZTE"},
+            "router": {"modelo": "MikroTik hAP ac2"},
+            "equipos": [
+                {"tipo": "switch", "modelo": "TP-Link 16P", "cantidad": 1},
+                {"tipo": "telefono", "modelo": "T-33", "cantidad": 1, "extensiones": ["3002"]},
+            ],
+        }
+        nodes, _ = build_layout(data)
+        phone_node = next(node for node in nodes if node.model == "T-33")
+        self.assertIn("SW1", phone_node.label)
+        self.assertIn("T-33", phone_node.label)
 
     def test_summary_lists_one_equipment_per_line(self) -> None:
         data = {

@@ -167,7 +167,15 @@ def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryI
             for waypoint_x, waypoint_y in edge_spec.waypoints:
                 ET.SubElement(points, "mxPoint", {"x": str(waypoint_x), "y": str(waypoint_y)})
         if edge_spec.label:
-            ET.SubElement(geometry, "mxPoint", {"x": "0", "y": "-14", "as": "offset"})
+            ET.SubElement(
+                geometry,
+                "mxPoint",
+                {
+                    "x": str(edge_spec.label_offset_x),
+                    "y": str(edge_spec.label_offset_y),
+                    "as": "offset",
+                },
+            )
 
     xml = ET.tostring(mxfile, encoding="unicode")
     return BuildResult(xml=xml, warnings=warnings)

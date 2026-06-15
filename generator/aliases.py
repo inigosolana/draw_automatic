@@ -65,7 +65,7 @@ ALIASES = {
     "switch tp link 8 puertos": "TP-Link 8P",
     "w60b": "W60B",
     "w70b": "W70B",
-    "w80b": "W60B",
+    "w80b": "W80B",
     "w90b": "YEALINK W90DM",
     "w53": "yealink_inalambrico",
     "w53h": "yealink_inalambrico",

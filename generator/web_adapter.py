@@ -73,9 +73,17 @@ def _parse_terminal_details(details_text: str) -> list[dict]:
             continue
         parts = [part.strip() for part in line.split("|")]
         detail: dict = {}
-        for key, value in zip(("extension", "serial_number", "mac", "propiedad"), parts):
-            if value:
-                detail[key] = value.lower() if key == "propiedad" else value
+        if len(parts) >= 1 and parts[0] and not parts[0].isdigit() and any(char.isalpha() for char in parts[0]):
+            keys = ("model", "extension", "serial_number", "mac", "propiedad", "dect_base")
+        else:
+            keys = ("extension", "serial_number", "mac", "propiedad", "dect_base", "model")
+        for key, value in zip(keys, parts):
+            if not value:
+                continue
+            if key == "propiedad":
+                detail[key] = value.lower()
+            else:
+                detail[key] = value
         details.append(detail)
     return details
 
@@ -106,7 +114,7 @@ def _expand_terminal_equipment(equipos: list[dict], details: list[dict]) -> list
             extension = detail.get("extension") or (extensions[index] if index < len(extensions) else "")
             if extension:
                 item["extension"] = extension
-            for key in ("serial_number", "mac", "propiedad"):
+            for key in ("serial_number", "mac", "propiedad", "dect_base"):
                 if detail.get(key):
                     item[key] = detail[key]
             expanded.append(item)

@@ -117,6 +117,11 @@ def parse_equipment_line(line: str) -> dict | None:
         raise ValueError(f"El campo 'cantidad' del equipo '{rest}' debe ser un entero positivo.")
     ownership = "ajeno" if re.search(r"\b(ajeno|no nuestro)\b", rest, re.IGNORECASE) else "propio"
     rest = re.sub(r"\s*[\[(]?\b(?:propio|nuestro|ajeno|no nuestro)\b[\])]?\s*", " ", rest, flags=re.IGNORECASE).strip()
+    dect_base = ""
+    base_match = re.search(r",?\s*base\s+([^,]+)", rest, re.IGNORECASE)
+    if base_match:
+        dect_base = base_match.group(1).strip()
+        rest = (rest[: base_match.start()] + rest[base_match.end() :]).strip(" ,")
     ext_match = re.search(r",?\s*extensi\S*nes?\s+(.+)$|,?\s*extensi\S*n\s+(.+)$", rest, re.IGNORECASE)
     extensions: list[str] = []
     if ext_match:
@@ -169,13 +174,16 @@ def parse_equipment_line(line: str) -> dict | None:
         tipo = "pc"
 
     model = rest.strip(" ,")
-    return {
+    equipment = {
         "tipo": tipo,
         "modelo": model,
         "cantidad": qty,
         "extensiones": extensions,
         "propiedad": ownership,
     }
+    if dect_base:
+        equipment["dect_base"] = dect_base
+    return equipment
 
 
 def infer_template(data: dict) -> None:

@@ -88,6 +88,8 @@ class EdgeSpec:
     entry_x: float = 0.5
     entry_y: float = 0.5
     waypoints: tuple[tuple[int, int], ...] | None = None
+    label_offset_x: int = 0
+    label_offset_y: int = -14
 
 
 def _safe(value: object) -> str:
@@ -122,9 +124,12 @@ def _is_4g_monitored(internet: dict) -> bool:
     return "4G MONITORIZADO" in _safe(internet.get("tipo", "")).upper()
 
 
-def _equipment_label(team: dict, extension: str = "") -> str:
+def _equipment_label(team: dict, extension: str = "", port_label: str = "") -> str:
     display_model = _display_model(_safe(team.get("modelo", team.get("tipo", "Equipo"))))
-    parts = [f"<b>{display_model}</b>"]
+    parts: list[str] = []
+    if port_label:
+        parts.append(f"<b>{_safe(port_label)}</b>")
+    parts.append(f"<b>{display_model}</b>")
     if extension:
         parts.append(f"EXT {_safe(extension)}")
     if team.get("serial_number"):
@@ -146,6 +151,13 @@ def _dect_base_model(normalized_model: str) -> str:
     if handset_key:
         return DECT_HANDSET_BASE.get(handset_key, "W60B")
     return "W60B"
+
+
+def _resolve_dect_base(team: dict, normalized_model: str) -> str:
+    custom = _safe(team.get("dect_base", "")).strip()
+    if custom:
+        return _display_model(custom)
+    return _dect_base_model(normalized_model)
 
 
 def _is_dect_base(normalized_model: str) -> bool:
@@ -308,21 +320,32 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
         router_node = next(node for node in nodes if node.key == "router")
         router_node.label += "<br>BACKUP 4G INTEGRADO"
     elif has_backup_service and backup_model:
+        router_node = next(node for node in nodes if node.key == "router")
         nodes.append(
             NodeSpec(
                 key="backup",
                 kind="device",
                 label=f"<b>{backup_model}</b><br>BACKUP",
                 model=backup_model,
-                x=470,
-                y=330,
+                x=max(80, router_node.x - 190),
+                y=router_node.y + 210,
                 width=150,
                 height=120,
                 meta={"propiedad": "propio"},
             )
         )
         edges.append(
-            EdgeSpec("router", "backup", label="ETH2-BACKUP", exit_x=0.5, exit_y=1.0, entry_x=0.5, entry_y=0.0)
+            EdgeSpec(
+                "router",
+                "backup",
+                label="ETH2-BACKUP",
+                exit_x=0.35,
+                exit_y=1.0,
+                entry_x=0.5,
+                entry_y=0.0,
+                label_offset_x=-28,
+                label_offset_y=18,
+            )
         )
 
     switches = [eq for eq in data.get("equipos", []) if eq.get("tipo") == "switch"]
@@ -356,7 +379,7 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
     anchor_bottom = anchor_node.y + anchor_node.height
     if backup_node:
         anchor_bottom = max(anchor_bottom, backup_node.y + backup_node.height)
-    equipo_y = anchor_bottom + 140
+    equipo_y = anchor_bottom + (200 if backup_node else 140)
     max_per_row, _ = _max_slots_per_row(total_slots) if total_slots else (1, SLOT_SPACING)
 
     slot_index = 0
@@ -376,15 +399,31 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
         slot_index += 1
         return x, y
 
+    def next_port_labels() -> tuple[str, str]:
+        nonlocal router_port_index, switch_port_index
+        if current_anchor == "switch":
+            port = f"SW{switch_port_index}"
+            cable_label = f"{port}-ETH"
+            switch_port_index += 1
+            return cable_label, port
+        port = f"ETH{router_port_index}"
+        cable_label = f"{port}-LAN"
+        router_port_index += 1
+        return cable_label, port
+
     def place_edge(anchor_key: str, target_key: str, label: str) -> None:
         anchor = next(node for node in nodes if node.key == anchor_key)
         target = next(node for node in nodes if node.key == target_key)
         exit_x = _anchor_exit_x(anchor, target) if anchor_key in {"switch", "router"} else 0.5
         waypoints: tuple[tuple[int, int], ...] | None = None
+        label_offset_x = 0
+        label_offset_y = -14
         if anchor_key in {"switch", "router"} and label and (label.endswith("-ETH") or label.endswith("-LAN")):
             target_center = target.x + target.width // 2
-            bus_y = target.y - 65
+            bus_y = target.y - 85
             waypoints = ((target_center, bus_y),)
+            label_offset_x = 16
+            label_offset_y = -((target.y - bus_y) // 2 + 8)
         edges.append(
             EdgeSpec(
                 anchor_key,
@@ -395,6 +434,8 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
                 entry_x=0.5,
                 entry_y=0.0,
                 waypoints=waypoints,
+                label_offset_x=label_offset_x,
+                label_offset_y=label_offset_y,
             )
         )
 
@@ -408,18 +449,21 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
         is_dect_base = _is_dect_base(normalized_model)
         is_dect_handset = _dect_handset_key(normalized_model) is not None
         for idx in range(qty):
-            extension = exts[idx] if idx < len(exts) else ""
-            label = _equipment_label(team, extension=extension)
+            extension = exts[idx] if idx < len(exts) else team.get("extension", "")
             if is_dect_handset:
                 if idx >= len(dect_base_keys):
                     base_key = f"team_{team_index}"
-                    base_model_name = _dect_base_model(normalized_model)
+                    base_model_name = _resolve_dect_base(team, normalized_model)
                     base_x, base_y = next_position()
+                    cable_label, port_label = next_port_labels()
                     nodes.append(
                         NodeSpec(
                             key=base_key,
                             kind="device",
-                            label=f"<b>{_display_model(base_model_name)}</b>",
+                            label=_equipment_label(
+                                {"modelo": base_model_name},
+                                port_label=port_label,
+                            ),
                             model=base_model_name,
                             x=base_x,
                             y=base_y,
@@ -428,23 +472,18 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
                             meta={"tipo": "base_dect", "dect_role": "base", "propiedad": _ownership(team)},
                         )
                     )
-                    if current_anchor == "switch":
-                        cable_label = f"SW{switch_port_index}-ETH"
-                        switch_port_index += 1
-                    else:
-                        cable_label = f"ETH{router_port_index}-LAN"
-                        router_port_index += 1
                     place_edge(current_anchor, base_key, cable_label)
                     dect_base_keys.append(base_key)
                     team_index += 1
                 base_index = min(idx, len(dect_base_keys) - 1)
                 base_node = next(node for node in nodes if node.key == dect_base_keys[base_index])
                 key = f"team_{team_index}"
+                handset_label = _equipment_label(team, extension=extension)
                 nodes.append(
                     NodeSpec(
                         key=key,
                         kind="device",
-                        label=label,
+                        label=handset_label,
                         model=team.get("modelo", team.get("tipo", "Equipo")),
                         x=base_node.x,
                         y=base_node.y + DECT_HANDSET_OFFSET_Y,
@@ -472,11 +511,12 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
                 continue
             key = f"team_{team_index}"
             node_x, node_y = next_position()
+            cable_label, port_label = next_port_labels()
             nodes.append(
                 NodeSpec(
                     key=key,
                     kind="device",
-                    label=label,
+                    label=_equipment_label(team, extension=extension, port_label=port_label),
                     model=team.get("modelo", team.get("tipo", "Equipo")),
                     x=node_x,
                     y=node_y,
@@ -491,12 +531,6 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
             )
             if is_dect_base:
                 dect_base_keys.append(key)
-            if current_anchor == "switch":
-                cable_label = f"SW{switch_port_index}-ETH"
-                switch_port_index += 1
-            else:
-                cable_label = f"ETH{router_port_index}-LAN"
-                router_port_index += 1
             place_edge(current_anchor, key, cable_label)
             team_index += 1
 

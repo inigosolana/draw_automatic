@@ -296,7 +296,7 @@
                   <button type="button" class="add-row-button" id="add-terminal"><span class="add-row-emoji" aria-hidden="true">📞</span> Añadir terminal</button>
                 </div>
                 <div class="terminal-columns" aria-hidden="true">
-                  <strong>MODELO</strong><strong>EXTENSIÓN</strong><strong>SERIAL NUMBER</strong><strong>MAC</strong><strong>PROPIEDAD</strong><strong></strong>
+                  <strong>MODELO</strong><strong>BASE DECT</strong><strong>EXTENSIÓN</strong><strong>SERIAL NUMBER</strong><strong>MAC</strong><strong>PROPIEDAD</strong><strong></strong>
                 </div>
                 <div id="terminal-rows" class="terminal-rows"></div>
                 <input type="hidden" name="terminal_details" id="terminal-details" value="{{ form_data.get('terminal_details', '') }}">
@@ -782,22 +782,50 @@
           const terminalRows = document.getElementById("terminal-rows");
           const terminalDetails = document.getElementById("terminal-details");
           const terminalEquipmentText = document.getElementById("terminal-equipment-text");
-          const terminalModels = ["FANVIL V62", "FANVIL V64", "T-30", "T-31", "T-33", "T-43", "T-44", "T-73", "W71H", "W53H", "W73H"];
+          const terminalModels = ["FANVIL V62", "FANVIL V64", "T-30", "T-31", "T-33", "T-43", "T-44", "T-73", "W71H", "W72H", "W53H", "W73H"];
+          const DECT_HANDSET_MODELS = ["W71H", "W72H", "W53H", "W73H"];
+          const DECT_BASE_MODELS = ["W60B", "W70B", "W80B", "YEALINK W90DM"];
+          const DEFAULT_DECT_BASE = {
+            "W71H": "W60B",
+            "W72H": "W60B",
+            "W53H": "W80B",
+            "W73H": "YEALINK W90DM",
+          };
+
+          function isDectHandset(model) {
+            return DECT_HANDSET_MODELS.includes(model);
+          }
+
+          function updateDectBaseField(row) {
+            const model = row.querySelector('[data-field="model"]').value.trim();
+            const dectField = row.querySelector('[data-field="dect-base"]');
+            const showDect = isDectHandset(model);
+            dectField.disabled = !showDect;
+            dectField.classList.toggle("is-hidden", !showDect);
+            if (showDect && !dectField.value) {
+              dectField.value = DEFAULT_DECT_BASE[model] || "W60B";
+            }
+            if (!showDect) {
+              dectField.value = "";
+            }
+          }
 
           function syncTerminalRows() {
             const detailLines = [];
             const equipmentLines = [];
             terminalRows.querySelectorAll(".terminal-row").forEach(function (row) {
               const model = row.querySelector('[data-field="model"]').value.trim();
+              const dectBase = row.querySelector('[data-field="dect-base"]').value.trim();
               const extension = row.querySelector('[data-field="extension"]').value.trim();
               const serial = row.querySelector('[data-field="serial"]').value.trim();
               const mac = row.querySelector('[data-field="mac"]').value.trim();
               const ownership = row.querySelector('[data-field="ownership"]').value;
               if (!model && !extension && !serial && !mac) return;
-              detailLines.push([extension, serial, mac, ownership].join(" | "));
+              detailLines.push([model, extension, serial, mac, ownership, dectBase].join(" | "));
               if (model) {
                 const extensionText = extension ? `, extension ${extension}` : "";
-                equipmentLines.push(`1 ${model}${extensionText} ${ownership}`);
+                const baseText = isDectHandset(model) && dectBase ? `, base ${dectBase}` : "";
+                equipmentLines.push(`1 ${model}${extensionText}${baseText} ${ownership}`);
               }
             });
             terminalDetails.value = detailLines.join("\n");
@@ -820,8 +848,14 @@
                 return `<option value="${model}"${values.model === model ? " selected" : ""}>${model}</option>`;
               }))
               .join("");
+            const dectBaseOptions = ['<option value="">—</option>']
+              .concat(DECT_BASE_MODELS.map(function (baseModel) {
+                return `<option value="${baseModel}"${values.dectBase === baseModel ? " selected" : ""}>${baseModel}</option>`;
+              }))
+              .join("");
             row.innerHTML = `
               <select data-field="model" aria-label="Modelo de terminal">${modelOptions}</select>
+              <select data-field="dect-base" class="dect-base-field${values.dectBase || isDectHandset(values.model) ? "" : " is-hidden"}" aria-label="Base DECT">${dectBaseOptions}</select>
               <input data-field="extension" type="text" inputmode="numeric" placeholder="Extensión" value="${escapeAttribute(values.extension)}" aria-label="Extensión">
               <input data-field="serial" type="text" placeholder="Serial number" value="${escapeAttribute(values.serial)}" aria-label="Serial number">
               <input data-field="mac" type="text" placeholder="MAC" value="${escapeAttribute(values.mac)}" aria-label="MAC">
@@ -834,6 +868,14 @@
               field.addEventListener("input", syncTerminalRows);
               field.addEventListener("change", syncTerminalRows);
             });
+            row.querySelector('[data-field="model"]').addEventListener("change", function () {
+              updateDectBaseField(row);
+              syncTerminalRows();
+            });
+            if (values.dectBase) {
+              row.querySelector('[data-field="dect-base"]').value = values.dectBase;
+            }
+            updateDectBaseField(row);
             row.querySelector(".remove-terminal").addEventListener("click", function () {
               row.remove();
               syncTerminalRows();
@@ -852,11 +894,23 @@
             }
             lines.forEach(function (line) {
               const parts = line.split("|").map(function (part) { return part.trim(); });
+              if (parts.length >= 5 && parts[0] && !/^\d+$/.test(parts[0]) && /[A-Za-z]/.test(parts[0])) {
+                addTerminalRow({
+                  model: parts[0] || "",
+                  extension: parts[1] || "",
+                  serial: parts[2] || "",
+                  mac: parts[3] || "",
+                  ownership: (parts[4] || "propio").toLocaleLowerCase("es"),
+                  dectBase: parts[5] || "",
+                });
+                return;
+              }
               addTerminalRow({
                 extension: parts[0] || "",
                 serial: parts[1] || "",
                 mac: parts[2] || "",
-                ownership: (parts[3] || "propio").toLocaleLowerCase("es")
+                ownership: (parts[3] || "propio").toLocaleLowerCase("es"),
+                dectBase: parts[4] || "",
               });
             });
             syncTerminalRows();
