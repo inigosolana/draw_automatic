@@ -102,12 +102,24 @@ def _display_model(value: str) -> str:
     return resolve_alias(value or "")
 
 
-def _router_label(router: dict) -> str:
+def _router_label(router: dict, internet: dict | None = None) -> str:
     alias = _display_model(_safe(router.get("modelo", "Router")))
     ip_value = _safe(router.get("ip", ""))
     if alias == "CHATEAU":
-        return f"<b>CHATEAU</b><br>LAN {ip_value}" if ip_value else "<b>CHATEAU</b>"
-    return f"<b>{alias or 'Router'}</b><br>{ip_value}"
+        label = f"<b>CHATEAU</b><br>LAN {ip_value}" if ip_value else "<b>CHATEAU</b>"
+    else:
+        label = f"<b>{alias or 'Router'}</b><br>{ip_value}"
+    if internet and _is_4g_monitored(internet):
+        label += (
+            f"<br><b>{_safe(internet.get('tipo', ''))} "
+            f"{_internet_metric_label(internet)}</b>"
+            f"<br>{_safe(internet.get('proveedor', ''))}"
+        )
+    return label
+
+
+def _is_4g_monitored(internet: dict) -> bool:
+    return "4G MONITORIZADO" in _safe(internet.get("tipo", "")).upper()
 
 
 def _equipment_label(team: dict, extension: str = "") -> str:
@@ -218,6 +230,8 @@ def _internet_metric_label(internet: dict) -> str:
 
 
 def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec], list[EdgeSpec]]:
+    internet = data.get("internet", {})
+    is_4g_monitored = _is_4g_monitored(internet)
     nodes: list[NodeSpec] = [
         NodeSpec(
             key="header",
@@ -233,38 +247,60 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
             height=60,
         ),
         NodeSpec(key="inet", kind="cloud", label="INET", x=50, y=30, width=120, height=80),
-        NodeSpec(
-            key="ont",
-            kind="device",
-            label=(
-                f"<b>ONT</b><br><b>{_safe(data.get('internet', {}).get('tipo', ''))} "
-                f"{_internet_metric_label(data.get('internet', {}))}</b>"
-                f"<br>{_safe(data.get('internet', {}).get('proveedor', ''))}"
-            ),
-            model=data.get("ont", {}).get("modelo", "ONT"),
-            x=240,
-            y=120,
-            width=150,
-            height=150,
-        ),
-        NodeSpec(
-            key="router",
-            kind="device",
-            label=_router_label(data.get("router", {})),
-            model=data.get("router", {}).get("modelo", "Router"),
-            x=470,
-            y=120,
-            width=150,
-            height=150,
-        ),
     ]
-    edges: list[EdgeSpec] = [
-        EdgeSpec("inet", "ont", exit_x=1.0, exit_y=0.5, entry_x=0.0, entry_y=0.5),
-        EdgeSpec("ont", "router", label="ETH1-WAN", exit_x=1.0, exit_y=0.5, entry_x=0.0, entry_y=0.5),
-    ]
+    edges: list[EdgeSpec] = []
+
+    if is_4g_monitored:
+        nodes.append(
+            NodeSpec(
+                key="router",
+                kind="device",
+                label=_router_label(data.get("router", {}), internet),
+                model=data.get("router", {}).get("modelo", "Router"),
+                x=240,
+                y=120,
+                width=150,
+                height=150,
+            )
+        )
+        edges.append(EdgeSpec("inet", "router", exit_x=1.0, exit_y=0.5, entry_x=0.0, entry_y=0.5))
+    else:
+        nodes.extend(
+            [
+                NodeSpec(
+                    key="ont",
+                    kind="device",
+                    label=(
+                        f"<b>ONT</b><br><b>{_safe(internet.get('tipo', ''))} "
+                        f"{_internet_metric_label(internet)}</b>"
+                        f"<br>{_safe(internet.get('proveedor', ''))}"
+                    ),
+                    model=data.get("ont", {}).get("modelo", "ONT"),
+                    x=240,
+                    y=120,
+                    width=150,
+                    height=150,
+                ),
+                NodeSpec(
+                    key="router",
+                    kind="device",
+                    label=_router_label(data.get("router", {})),
+                    model=data.get("router", {}).get("modelo", "Router"),
+                    x=470,
+                    y=120,
+                    width=150,
+                    height=150,
+                ),
+            ]
+        )
+        edges.extend(
+            [
+                EdgeSpec("inet", "ont", exit_x=1.0, exit_y=0.5, entry_x=0.0, entry_y=0.5),
+                EdgeSpec("ont", "router", label="ETH1-WAN", exit_x=1.0, exit_y=0.5, entry_x=0.0, entry_y=0.5),
+            ]
+        )
 
     current_anchor = "router"
-    internet = data.get("internet", {})
     router_model = _display_model(_safe(data.get("router", {}).get("modelo", "")))
     backup_model = _safe(internet.get("backup", ""))
     has_backup_service = "BACK UP" in _safe(internet.get("tipo", "")).upper()

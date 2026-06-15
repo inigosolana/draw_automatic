@@ -211,24 +211,37 @@ svg {
   overflow-wrap: anywhere;
 }
 
-.add-device-label {
+.add-row-button {
   display: inline-flex;
-  padding: 7px 9px;
+  padding: 9px 14px;
   align-items: center;
-  gap: 6px;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
+  gap: 8px;
+  border: 1px solid #9ec3d9;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ffffff 0%, #edf5fb 100%);
   color: #005374;
   font: inherit;
-  font-size: 0.82rem;
+  font-size: 0.86rem;
   font-weight: 700;
   white-space: nowrap;
   cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 83, 116, 0.1);
+  transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
 
-.add-device-label:hover {
-  background: #e8f0f6;
+.add-row-button:hover {
+  background: linear-gradient(180deg, #ffffff 0%, #e3f0f8 100%);
+  box-shadow: 0 4px 12px rgba(0, 83, 116, 0.16);
+  transform: translateY(-1px);
+}
+
+.add-row-button:active {
+  transform: translateY(0);
+}
+
+.add-row-emoji {
+  font-size: 1rem;
+  line-height: 1;
 }
 
 .device-columns {
@@ -281,22 +294,28 @@ svg {
   padding: 9px 10px;
 }
 
-.remove-device {
+.remove-device,
+.remove-terminal {
   display: grid;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   padding: 0;
   place-items: center;
-  border: 0;
+  border: 1px solid #e8c8c8;
   border-radius: 50%;
-  background: transparent;
-  color: #8b3030;
-  font-size: 1.2rem;
+  background: #fff5f5;
+  color: #b42318;
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1;
   cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
-.remove-device:hover {
-  background: #f8e8e8;
+.remove-device:hover,
+.remove-terminal:hover {
+  background: #fde8e8;
+  border-color: #d9a3a3;
 }
 
 .tip-callout {
@@ -321,26 +340,6 @@ svg {
   font-size: 0.82rem;
   font-style: italic;
   overflow-wrap: anywhere;
-}
-
-.add-terminal-label {
-  display: inline-flex;
-  padding: 7px 9px;
-  align-items: center;
-  gap: 6px;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  color: #005374;
-  font: inherit;
-  font-size: 0.82rem;
-  font-weight: 700;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.add-terminal-label:hover {
-  background: #e8f0f6;
 }
 
 .terminal-columns {
@@ -378,24 +377,6 @@ svg {
   min-height: 42px;
   margin: 0;
   padding: 9px 10px;
-}
-
-.remove-terminal {
-  display: grid;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  place-items: center;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  color: #8b3030;
-  font-size: 1.35rem;
-  cursor: pointer;
-}
-
-.remove-terminal:hover {
-  background: #fff0f0;
 }
 
 .advanced-fields {

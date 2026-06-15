@@ -458,9 +458,12 @@ class WebAdapterTests(unittest.TestCase):
         )
         self.assertEqual(data["internet"]["capacidad"], "400 GB")
         self.assertEqual(data["internet"]["velocidad"], "")
+        self.assertEqual(data["internet"]["backup"], "")
+        self.assertEqual(data["ont"]["modelo"], "")
         generated = build_drawio_from_data(data, LIBRARY)
         self.assertIn("400 GB", generated.result.xml)
         self.assertIn("Movistar", generated.result.xml)
+        self.assertNotIn("ONT ZTE", generated.result.xml)
 
     def test_build_drawio_from_data_generates_filename(self) -> None:
         data = form_to_data(

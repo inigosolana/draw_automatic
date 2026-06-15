@@ -207,18 +207,19 @@ def _form_to_legacy_data(form: dict) -> dict:
     data["direccion"] = _clean_text(form.get("direccion")) or data.get("direccion", "")
 
     internet = data.setdefault("internet", {})
+    ont = data.setdefault("ont", {})
     internet["tipo"] = _clean_text(form.get("internet_tipo")) or internet.get("tipo", "")
     internet["velocidad"] = _clean_text(form.get("internet_velocidad")) or internet.get("velocidad", "")
+    internet["proveedor"] = _clean_text(form.get("internet_proveedor")) or internet.get("proveedor", "")
     if internet["tipo"] == "SOLO 4G MONITORIZADO":
         internet["capacidad"] = internet["velocidad"]
         internet["velocidad"] = ""
+        internet["backup"] = ""
+        ont["modelo"] = ""
     else:
         internet["capacidad"] = ""
-    internet["proveedor"] = _clean_text(form.get("internet_proveedor")) or internet.get("proveedor", "")
-    internet["backup"] = _clean_text(form.get("backup_modelo")) or internet.get("backup", "")
-
-    ont = data.setdefault("ont", {})
-    ont["modelo"] = _clean_text(form.get("ont_modelo")) or ont.get("modelo", "")
+        internet["backup"] = _clean_text(form.get("backup_modelo")) or internet.get("backup", "")
+        ont["modelo"] = _clean_text(form.get("ont_modelo")) or ont.get("modelo", "")
 
     router = data.setdefault("router", {})
     router["modelo"] = _clean_text(form.get("router_modelo")) or router.get("modelo", "")
