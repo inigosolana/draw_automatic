@@ -689,9 +689,35 @@
             }
           }
 
+          function updateRouterSelector() {
+            const is4gMonitored = is4gMonitoredType();
+            const current = routerModel.value;
+            if (is4gMonitored) {
+              if (current && current !== "CHATEAU") {
+                routerModel.dataset.lastSelection = current;
+              }
+              routerModel.innerHTML = '<option value="CHATEAU">CHATEAU</option>';
+              routerModel.value = "CHATEAU";
+              return;
+            }
+            const restore = current && current !== "CHATEAU"
+              ? current
+              : (routerModel.dataset.lastSelection || "");
+            routerModel.innerHTML = [
+              '<option value="">Selecciona un router</option>',
+              '<option value="MikroTik hAP ac2">MikroTik hAP ac2</option>',
+              '<option value="MikroTik hAP ac3">MikroTik hAP ac3</option>',
+              '<option value="CHATEAU">CHATEAU</option>',
+            ].join("");
+            if (restore && Array.from(routerModel.options).some(function (option) { return option.value === restore; })) {
+              routerModel.value = restore;
+            }
+          }
+
           function updateInternetFields() {
             renderProviderOptions();
             updateOntSelector();
+            updateRouterSelector();
             updateBackupSelector();
           }
 
@@ -707,7 +733,7 @@
               backupModel.value = "";
               backupModel.disabled = true;
               backupModel.options[0].textContent = "No aplica con 4G monitorizado";
-              backupHelp.textContent = "Con 4G monitorizado no hay ONT ni equipo de backup externo.";
+              backupHelp.textContent = "Con 4G monitorizado el router debe ser CHATEAU. No hay ONT ni equipo de backup externo.";
               return;
             }
 
@@ -744,6 +770,7 @@
           routerModel.addEventListener("change", updateBackupSelector);
           document.querySelector(".creation-form").addEventListener("submit", function () {
             if (internetType.value === "SOLO 4G MONITORIZADO") {
+              routerModel.value = "CHATEAU";
               const capacity = providerCapacity(internetProveedor.value);
               if (capacity) {
                 internetVelocidad.value = capacity;

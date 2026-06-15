@@ -228,6 +228,8 @@ def _form_to_legacy_data(form: dict) -> dict:
     merged_model, merged_ip = _parse_router_ip(router.get("modelo", ""), router.get("ip", ""))
     router["modelo"] = merged_model
     router["ip"] = merged_ip
+    if internet["tipo"] == "SOLO 4G MONITORIZADO":
+        router["modelo"] = "CHATEAU"
     if resolve_alias(router["modelo"]) == "CHATEAU":
         internet["backup"] = ""
 

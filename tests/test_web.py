@@ -460,10 +460,25 @@ class WebAdapterTests(unittest.TestCase):
         self.assertEqual(data["internet"]["velocidad"], "")
         self.assertEqual(data["internet"]["backup"], "")
         self.assertEqual(data["ont"]["modelo"], "")
+        self.assertEqual(data["router"]["modelo"], "CHATEAU")
         generated = build_drawio_from_data(data, LIBRARY)
         self.assertIn("400 GB", generated.result.xml)
         self.assertIn("Movistar", generated.result.xml)
         self.assertNotIn("ONT ZTE", generated.result.xml)
+
+    def test_monitored_4g_forces_chateau_router(self) -> None:
+        data = form_to_data(
+            {
+                "cliente": "Demo",
+                "sede": "Central",
+                "direccion": "Bilbao",
+                "internet_tipo": "SOLO 4G MONITORIZADO",
+                "internet_velocidad": "400 GB",
+                "internet_proveedor": "Movistar",
+                "router_modelo": "MikroTik hAP ac2",
+            }
+        )
+        self.assertEqual(data["router"]["modelo"], "CHATEAU")
 
     def test_build_drawio_from_data_generates_filename(self) -> None:
         data = form_to_data(
