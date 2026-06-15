@@ -142,8 +142,25 @@ def parse_equipment_line(line: str) -> dict | None:
         "telefono" in lowered
         or "fanvil" in lowered
         or "yealink" in lowered
-        or "t-31" in lowered
-        or "t31" in lowered
+        or "grandstream" in lowered
+        or "gxp" in lowered
+        or any(
+            token in lowered
+            for token in (
+                "t-27",
+                "t27",
+                "t-30",
+                "t30",
+                "t-31",
+                "t31",
+                "t-43",
+                "t43",
+                "t-44",
+                "t44",
+                "t-73",
+                "t73",
+            )
+        )
     ):
         tipo = "telefono"
     elif "pc" in lowered:

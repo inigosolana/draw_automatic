@@ -22,13 +22,18 @@ class BasicTests(unittest.TestCase):
         self.assertEqual(resolve_alias("MikroTik hAP ac2"), "Microtik_hAPc")
         self.assertEqual(resolve_alias("Yealink T31P"), "T-31")
         self.assertEqual(resolve_alias("SIP-T31G"), "T-31")
+        self.assertEqual(resolve_alias("Yealink T30P"), "T-30")
+        self.assertEqual(resolve_alias("Yealink T43U"), "T-43")
+        self.assertEqual(resolve_alias("Yealink T44U"), "T-44")
+        self.assertEqual(resolve_alias("Yealink T73W"), "T-73")
+        self.assertEqual(resolve_alias("Fanvil V64"), "FANVIL_V64")
         self.assertEqual(resolve_alias("W70B"), "W60B")
         self.assertEqual(resolve_alias("GPON ONT"), "ONT ZTE")
 
     def test_library_load(self) -> None:
         library = load_library(LIBRARY)
         self.assertIsNotNone(library.find("Fanvil V62"))
-        self.assertEqual(library.find("Fanvil V64"), library.find("Fanvil V62"))
+        self.assertEqual(resolve_alias("Fanvil V64"), "FANVIL_V64")
         self.assertEqual(library.find("WAP LTE").title, "Mikrotik LTE6")
         self.assertIsNotNone(library.find("MikroTik hAP ac2"))
 
