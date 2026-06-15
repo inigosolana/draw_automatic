@@ -21,9 +21,10 @@ SUMMARY_Y = 105
 SUMMARY_HEIGHT = 165
 DEVICE_WIDTH = 150
 DEVICE_HEIGHT = 150
-DECT_HANDSET_OFFSET_Y = 175
-SLOT_SPACING = 165
+DECT_HANDSET_OFFSET_Y = 200
+SLOT_SPACING = 200
 MIN_LEFT_MARGIN = 60
+SWITCH_FALLBACK_ICON = "TP-Link 8P"
 
 
 def _count_device_slots(equipos: list) -> int:
@@ -74,6 +75,7 @@ class NodeSpec:
     height: int
     model: str | None = None
     meta: dict | None = None
+    icon_model: str | None = None
 
 
 @dataclass
@@ -295,6 +297,7 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
                 width=150,
                 height=150,
                 meta={"propiedad": _ownership(switch)},
+                icon_model=SWITCH_FALLBACK_ICON,
             )
         )
         edges.append(EdgeSpec("router", "switch", label="ETH3-LAN", exit_x=1.0, exit_y=0.5, entry_x=0.0, entry_y=0.5))
@@ -306,7 +309,11 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
     device_equipos = [eq for eq in data.get("equipos", []) if eq.get("tipo") != "switch"]
     total_slots = _count_device_slots(device_equipos)
     anchor_node = next(node for node in nodes if node.key == current_anchor)
-    equipo_y = anchor_node.y + anchor_node.height + 70
+    backup_node = next((n for n in nodes if n.key == "backup"), None)
+    anchor_bottom = anchor_node.y + anchor_node.height
+    if backup_node:
+        anchor_bottom = max(anchor_bottom, backup_node.y + backup_node.height)
+    equipo_y = anchor_bottom + 140
     max_per_row, _ = _max_slots_per_row(total_slots) if total_slots else (1, SLOT_SPACING)
 
     slot_index = 0
@@ -322,7 +329,7 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
         slots_in_row = min(max_per_row, total_slots - row_num * max_per_row)
         start_x, spacing = _row_layout(slots_in_row)
         x = start_x + col * spacing
-        y = equipo_y + row_num * (DEVICE_HEIGHT + 50)
+        y = equipo_y + row_num * (DEVICE_HEIGHT + 80)
         slot_index += 1
         return x, y
 
@@ -333,7 +340,7 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
         waypoints: tuple[tuple[int, int], ...] | None = None
         if anchor_key in {"switch", "router"} and label and (label.endswith("-ETH") or label.endswith("-LAN")):
             target_center = target.x + target.width // 2
-            bus_y = target.y - 35
+            bus_y = target.y - 65
             waypoints = ((target_center, bus_y),)
         edges.append(
             EdgeSpec(

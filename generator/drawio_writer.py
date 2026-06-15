@@ -108,7 +108,9 @@ def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryI
             _text_cell(root, label_id, f"<font><b>{node.label}</b></font>", TEXT_STYLE, node.x + 25, node.y + 25, 70, 25)
             continue
 
-        item = library.find(node.model or "")
+        item = library.find(node.icon_model or node.model or "")
+        if not item and node.icon_model and node.model and node.icon_model != node.model:
+            item = library.find(node.model)
         if item:
             aspect = "1" if getattr(item, "aspect", "fixed") == "fixed" else "0"
             style = (
