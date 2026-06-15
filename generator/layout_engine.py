@@ -21,9 +21,12 @@ SUMMARY_Y = 105
 SUMMARY_HEIGHT = 165
 DEVICE_WIDTH = 150
 DEVICE_HEIGHT = 150
-DECT_HANDSET_OFFSET_Y = 200
-SLOT_SPACING = 200
+DECT_HANDSET_OFFSET_Y = 195
+SLOT_SPACING = 235
+MIN_SLOT_SPACING = 230
 MIN_LEFT_MARGIN = 60
+DEVICE_ROW_GAP = 165
+DECT_ROW_EXTRA = 110
 SWITCH_FALLBACK_ICON = "TP-Link 8P"
 ROUTER_BACKUP_GAP = 70
 ROUTER_SWITCH_GAP = 90
@@ -42,12 +45,20 @@ def _count_device_slots(equipos: list) -> int:
 def _row_layout(total_slots: int, max_right: int = SUMMARY_X - 20) -> tuple[int, int]:
     available = max_right - MIN_LEFT_MARGIN
     if total_slots <= 0:
-        return MIN_LEFT_MARGIN, SLOT_SPACING
+        return MIN_LEFT_MARGIN, MIN_SLOT_SPACING
     if total_slots == 1:
-        return MIN_LEFT_MARGIN + (available - DEVICE_WIDTH) // 2, SLOT_SPACING
-    spacing = min(SLOT_SPACING, (available - DEVICE_WIDTH) // (total_slots - 1))
+        return MIN_LEFT_MARGIN + (available - DEVICE_WIDTH) // 2, MIN_SLOT_SPACING
+    spacing = max(MIN_SLOT_SPACING, min(SLOT_SPACING, (available - DEVICE_WIDTH) // (total_slots - 1)))
     row_width = (total_slots - 1) * spacing + DEVICE_WIDTH
     start_x = MIN_LEFT_MARGIN + (available - row_width) // 2
+    return start_x, spacing
+
+
+def _device_row_layout(total_slots: int, anchor: NodeSpec, max_right: int = SUMMARY_X - 20) -> tuple[int, int]:
+    _, spacing = _row_layout(total_slots, max_right)
+    row_width = (total_slots - 1) * spacing + DEVICE_WIDTH
+    centered_start = anchor.x + (anchor.width - row_width) // 2
+    start_x = max(MIN_LEFT_MARGIN, min(centered_start, max_right - row_width))
     return start_x, spacing
 
 
@@ -392,13 +403,15 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
 
     device_equipos = [eq for eq in data.get("equipos", []) if eq.get("tipo") != "switch"]
     total_slots = _count_device_slots(device_equipos)
+    has_dect_handsets = any(_dect_handset_key(_normalized_model(team)) for team in device_equipos)
     anchor_node = next(node for node in nodes if node.key == current_anchor)
     backup_node = next((n for n in nodes if n.key == "backup"), None)
     anchor_bottom = anchor_node.y + anchor_node.height
     if backup_node and not has_switch:
         anchor_bottom = max(anchor_bottom, backup_node.y + backup_node.height)
-    equipo_y = anchor_bottom + 140
-    max_per_row, _ = _max_slots_per_row(total_slots) if total_slots else (1, SLOT_SPACING)
+    equipo_y = anchor_bottom + DEVICE_ROW_GAP
+    max_per_row, _ = _max_slots_per_row(total_slots) if total_slots else (1, MIN_SLOT_SPACING)
+    row_step = DEVICE_HEIGHT + (DECT_ROW_EXTRA if has_dect_handsets else 95)
 
     slot_index = 0
     team_index = 1
@@ -411,9 +424,9 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
         row_num = slot_index // max_per_row
         col = slot_index % max_per_row
         slots_in_row = min(max_per_row, total_slots - row_num * max_per_row)
-        start_x, spacing = _row_layout(slots_in_row)
+        start_x, spacing = _device_row_layout(slots_in_row, anchor_node)
         x = start_x + col * spacing
-        y = equipo_y + row_num * (DEVICE_HEIGHT + 80)
+        y = equipo_y + row_num * row_step
         slot_index += 1
         return x, y
 
@@ -421,9 +434,8 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
         nonlocal router_port_index, switch_port_index
         if current_anchor == "switch":
             port = f"SW{switch_port_index}"
-            cable_label = f"{port}-ETH"
             switch_port_index += 1
-            return cable_label, port
+            return "", port
         port = f"ETH{router_port_index}"
         cable_label = f"{port}-LAN"
         router_port_index += 1
@@ -436,9 +448,11 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
         waypoints: tuple[tuple[int, int], ...] | None = None
         label_offset_x = 0
         label_offset_y = -14
-        if anchor_key in {"switch", "router"} and label and (label.endswith("-ETH") or label.endswith("-LAN")):
+        if anchor_key == "switch":
+            waypoints = None
+        elif anchor_key == "router" and label and label.endswith("-LAN"):
             target_center = target.x + target.width // 2
-            bus_y = target.y - 85
+            bus_y = target.y - 90
             waypoints = ((target_center, bus_y),)
             label_offset_x = 16
             label_offset_y = -((target.y - bus_y) // 2 + 8)

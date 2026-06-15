@@ -56,10 +56,9 @@ class BasicTests(unittest.TestCase):
         self.assertIn("source=", result.xml)
         self.assertIn("target=", result.xml)
         self.assertIn('value="ETH1-WAN"', result.xml)
-        self.assertIn('y="-14" as="offset"', result.xml)
         self.assertIn("image=data:image/png%3Bbase64,", result.xml)
         self.assertIn("exitY=1.0", result.xml)
-        self.assertIn('<Array as="points">', result.xml)
+        self.assertIn("SW1", result.xml)
         ids = re.findall(r'<mxCell id="([^"]+)"', result.xml)
         self.assertEqual(len(ids), len(set(ids)))
         generated_ids = [cell_id for cell_id in ids if cell_id not in {"0", "1"}]
@@ -234,7 +233,8 @@ class BasicTests(unittest.TestCase):
         self.assertEqual(base_node.model, "W60B")
         self.assertEqual(handset_node.x, base_node.x)
         self.assertGreater(handset_node.y, base_node.y)
-        self.assertTrue(any(edge.target == base_node.key and edge.label == "SW1-ETH" for edge in edges))
+        self.assertTrue(any(edge.target == base_node.key and edge.source == "switch" for edge in edges))
+        self.assertIn("SW1", base_node.label)
         self.assertFalse(any(edge.target == handset_node.key and edge.label and edge.label.endswith("-ETH") for edge in edges))
         self.assertTrue(any(edge.target == handset_node.key and edge.label == "DECT" for edge in edges))
 
@@ -399,6 +399,42 @@ class BasicTests(unittest.TestCase):
         self.assertTrue(any(edge.label == "ETH3-LAN" and edge.target == "switch" for edge in edges))
         self.assertTrue(any(edge.label == "ETH2-BACKUP" and edge.target == "backup" for edge in edges))
 
+    def test_switch_devices_use_vertical_columns_without_shared_bus(self) -> None:
+        data = {
+            "cliente": "Demo",
+            "sede": "Central",
+            "direccion": "Bilbao",
+            "template": "con_switch",
+            "internet": {"tipo": "SOLO FIBRA", "velocidad": "600 MB"},
+            "ont": {"modelo": "ONT ZTE"},
+            "router": {"modelo": "MikroTik hAP ac2"},
+            "equipos": [
+                {"tipo": "switch", "modelo": "TP-Link 16P", "cantidad": 1},
+                {"tipo": "wifi", "modelo": "Grandstream AP", "cantidad": 1},
+                {"tipo": "telefono", "modelo": "T-30", "cantidad": 1, "extensiones": ["3002"]},
+                {"tipo": "telefono", "modelo": "T-73", "cantidad": 1, "extensiones": ["3010"]},
+            ],
+        }
+        nodes, edges = build_layout(data)
+        switch = next(node for node in nodes if node.key == "switch")
+        devices = sorted(
+            (node for node in nodes if node.key.startswith("team_")),
+            key=lambda node: node.x,
+        )
+        self.assertEqual(len(devices), 3)
+        for index, device in enumerate(devices, start=1):
+            self.assertIn(f"SW{index}", device.label)
+            self.assertGreaterEqual(device.x + device.width, device.x)
+            self.assertLess(device.x, SUMMARY_X - 40)
+        for edge in edges:
+            if edge.source != "switch" or not edge.target.startswith("team_"):
+                continue
+            self.assertFalse(edge.label)
+            self.assertIsNone(edge.waypoints)
+        row_center = devices[1].x + devices[1].width / 2
+        switch_center = switch.x + switch.width / 2
+        self.assertAlmostEqual(row_center, switch_center, delta=80)
+
     def test_switch_uses_eth3_and_phones_use_switch_ports(self) -> None:
         data = {
             "cliente": "Demo",
@@ -413,11 +449,16 @@ class BasicTests(unittest.TestCase):
                 {"tipo": "telefono", "modelo": "T-31", "cantidad": 2},
             ],
         }
-        _, edges = build_layout(data)
+        nodes, edges = build_layout(data)
         self.assertTrue(any(edge.target == "switch" and edge.label == "ETH3-LAN" for edge in edges))
         phone_edges = [edge for edge in edges if edge.target.startswith("team_")]
         self.assertEqual([edge.source for edge in phone_edges], ["switch", "switch"])
-        self.assertEqual([edge.label for edge in phone_edges], ["SW1-ETH", "SW2-ETH"])
+        phones = sorted(
+            (node for node in nodes if node.key.startswith("team_")),
+            key=lambda node: node.x,
+        )
+        self.assertIn("SW1", phones[0].label)
+        self.assertIn("SW2", phones[1].label)
 
     def test_summary_table_does_not_overlap_switch(self) -> None:
         data = {
@@ -472,15 +513,17 @@ class BasicTests(unittest.TestCase):
             key=lambda node: node.x,
         )
         self.assertEqual(len(phones), 4)
-        self.assertEqual(len({node.y for node in phones}), 1)
+        self.assertLessEqual(len({node.y for node in phones}), 2)
         self.assertGreater(phones[0].y, switch.y + switch.height)
         for phone in phones:
             self.assertLessEqual(phone.x + phone.width, SUMMARY_X - 10)
-        phone_edges = [edge for edge in edges if edge.source == "switch" and edge.label and edge.label.startswith("SW")]
+        phone_edges = [edge for edge in edges if edge.source == "switch" and edge.target.startswith("team_")]
         self.assertEqual(len(phone_edges), 4)
         for edge in phone_edges:
             target = next(node for node in nodes if node.key == edge.target)
             self.assertAlmostEqual(edge.exit_x, _anchor_exit_x(switch, target), places=2)
+            self.assertFalse(edge.label)
+            self.assertIsNone(edge.waypoints)
 
 
 if __name__ == "__main__":

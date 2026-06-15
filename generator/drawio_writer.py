@@ -128,15 +128,17 @@ def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryI
         if node.meta and node.meta.get("propiedad"):
             color = "#008000" if node.meta["propiedad"] == "propio" else "#d00000"
             label_style += f"fontColor={color};fontStyle=1;"
+        label_lines = max(1, node.label.count("<br>") + 1)
+        label_height = max(42, label_lines * 18 + 10)
         _text_cell(
             root,
             label_id,
             node.label,
             label_style,
-            node.x - 10,
-            node.y + node.height + 10,
-            node.width + 20,
-            40,
+            node.x - 12,
+            node.y + node.height + 12,
+            node.width + 24,
+            label_height,
         )
 
     for edge_spec in edges:
