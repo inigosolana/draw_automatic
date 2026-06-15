@@ -27,6 +27,7 @@ SITES = SiteDirectory(
 )
 DEFAULT_HOST = os.environ.get("DRAWIO_HOST", "0.0.0.0")
 DEFAULT_PORT = int(os.environ.get("DRAWIO_PORT", os.environ.get("PORT", "8000")))
+DEFAULT_SECRET_KEY = "development-only-change-me"
 
 
 def _positive_integer(value: object, field_name: str) -> int:
@@ -43,7 +44,7 @@ def create_app() -> Flask:
         "libreria_Ausarta_JUN_2026.xml",
     )
     app.config["MAX_CONTENT_LENGTH"] = int(os.environ.get("DRAWIO_MAX_UPLOAD_BYTES", str(15 * 1024 * 1024)))
-    app.config["SECRET_KEY"] = os.environ.get("DRAWIO_SECRET_KEY", "development-only-change-me")
+    app.config["SECRET_KEY"] = os.environ.get("DRAWIO_SECRET_KEY", "").strip() or DEFAULT_SECRET_KEY
     app.config["AUTH_REQUIRED"] = os.environ.get("DRAWIO_AUTH_REQUIRED", "0") == "1"
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
