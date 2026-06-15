@@ -70,6 +70,7 @@ def load_library(path: str | Path) -> LibraryIndex:
         ("Mikrotik wAP LTE", "mikrotik_wap_lte.png"),
         ("TELTONIKA", "teltonika.png"),
         ("Grandstream AP", "grandstream_ap.png"),
+        ("MikroTik hAP ac3", "mikrotik_hap_ac3.png"),
     ]:
         custom_icon = _load_local_icon(icon_title, PROJECT_ROOT / "assets" / icon_file)
         if custom_icon:

@@ -2,6 +2,8 @@ ALIASES = {
     "mikrotik hap ac2": "Microtik_hAPc",
     "microtik hap ac2": "Microtik_hAPc",
     "microtik_hapc": "Microtik_hAPc",
+    "mikrotik hap ac3": "MikroTik hAP ac3",
+    "microtik hap ac3": "MikroTik hAP ac3",
     "ont zte": "ONT ZTE",
     "gpon ont": "ONT ZTE",
     "ont": "ONT",

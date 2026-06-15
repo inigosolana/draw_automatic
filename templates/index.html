@@ -227,20 +227,14 @@
                 {% endfor %}
               </select>
             </label>
-            <label>Velocidad
-              <select name="internet_velocidad">
+            <label id="internet-velocidad-label"><span id="internet-metric-label">Velocidad</span>
+              <select name="internet_velocidad" id="internet-velocidad" data-selected="{{ form_data.get('internet_velocidad', '') }}">
                 <option value="">Selecciona una velocidad</option>
-                {% for speed in ['300 MB', '600 MB', '1 GB'] %}
-                <option value="{{ speed }}" {% if form_data.get('internet_velocidad') == speed %}selected{% endif %}>{{ speed }}</option>
-                {% endfor %}
               </select>
             </label>
             <label>Proveedor
-              <select name="internet_proveedor">
+              <select name="internet_proveedor" id="internet-proveedor" data-selected="{{ form_data.get('internet_proveedor', '') }}">
                 <option value="">Selecciona un proveedor</option>
-                {% for provider in ['AIRE', 'ADAMO', 'MAS MOVIL', 'EUSKALTEL', 'SARENET', 'SARENET ORANGE'] %}
-                <option value="{{ provider }}" {% if form_data.get('internet_proveedor') == provider %}selected{% endif %}>{{ provider }}</option>
-                {% endfor %}
               </select>
             </label>
             <label>Modelo ONT
@@ -255,6 +249,7 @@
               <select name="router_modelo" id="router-modelo">
                 <option value="">Selecciona un router</option>
                 <option value="MikroTik hAP ac2" {% if form_data.get('router_modelo') == 'MikroTik hAP ac2' %}selected{% endif %}>MikroTik hAP ac2</option>
+                <option value="MikroTik hAP ac3" {% if form_data.get('router_modelo') == 'MikroTik hAP ac3' %}selected{% endif %}>MikroTik hAP ac3</option>
                 <option value="CHATEAU" {% if form_data.get('router_modelo') == 'CHATEAU' %}selected{% endif %}>CHATEAU</option>
               </select>
             </label>
@@ -270,7 +265,7 @@
               <input type="text" name="router_ip" value="{{ form_data.get('router_ip', '') }}" placeholder="192.168.0.1/24">
             </label>
             </div>
-            <p class="info-callout"><span aria-hidden="true">ⓘ</span> <span id="backup-help">Con CHATEAU el backup 4G va integrado. Con hAP ac2 y Fibra + Backup selecciona WAP LTE o TELTONIKA para ETH2.</span></p>
+            <p class="info-callout"><span aria-hidden="true">ⓘ</span> <span id="backup-help">Con CHATEAU el backup 4G va integrado. Con hAP ac2/ac3 y Fibra + Backup selecciona WAP LTE o TELTONIKA para ETH2.</span></p>
           </section>
           </div>
 
@@ -559,7 +554,6 @@
             });
             row.querySelector(".remove-device").addEventListener("click", function () {
               row.remove();
-              if (!deviceRows.children.length) addDeviceRow();
               syncDeviceRows();
             });
             deviceRows.appendChild(row);
@@ -578,12 +572,13 @@
               items = [];
             }
             if (!items.length) {
-              addDeviceRow({ category: "switch" });
+              syncDeviceRows();
               return;
             }
             items.forEach(function (item) {
               addDeviceRow(item);
             });
+            syncDeviceRows();
           }
 
           document.getElementById("add-device").addEventListener("click", function () {
@@ -595,14 +590,104 @@
         </script>
         <script>
           const internetType = document.getElementById("internet-tipo");
+          const internetVelocidad = document.getElementById("internet-velocidad");
+          const internetVelocidadLabel = document.getElementById("internet-velocidad-label");
+          const internetMetricLabel = document.getElementById("internet-metric-label");
+          const internetProveedor = document.getElementById("internet-proveedor");
           const routerModel = document.getElementById("router-modelo");
           const backupModel = document.getElementById("backup-modelo");
           const backupHelp = document.getElementById("backup-help");
+          const FIBER_PROVIDERS = ["AIRE", "ADAMO", "MAS MOVIL", "EUSKALTEL", "SARENET", "SARENET ORANGE"];
+          const MONITORED_4G_PROVIDERS = ["Movistar", "Movistar M2M", "Vodafone", "Orange", "PTVTELECOM"];
+          const FIBER_SPEEDS = ["300 MB", "600 MB", "1 GB"];
+          const CAPACITY_BY_PROVIDER = {
+            "Movistar": "400 GB",
+            "Movistar M2M": "400 GB",
+            "Vodafone": "1 TB",
+            "Orange": "700 GB",
+          };
+
+          function providerCapacity(provider) {
+            return CAPACITY_BY_PROVIDER[provider] || "";
+          }
+
+          function renderMetricOptions() {
+            const is4gMonitored = internetType.value === "SOLO 4G MONITORIZADO";
+            const current = internetVelocidad.value || internetVelocidad.dataset.selected || "";
+            internetVelocidad.innerHTML = "";
+            if (is4gMonitored) {
+              internetMetricLabel.textContent = "Capacidad";
+              const placeholder = document.createElement("option");
+              placeholder.value = "";
+              placeholder.textContent = internetProveedor.value
+                ? "Sin capacidad definida"
+                : "Selecciona primero un proveedor";
+              internetVelocidad.appendChild(placeholder);
+              const capacity = providerCapacity(internetProveedor.value);
+              if (capacity) {
+                const option = document.createElement("option");
+                option.value = capacity;
+                option.textContent = capacity;
+                option.selected = current === capacity || !current;
+                internetVelocidad.appendChild(option);
+              }
+              internetVelocidad.disabled = !internetProveedor.value;
+            } else {
+              internetMetricLabel.textContent = "Velocidad";
+              const placeholder = document.createElement("option");
+              placeholder.value = "";
+              placeholder.textContent = "Selecciona una velocidad";
+              internetVelocidad.appendChild(placeholder);
+              FIBER_SPEEDS.forEach(function (speed) {
+                const option = document.createElement("option");
+                option.value = speed;
+                option.textContent = speed;
+                if (speed === current) {
+                  option.selected = true;
+                }
+                internetVelocidad.appendChild(option);
+              });
+              internetVelocidad.disabled = false;
+            }
+            internetVelocidad.dataset.selected = "";
+          }
+
+          function renderProviderOptions() {
+            const is4gMonitored = internetType.value === "SOLO 4G MONITORIZADO";
+            const providers = is4gMonitored ? MONITORED_4G_PROVIDERS : FIBER_PROVIDERS;
+            const current = internetProveedor.value || internetProveedor.dataset.selected || "";
+            internetProveedor.innerHTML = '<option value="">Selecciona un proveedor</option>';
+            providers.forEach(function (provider) {
+              const option = document.createElement("option");
+              option.value = provider;
+              option.textContent = provider;
+              if (provider === current) {
+                option.selected = true;
+              }
+              internetProveedor.appendChild(option);
+            });
+            if (current && !providers.includes(current)) {
+              internetProveedor.value = "";
+            }
+            internetProveedor.dataset.selected = "";
+            renderMetricOptions();
+          }
+
+          function updateInternetFields() {
+            renderProviderOptions();
+            updateBackupSelector();
+          }
+
+          const HAP_ROUTERS = ["MikroTik hAP ac2", "MikroTik hAP ac3"];
+
+          function isHapRouter(model) {
+            return HAP_ROUTERS.includes(model);
+          }
 
           function updateBackupSelector() {
             const usesBackup = internetType.value === "FIBRA + BACK UP";
             const isChateau = routerModel.value === "CHATEAU";
-            const canUseExternalBackup = usesBackup && !isChateau && routerModel.value === "MikroTik hAP ac2";
+            const canUseExternalBackup = usesBackup && !isChateau && isHapRouter(routerModel.value);
 
             if (isChateau) {
               backupModel.value = "";
@@ -624,13 +709,22 @@
               backupModel.value = "";
             }
             backupHelp.textContent = canUseExternalBackup
-              ? "Con hAP ac2 y Fibra + Backup selecciona WAP LTE o TELTONIKA para conectarlo a ETH2."
-              : "El equipo de backup externo solo se utiliza con Fibra + Backup y MikroTik hAP ac2.";
+              ? "Con hAP ac2/ac3 y Fibra + Backup selecciona WAP LTE o TELTONIKA para conectarlo a ETH2."
+              : "El equipo de backup externo solo se utiliza con Fibra + Backup y MikroTik hAP ac2 o ac3.";
           }
 
-          internetType.addEventListener("change", updateBackupSelector);
+          internetType.addEventListener("change", updateInternetFields);
+          internetProveedor.addEventListener("change", renderMetricOptions);
           routerModel.addEventListener("change", updateBackupSelector);
-          updateBackupSelector();
+          document.querySelector(".creation-form").addEventListener("submit", function () {
+            if (internetType.value === "SOLO 4G MONITORIZADO") {
+              const capacity = providerCapacity(internetProveedor.value);
+              if (capacity) {
+                internetVelocidad.value = capacity;
+              }
+            }
+          });
+          updateInternetFields();
 
           const terminalRows = document.getElementById("terminal-rows");
           const terminalDetails = document.getElementById("terminal-details");
@@ -689,7 +783,6 @@
             });
             row.querySelector(".remove-terminal").addEventListener("click", function () {
               row.remove();
-              if (!terminalRows.children.length) addTerminalRow();
               syncTerminalRows();
             });
             terminalRows.appendChild(row);
@@ -701,7 +794,7 @@
               return line.trim();
             });
             if (!lines.length) {
-              addTerminalRow();
+              syncTerminalRows();
               return;
             }
             lines.forEach(function (line) {
@@ -713,6 +806,7 @@
                 ownership: (parts[3] || "propio").toLocaleLowerCase("es")
               });
             });
+            syncTerminalRows();
           }
 
           document.getElementById("add-terminal").addEventListener("click", function () {

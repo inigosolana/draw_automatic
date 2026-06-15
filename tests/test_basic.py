@@ -20,6 +20,7 @@ MULTI_EXAMPLE = ROOT / "examples" / "cliente_multisede.json"
 class BasicTests(unittest.TestCase):
     def test_alias_mapping(self) -> None:
         self.assertEqual(resolve_alias("MikroTik hAP ac2"), "Microtik_hAPc")
+        self.assertEqual(resolve_alias("MikroTik hAP ac3"), "MikroTik hAP ac3")
         self.assertEqual(resolve_alias("Yealink T31P"), "T-31")
         self.assertEqual(resolve_alias("SIP-T31G"), "T-31")
         self.assertEqual(resolve_alias("Yealink T30P"), "T-30")

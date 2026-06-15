@@ -154,7 +154,7 @@ def validate_input_data(data: dict) -> list[str]:
         and router_model != "CHATEAU"
         and not internet.get("backup")
     ):
-        warnings.append("La conexion Fibra + Backup con hAP ac2 necesita seleccionar WAP LTE o TELTONIKA para ETH2.")
+        warnings.append("La conexion Fibra + Backup con hAP ac2/ac3 necesita seleccionar WAP LTE o TELTONIKA para ETH2.")
     for index, team in enumerate(data.get("equipos", [])):
         validated = ValidatedEquipment.from_dict(team, index)
         qty = validated.cantidad
@@ -183,7 +183,7 @@ def summarize_equipment(data: dict) -> str:
         tipo = _safe(team.get("tipo", "")).lower()
         if tipo in {"telefono", "ata"}:
             voip_lines.append(f"x{qty} {model}")
-        elif tipo in {"switch", "wifi", "otro"} and model in {"CHATEAU", "ONT ZTE", "Microtik_hAPc", "Router ZTE"}:
+        elif tipo in {"switch", "wifi", "otro"} and model in {"CHATEAU", "ONT ZTE", "Microtik_hAPc", "MikroTik hAP ac3", "Router ZTE"}:
             router_lines.append(model)
 
     voip_html = "<br>".join(voip_lines) if voip_lines else "&nbsp;"
@@ -210,6 +210,13 @@ def build_layout(data: dict) -> tuple[list[NodeSpec], list[EdgeSpec]]:
     return build_office_layout(data, include_switch=(template == "con_switch"))
 
 
+def _internet_metric_label(internet: dict) -> str:
+    tipo = _safe(internet.get("tipo", ""))
+    if "4G MONITORIZADO" in tipo.upper():
+        return _safe(internet.get("capacidad", ""))
+    return _safe(internet.get("velocidad", ""))
+
+
 def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec], list[EdgeSpec]]:
     nodes: list[NodeSpec] = [
         NodeSpec(
@@ -231,7 +238,7 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
             kind="device",
             label=(
                 f"<b>ONT</b><br><b>{_safe(data.get('internet', {}).get('tipo', ''))} "
-                f"{_safe(data.get('internet', {}).get('velocidad', ''))}</b>"
+                f"{_internet_metric_label(data.get('internet', {}))}</b>"
                 f"<br>{_safe(data.get('internet', {}).get('proveedor', ''))}"
             ),
             model=data.get("ont", {}).get("modelo", "ONT"),

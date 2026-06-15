@@ -443,6 +443,25 @@ class WebAdapterTests(unittest.TestCase):
         self.assertIn("switch", switches[0]["modelo"].lower())
         self.assertEqual(others[0]["propiedad"], "ajeno")
 
+    def test_monitored_4g_uses_capacity_instead_of_speed(self) -> None:
+        data = form_to_data(
+            {
+                "cliente": "Demo",
+                "sede": "Central",
+                "direccion": "Bilbao",
+                "internet_tipo": "SOLO 4G MONITORIZADO",
+                "internet_velocidad": "400 GB",
+                "internet_proveedor": "Movistar",
+                "ont_modelo": "ONT ZTE",
+                "router_modelo": "CHATEAU",
+            }
+        )
+        self.assertEqual(data["internet"]["capacidad"], "400 GB")
+        self.assertEqual(data["internet"]["velocidad"], "")
+        generated = build_drawio_from_data(data, LIBRARY)
+        self.assertIn("400 GB", generated.result.xml)
+        self.assertIn("Movistar", generated.result.xml)
+
     def test_build_drawio_from_data_generates_filename(self) -> None:
         data = form_to_data(
             {

@@ -19,6 +19,7 @@ DEVICE_IMAGES = [
     "tplink_8p.png",
     "mikrotik_wap_lte.png",
     "teltonika.png",
+    "mikrotik_hap_ac3.png",
 ]
 
 # w71h.png is already stored separately — include it too

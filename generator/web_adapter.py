@@ -142,6 +142,7 @@ def form_to_structured_data(form: dict) -> dict:
                     for key, value in {
                         "tipo": legacy.get("internet", {}).get("tipo", ""),
                         "velocidad": legacy.get("internet", {}).get("velocidad", ""),
+                        "capacidad": legacy.get("internet", {}).get("capacidad", ""),
                         "proveedor": legacy.get("internet", {}).get("proveedor", ""),
                         "backup": legacy.get("internet", {}).get("backup", ""),
                         "ont": legacy.get("ont", {}).get("modelo", ""),
@@ -176,6 +177,7 @@ def structured_to_generator_data(data: dict) -> dict:
         "internet": {
             "tipo": connectivity.get("tipo", ""),
             "velocidad": connectivity.get("velocidad", ""),
+            "capacidad": connectivity.get("capacidad", ""),
             "proveedor": connectivity.get("proveedor", ""),
             "backup": connectivity.get("backup", ""),
         },
@@ -207,6 +209,11 @@ def _form_to_legacy_data(form: dict) -> dict:
     internet = data.setdefault("internet", {})
     internet["tipo"] = _clean_text(form.get("internet_tipo")) or internet.get("tipo", "")
     internet["velocidad"] = _clean_text(form.get("internet_velocidad")) or internet.get("velocidad", "")
+    if internet["tipo"] == "SOLO 4G MONITORIZADO":
+        internet["capacidad"] = internet["velocidad"]
+        internet["velocidad"] = ""
+    else:
+        internet["capacidad"] = ""
     internet["proveedor"] = _clean_text(form.get("internet_proveedor")) or internet.get("proveedor", "")
     internet["backup"] = _clean_text(form.get("backup_modelo")) or internet.get("backup", "")
 
