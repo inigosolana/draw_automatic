@@ -29,7 +29,7 @@ class BasicTests(unittest.TestCase):
         self.assertEqual(resolve_alias("Yealink T73W"), "T-73")
         self.assertEqual(resolve_alias("Fanvil V64"), "FANVIL_V64")
         self.assertEqual(resolve_alias("TP-Link TL-SG108"), "TP-Link 8P")
-        self.assertEqual(resolve_alias("W70B"), "W60B")
+        self.assertEqual(resolve_alias("W70B"), "W70B")
         self.assertEqual(resolve_alias("GPON ONT"), "ONT ZTE")
 
     def test_library_load(self) -> None:
@@ -248,7 +248,7 @@ class BasicTests(unittest.TestCase):
         summary = summarize_equipment(data)
         self.assertIn("Puestos Voip", summary)
         self.assertIn("Routers/ONT", summary)
-        self.assertIn("x1 W60B<br>x1 T-31<br>x1 W71H", summary)
+        self.assertIn("x1 W70B<br>x1 T-31<br>x1 W71H", summary)
         self.assertIn("CHATEAU<br>ONT ZTE", summary)
 
     def test_chateau_label_is_short_and_shows_lan(self) -> None:

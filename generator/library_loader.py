@@ -64,9 +64,13 @@ def load_library(path: str | Path) -> LibraryIndex:
             )
         )
 
-    custom_icon = _load_local_icon("W71H", PROJECT_ROOT / "assets" / "w71h.png")
-    if custom_icon:
-        items.append(custom_icon)
+    for icon_title, icon_file in [
+        ("W71H", "w71h.png"),
+        ("W70B", "yealink_w70b.png"),
+    ]:
+        custom_icon = _load_local_icon(icon_title, PROJECT_ROOT / "assets" / icon_file)
+        if custom_icon:
+            items.append(custom_icon)
     known_titles = {normalize_name(item.title) for item in items}
     for entry in load_learned_items():
         title = entry.get("title", "")
