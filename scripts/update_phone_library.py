@@ -16,6 +16,7 @@ MAX_DIMENSION = 520
 
 PHONE_SOURCES = {
     "T-30": "https://storage.googleapis.com/nxl-content/yealink/t30p-image-1.jpg",
+    "T-33": str(ROOT / "assets" / "yealink_t33g.png"),
     "T-43": str(ROOT / "assets" / "yealink_t43u.png"),
     "T-44": str(ROOT / "assets" / "yealink_t44u.png"),
     "T-73": str(ROOT / "assets" / "yealink_t73w.png"),
@@ -96,6 +97,7 @@ def main() -> None:
     entries = load_entries()
     for title, source in PHONE_SOURCES.items():
         upsert_phone(entries, title, source)
+    entries = [entry for entry in entries if not str(entry.get("title", "")).startswith("Yealink_T33G")]
     save_entries(entries)
     print("library updated")
 

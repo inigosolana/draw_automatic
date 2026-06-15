@@ -25,6 +25,7 @@ class BasicTests(unittest.TestCase):
         self.assertEqual(resolve_alias("Yealink T30P"), "T-30")
         self.assertEqual(resolve_alias("Yealink T43U"), "T-43")
         self.assertEqual(resolve_alias("Yealink T44U"), "T-44")
+        self.assertEqual(resolve_alias("Yealink T33G"), "T-33")
         self.assertEqual(resolve_alias("Yealink T73W"), "T-73")
         self.assertEqual(resolve_alias("Fanvil V64"), "FANVIL_V64")
         self.assertEqual(resolve_alias("W70B"), "W60B")

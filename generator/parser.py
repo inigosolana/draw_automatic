@@ -153,6 +153,8 @@ def parse_equipment_line(line: str) -> dict | None:
                 "t30",
                 "t-31",
                 "t31",
+                "t-33",
+                "t33",
                 "t-43",
                 "t43",
                 "t-44",
