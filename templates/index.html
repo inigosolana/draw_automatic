@@ -12,9 +12,16 @@
         <header class="panel-header">
           <h1>Generador local de .drawio</h1>
           <p>Prueba el generador desde el navegador sin romper la CLI actual.</p>
+          {% if technician %}
+          <div class="technician-bar">
+            <span><strong>Técnico:</strong> {{ technician.name or technician.username }}</span>
+            <form method="post" action="{{ url_for('logout') }}"><button type="submit" class="link-button">Cerrar sesión</button></form>
+          </div>
+          {% endif %}
           <nav class="app-tabs">
             <a class="app-tab active" href="{{ url_for('index') }}">Crear diagrama</a>
             <a class="app-tab" href="{{ url_for('upload_draw') }}">Subir draw antiguo</a>
+            <a class="app-tab" href="{{ url_for('diagrams') }}">Consultar diagramas</a>
           </nav>
         </header>
 
@@ -39,12 +46,24 @@
             <div><strong>Direccion:</strong> {{ preview.direccion }}</div>
             <div><strong>Plantilla:</strong> {{ preview.template }}</div>
             <div><strong>Total equipos:</strong> {{ preview.total_equipment }}</div>
+            <div><strong>Técnico:</strong> {{ preview.technician.name or preview.technician.username }}</div>
             {% if preview.glpi_diagram_id %}
             <div><strong>GLPI:</strong> Diagrama #{{ preview.glpi_diagram_id }} creado</div>
             {% endif %}
           </div>
           {% if preview.glpi_upload_error %}
           <p class="upload-error"><strong>No se ha podido subir a GLPI:</strong> {{ preview.glpi_upload_error }}</p>
+          {% endif %}
+          {% if preview.existing_diagrams %}
+          <div class="message warning">
+            <h3>Esta sede ya tiene diagramas</h3>
+            <p>Revisa los existentes para evitar duplicados:</p>
+            <ul>
+              {% for diagram in preview.existing_diagrams %}
+              <li><a href="{{ diagram.url }}" target="_blank" rel="noopener">#{{ diagram.id }} - {{ diagram.name }}</a></li>
+              {% endfor %}
+            </ul>
+          </div>
           {% endif %}
           {% if preview.warnings %}
           <div class="warnings">
@@ -70,6 +89,7 @@
             >
               Descargar .drawio
             </button>
+            <a class="button secondary" href="{{ preview.preview_url }}" target="_blank" rel="noopener">Previsualizar</a>
             {% if preview.glpi_diagram_url %}
             <a
               class="button glpi"
@@ -86,8 +106,9 @@
               class="button glpi"
               id="confirm-glpi"
               data-confirm-url="{{ preview.confirm_url }}"
+              data-allow-duplicate="{{ '1' if preview.existing_diagrams else '0' }}"
             >
-              Confirmar y subir a GLPI
+              {% if preview.existing_diagrams %}Publicar otro igualmente{% else %}Confirmar y subir a GLPI{% endif %}
             </button>
             {% endif %}
           </p>
@@ -139,7 +160,9 @@
                   try {
                     const response = await fetch(confirmButton.dataset.confirmUrl, {
                       method: "POST",
-                      credentials: "same-origin"
+                      credentials: "same-origin",
+                      headers: {"Content-Type": "application/x-www-form-urlencoded"},
+                      body: `allow_duplicate=${confirmButton.dataset.allowDuplicate || "0"}`
                     });
                     const body = await response.text();
                     if (!response.ok) {
@@ -192,6 +215,9 @@
             <label>Direccion / calle
               <input type="text" id="direccion" name="direccion" value="{{ form_data.get('direccion', '') }}" required>
             </label>
+            <p class="helper-text" id="address-source">
+              Puedes corregir la calle. Al generar el draw se guardará para esta sede y se reutilizará la próxima vez.
+            </p>
           </section>
 
           <section class="form-section">
@@ -366,6 +392,10 @@
             fields.sede.value = site.nombre || "Sede Principal";
             fields.direccion.value = site.direccion || customer.direccion || "";
             glpiEntityId.value = String(site.id);
+            const source = document.getElementById("address-source");
+            source.textContent = site.direccion_guardada
+              ? "Dirección exacta guardada anteriormente por un técnico. Puedes corregirla si ha cambiado."
+              : "Dirección procedente de GLPI. Complétala con la calle exacta; se guardará al generar.";
           });
 
           customerControl = createSearchSelect(document.getElementById("glpi-customer"), function (customer) {

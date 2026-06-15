@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from base64 import b64encode
 from contextlib import contextmanager
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote
@@ -56,6 +57,31 @@ class GlpiClient:
         except (URLError, TimeoutError, json.JSONDecodeError) as exc:
             raise GlpiError(f"No se ha podido consultar GLPI: {exc}") from exc
 
+    def authenticate_user(self, username: str, password: str) -> dict:
+        credentials = b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii")
+        auth_headers = {
+            "App-Token": self.app_token,
+            "Authorization": f"Basic {credentials}",
+        }
+        payload = self._request("initSession", auth_headers)
+        session_token = payload.get("session_token") if isinstance(payload, dict) else None
+        if not session_token:
+            raise GlpiError("GLPI no ha aceptado las credenciales.")
+        headers = {"App-Token": self.app_token, "Session-Token": session_token}
+        try:
+            full_session = self._request("getFullSession", headers)
+            session_data = full_session.get("session", full_session) if isinstance(full_session, dict) else {}
+            return {
+                "id": session_data.get("glpiID"),
+                "username": session_data.get("glpiname") or username,
+                "name": session_data.get("glpifriendlyname") or session_data.get("glpirealname") or username,
+            }
+        finally:
+            try:
+                self._request("killSession", headers)
+            except GlpiError:
+                pass
+
     @contextmanager
     def session(self):
         auth_headers = {
@@ -94,6 +120,32 @@ class GlpiClient:
                 start += page_size
         return entities
 
+    def list_network_diagrams(self, entity_id: int | None = None) -> list[dict]:
+        with self.session() as headers:
+            diagrams: list[dict] = []
+            page_size = 1000
+            start = 0
+            while True:
+                payload = self._request(
+                    f"PluginArchimapGraph?range={start}-{start + page_size - 1}",
+                    headers,
+                )
+                page = payload.get("value", []) if isinstance(payload, dict) else payload
+                if not isinstance(page, list):
+                    break
+                diagrams.extend(page)
+                if len(page) < page_size:
+                    break
+                start += page_size
+        if entity_id is not None:
+            diagrams = [
+                diagram
+                for diagram in diagrams
+                if str(diagram.get("entities_id", "")).isdigit()
+                and int(diagram["entities_id"]) == int(entity_id)
+            ]
+        return diagrams
+
     def create_network_diagram(
         self,
         entity_id: int,
@@ -118,19 +170,27 @@ class GlpiClient:
                 method="POST",
                 payload={"input": diagram},
             )
-        diagram_id = response.get("id") if isinstance(response, dict) else None
-        if not diagram_id:
-            raise GlpiError(f"GLPI no ha devuelto el ID del diagrama creado: {response}")
-        self.link_diagram_to_entity(diagram_id, entity_id)
+            diagram_id = response.get("id") if isinstance(response, dict) else None
+            if not diagram_id:
+                raise GlpiError(f"GLPI no ha devuelto el ID del diagrama creado: {response}")
+            self.link_diagram_to_entity(diagram_id, entity_id, headers=headers)
         return int(diagram_id)
 
-    def link_diagram_to_entity(self, diagram_id: int, entity_id: int) -> int:
+    def link_diagram_to_entity(
+        self,
+        diagram_id: int,
+        entity_id: int,
+        headers: dict[str, str] | None = None,
+    ) -> int:
         relation = {
             "plugin_archimap_graphs_id": int(diagram_id),
             "items_id": int(entity_id),
             "itemtype": "Entity",
         }
-        with self.session() as headers:
+        if headers is None:
+            with self.session() as session_headers:
+                return self.link_diagram_to_entity(diagram_id, entity_id, headers=session_headers)
+        else:
             response = self._request(
                 "PluginArchimapGraph_Item",
                 headers,

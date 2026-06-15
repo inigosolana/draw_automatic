@@ -26,6 +26,27 @@ body {
   margin-top: 0;
 }
 
+.technician-bar,
+.preview-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #e8f0f6;
+}
+
+.link-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #0d5f7e;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 .app-tabs {
   display: flex;
   gap: 8px;
@@ -50,6 +71,26 @@ body {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 18px;
+}
+
+.diagram-table-wrap {
+  overflow-x: auto;
+}
+
+.diagram-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.diagram-table th,
+.diagram-table td {
+  padding: 12px;
+  border-bottom: 1px solid #d5e0ea;
+  text-align: left;
+}
+
+.diagram-table th {
+  background: #e8f0f6;
 }
 
 .form-grid {
@@ -91,6 +132,17 @@ textarea {
 
 textarea {
   resize: vertical;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.checkbox-label input {
+  width: auto;
+  margin: 0;
 }
 
 .search-select {
@@ -221,6 +273,31 @@ textarea {
 .message.success {
   background: #eef9f1;
   border: 1px solid #afd8bb;
+}
+
+.message.warning {
+  background: #fff8df;
+  border: 1px solid #e6c85d;
+}
+
+.preview-page {
+  height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.preview-toolbar {
+  border-radius: 0;
+}
+
+.drawio-preview {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.login-panel {
+  max-width: 430px;
 }
 
 .preview-grid {

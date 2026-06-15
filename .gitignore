@@ -6,4 +6,6 @@ prueba*.drawio
 *.log
 .env
 data/learned_library.json
+data/downloads.sqlite3*
+data/sites.sqlite3*
 NORTH_IBERIAN_CONTROL_S_L_SEDE_1_OFICINA.drawio

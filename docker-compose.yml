@@ -1,0 +1,36 @@
+services:
+  drawio-generator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ausarta-drawio:latest
+    container_name: ausarta-drawio
+    restart: unless-stopped
+    ports:
+      - "${DRAWIO_PUBLIC_PORT:-8000}:8000"
+    environment:
+      GLPI_URL: "${GLPI_URL}"
+      GLPI_WEB_URL: "${GLPI_WEB_URL}"
+      GLPI_APP_TOKEN: "${GLPI_APP_TOKEN}"
+      GLPI_USER_TOKEN: "${GLPI_USER_TOKEN}"
+      DRAWIO_LIBRARY_PATH: "/app/library/libreria_Ausarta_JUN_2026.xml"
+      DRAWIO_DOWNLOAD_DB: "/app/data/downloads.sqlite3"
+      DRAWIO_SITE_DB: "/app/data/sites.sqlite3"
+      DRAWIO_DOWNLOAD_TTL: "${DRAWIO_DOWNLOAD_TTL:-86400}"
+      DRAWIO_MAX_UPLOAD_BYTES: "${DRAWIO_MAX_UPLOAD_BYTES:-15728640}"
+      DRAWIO_AUTH_REQUIRED: "1"
+      DRAWIO_COOKIE_SECURE: "${DRAWIO_COOKIE_SECURE:-1}"
+      DRAWIO_SECRET_KEY: "${DRAWIO_SECRET_KEY}"
+      DRAWIO_PREVIEW_URL: "${DRAWIO_PREVIEW_URL:-https://embed.diagrams.net/}"
+    volumes:
+      - drawio_data:/app/data
+      - "${DRAWIO_LIBRARY_HOST_PATH}:/app/library/libreria_Ausarta_JUN_2026.xml:ro"
+    networks:
+      - drawio_network
+
+volumes:
+  drawio_data:
+
+networks:
+  drawio_network:
+    driver: bridge

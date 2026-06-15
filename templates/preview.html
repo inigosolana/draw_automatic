@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Previsualización - {{ filename }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  </head>
+  <body>
+    <main class="preview-page">
+      <header class="preview-toolbar">
+        <strong>{{ filename }}</strong>
+        <span>Previsualización previa a GLPI</span>
+      </header>
+      <iframe
+        id="drawio-preview"
+        class="drawio-preview"
+        src="{{ preview_base_url }}/?embed=1&ui=min&spin=1&proto=json&libraries=1"
+        title="Previsualización del diagrama"
+      ></iframe>
+    </main>
+    <script>
+      const frame = document.getElementById("drawio-preview");
+      const xml = {{ xml_json | safe }};
+      window.addEventListener("message", event => {
+        if (event.source !== frame.contentWindow) return;
+        let message;
+        try { message = JSON.parse(event.data); } catch (_) { return; }
+        if (message.event === "init") {
+          frame.contentWindow.postMessage(JSON.stringify({
+            action: "load",
+            xml,
+            autosave: 0
+          }), "*");
+        }
+      });
+    </script>
+  </body>
+</html>

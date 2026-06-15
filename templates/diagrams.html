@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Consultar diagramas</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  </head>
+  <body>
+    <main class="page">
+      <section class="panel">
+        <header class="panel-header">
+          <h1>Consultar diagramas publicados</h1>
+          <p>Comprueba si una sede ya tiene diagramas en GLPI antes de crear o subir otro.</p>
+          {% if technician %}
+          <div class="technician-bar">
+            <span><strong>Técnico:</strong> {{ technician.name or technician.username }}</span>
+            <form method="post" action="{{ url_for('logout') }}"><button type="submit" class="link-button">Cerrar sesión</button></form>
+          </div>
+          {% endif %}
+          <nav class="app-tabs">
+            <a class="app-tab" href="{{ url_for('index') }}">Crear diagrama</a>
+            <a class="app-tab" href="{{ url_for('upload_draw') }}">Subir draw antiguo</a>
+            <a class="app-tab active" href="{{ url_for('diagrams') }}">Consultar diagramas</a>
+          </nav>
+        </header>
+
+        {% if glpi_error %}
+        <div class="message error"><strong>{{ glpi_error }}</strong></div>
+        {% endif %}
+
+        {% if glpi_customers %}
+        <form method="get" class="upload-form" id="diagram-search-form">
+          <input type="hidden" id="diagram-entity-id" name="entity_id" value="{{ selected_entity }}">
+          <section class="form-section">
+            <h2>Seleccionar sede</h2>
+            <label>Provincia
+              <select id="diagram-province">
+                <option value="">Selecciona una provincia</option>
+              </select>
+            </label>
+            <label>Cliente
+              <select id="diagram-customer" disabled>
+                <option value="">Selecciona primero una provincia</option>
+              </select>
+            </label>
+            <label>Sede
+              <select id="diagram-site" disabled>
+                <option value="">Selecciona primero un cliente</option>
+              </select>
+            </label>
+            <button class="button primary" type="submit">Consultar en GLPI</button>
+          </section>
+        </form>
+        {% endif %}
+
+        {% if selected_entity %}
+        <section class="form-section full diagram-results">
+          <h2>Resultados</h2>
+          {% if diagrams %}
+          <div class="diagram-table-wrap">
+            <table class="diagram-table">
+              <thead><tr><th>ID</th><th>Nombre</th><th>Descripcion</th><th>Estado</th><th></th></tr></thead>
+              <tbody>
+                {% for diagram in diagrams %}
+                <tr>
+                  <td>#{{ diagram.id }}</td>
+                  <td>{{ diagram.name }}</td>
+                  <td>{{ diagram.description }}</td>
+                  <td>{{ diagram.state }}</td>
+                  <td><a class="button glpi" href="{{ diagram.url }}" target="_blank" rel="noopener">Abrir</a></td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <p>No se han encontrado diagramas asociados a esta sede.</p>
+          {% endif %}
+        </section>
+        {% endif %}
+      </section>
+    </main>
+    {% if glpi_customers %}
+    <script>
+      const catalog = {{ glpi_customers | tojson }};
+      const province = document.getElementById("diagram-province");
+      const customer = document.getElementById("diagram-customer");
+      const site = document.getElementById("diagram-site");
+      const entityId = document.getElementById("diagram-entity-id");
+
+      function fill(select, items, placeholder) {
+        select.innerHTML = "";
+        select.append(new Option(placeholder, ""));
+        items.forEach(item => select.append(new Option(item.nombre, String(item.id))));
+        select.disabled = !items.length;
+      }
+
+      fill(province, catalog, "Selecciona una provincia");
+      province.addEventListener("change", () => {
+        const item = catalog.find(value => String(value.id) === province.value);
+        fill(customer, item ? item.clientes : [], "Selecciona un cliente");
+        fill(site, [], "Selecciona primero un cliente");
+        entityId.value = "";
+      });
+      customer.addEventListener("change", () => {
+        const provinceItem = catalog.find(value => String(value.id) === province.value);
+        const item = provinceItem?.clientes.find(value => String(value.id) === customer.value);
+        fill(site, item ? item.sedes : [], "Selecciona una sede");
+        entityId.value = "";
+      });
+      site.addEventListener("change", () => {
+        entityId.value = site.value;
+      });
+    </script>
+    {% endif %}
+  </body>
+</html>

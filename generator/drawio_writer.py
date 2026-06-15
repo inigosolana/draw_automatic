@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from urllib.parse import quote
+from uuid import uuid4
 import xml.etree.ElementTree as ET
 
 from .library_loader import LibraryIndex
@@ -29,13 +30,8 @@ class BuildResult:
 
 
 class IdFactory:
-    def __init__(self) -> None:
-        self.value = 2
-
     def next(self) -> str:
-        current = f"id-{self.value}"
-        self.value += 1
-        return current
+        return f"id-{uuid4().hex[:12]}"
 
 
 def _geom(parent: ET.Element, x: int, y: int, width: int, height: int) -> None:

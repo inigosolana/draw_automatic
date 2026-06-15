@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Acceso - Ausarta Draw.io</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  </head>
+  <body>
+    <main class="page login-page">
+      <section class="panel login-panel">
+        <header class="panel-header">
+          <h1>Acceso de técnicos</h1>
+          <p>Utiliza el mismo usuario y contraseña que en GLPI.</p>
+        </header>
+        {% if error %}<div class="message error">{{ error }}</div>{% endif %}
+        <form method="post">
+          <label>Usuario GLPI
+            <input type="text" name="username" autocomplete="username" required autofocus>
+          </label>
+          <label>Contraseña
+            <input type="password" name="password" autocomplete="current-password" required>
+          </label>
+          <button class="button primary" type="submit">Entrar</button>
+        </form>
+        <p class="helper-text">La contraseña se envía a GLPI para validarla y no se almacena.</p>
+      </section>
+    </main>
+  </body>
+</html>

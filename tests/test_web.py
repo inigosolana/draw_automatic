@@ -1,9 +1,14 @@
 from pathlib import Path
 from io import BytesIO
+import time
 import unittest
+from unittest.mock import patch
+from urllib.error import HTTPError, URLError
 
-from generator.glpi_client import GlpiClient, build_customer_catalog
+from generator.download_store import DownloadStore
+from generator.glpi_client import GlpiClient, GlpiError, build_customer_catalog
 from generator.knowledge_base import learn_from_drawio, load_learned_items
+from generator.site_directory import SiteDirectory, apply_saved_addresses
 from generator.web_adapter import build_drawio_from_data, form_to_data, form_to_structured_data, resolve_library_path
 from web_app import DOWNLOADS, create_app
 
@@ -36,6 +41,24 @@ class WebAdapterTests(unittest.TestCase):
         entities = client.list_entities()
         self.assertEqual(len(entities), 1001)
         self.assertIn("range=1000-1999", calls[1])
+
+    def test_glpi_diagrams_can_be_filtered_by_entity(self) -> None:
+        client = GlpiClient("http://glpi.test/apirest.php", "app", "user")
+
+        class FakeSession:
+            def __enter__(self):
+                return {"Session-Token": "session"}
+
+            def __exit__(self, exc_type, exc_value, traceback):
+                return False
+
+        client.session = lambda: FakeSession()
+        client._request = lambda *args, **kwargs: [
+            {"id": 10, "entities_id": 7, "name": "Sede 7"},
+            {"id": 11, "entities_id": 8, "name": "Sede 8"},
+        ]
+        diagrams = client.list_network_diagrams(7)
+        self.assertEqual([diagram["id"] for diagram in diagrams], [10])
 
     def test_knowledge_base_learns_labeled_image(self) -> None:
         from tempfile import TemporaryDirectory
@@ -89,6 +112,118 @@ class WebAdapterTests(unittest.TestCase):
             client.diagram_url(2265),
             "https://glpi.example/marketplace/archimap/front/graph.form.php?id=2265",
         )
+
+    def test_glpi_diagram_uses_single_session(self) -> None:
+        client = GlpiClient("http://glpi.test/apirest.php", "app", "user")
+        sessions = []
+
+        class FakeSession:
+            def __enter__(self):
+                sessions.append("open")
+                return {"Session-Token": "session"}
+
+            def __exit__(self, exc_type, exc_value, traceback):
+                sessions.append("close")
+                return False
+
+        client.session = lambda: FakeSession()
+        client._request = lambda path, headers, method="GET", payload=None: {
+            "id": 42 if path == "PluginArchimapGraph" else 84
+        }
+        client.create_network_diagram(7, "Cliente", "Diagrama", "<mxfile />")
+        self.assertEqual(sessions, ["open", "close"])
+
+    def test_glpi_user_authentication_returns_technician_without_password(self) -> None:
+        client = GlpiClient("http://glpi.test/apirest.php", "app", "service")
+        calls = []
+
+        def fake_request(path, headers, method="GET", payload=None):
+            calls.append((path, headers))
+            if path == "initSession":
+                return {"session_token": "user-session"}
+            if path == "getFullSession":
+                return {"session": {"glpiID": 25, "glpiname": "tecnico", "glpifriendlyname": "Técnico Uno"}}
+            return {}
+
+        client._request = fake_request
+        identity = client.authenticate_user("tecnico", "secreto")
+        self.assertEqual(identity["id"], 25)
+        self.assertEqual(identity["name"], "Técnico Uno")
+        self.assertNotIn("password", identity)
+        self.assertTrue(calls[0][1]["Authorization"].startswith("Basic "))
+
+    def test_glpi_session_failure_has_clear_error(self) -> None:
+        client = GlpiClient("http://glpi.test/apirest.php", "app", "user")
+        client._request = lambda *args, **kwargs: {}
+        with self.assertRaisesRegex(GlpiError, "token de sesion"):
+            with client.session():
+                pass
+
+    def test_glpi_timeout_is_wrapped(self) -> None:
+        client = GlpiClient("http://glpi.test/apirest.php", "app", "user")
+        with patch("generator.glpi_client.urlopen", side_effect=URLError("timeout")):
+            with self.assertRaisesRegex(GlpiError, "No se ha podido consultar GLPI"):
+                client._request("initSession", {})
+
+    def test_glpi_invalid_entity_response_is_wrapped(self) -> None:
+        client = GlpiClient("http://glpi.test/apirest.php", "app", "user")
+        error = HTTPError(
+            "http://glpi.test/apirest.php/PluginArchimapGraph",
+            400,
+            "Bad Request",
+            {},
+            BytesIO(b'["ERROR_ITEM_NOT_FOUND","Entidad invalida"]'),
+        )
+        with patch("generator.glpi_client.urlopen", side_effect=error):
+            with self.assertRaisesRegex(GlpiError, "GLPI ha rechazado la operacion \\(400\\)"):
+                client._request("PluginArchimapGraph", {}, method="POST", payload={"input": {}})
+
+    def test_download_store_removes_expired_entries(self) -> None:
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as directory:
+            store = DownloadStore(Path(directory) / "downloads.sqlite3", ttl_seconds=1)
+            store["token"] = {"xml": "<mxfile />"}
+            self.assertEqual(len(store), 1)
+            connection = store._connect()
+            try:
+                with connection:
+                    connection.execute("UPDATE downloads SET expires_at = ?", (time.time() - 1,))
+            finally:
+                connection.close()
+            self.assertEqual(len(store), 0)
+            self.assertIsNone(store.get("token"))
+
+    def test_site_address_is_persisted_by_entity_id(self) -> None:
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as directory:
+            sites = SiteDirectory(Path(directory) / "sites.sqlite3")
+            sites.set(45, "AVENIDA LIBERTAD, 65, 5. BARAKALDO 48901, Bizkaia", "Tecnico Uno")
+            saved = sites.get(45)
+            self.assertEqual(saved["address"], "AVENIDA LIBERTAD, 65, 5. BARAKALDO 48901, Bizkaia")
+            self.assertEqual(saved["updated_by"], "Tecnico Uno")
+
+    def test_saved_address_overrides_incomplete_glpi_address(self) -> None:
+        catalog = [
+            {
+                "clientes": [
+                    {
+                        "sedes": [
+                            {"id": 45, "nombre": "Matriz", "direccion": "BARAKALDO, 48901, Bizkaia"}
+                        ]
+                    }
+                ]
+            }
+        ]
+        result = apply_saved_addresses(
+            catalog,
+            {45: {"address": "AVENIDA LIBERTAD, 65, BARAKALDO", "updated_by": "Tecnico", "updated_at": 1}},
+        )
+        site = result[0]["clientes"][0]["sedes"][0]
+        self.assertEqual(site["direccion"], "AVENIDA LIBERTAD, 65, BARAKALDO")
+        self.assertTrue(site["direccion_guardada"])
+        self.assertEqual(site["direccion_glpi"], "BARAKALDO, 48901, Bizkaia")
 
     def test_glpi_catalog_groups_sites_under_customer(self) -> None:
         catalog = build_customer_catalog(
@@ -249,6 +384,71 @@ class WebAppTests(unittest.TestCase):
         self.assertIn(b"<mxfile", download.data)
         self.assertIn(b"attachment;", download.headers["Content-Disposition"].encode())
 
+    def test_health_endpoint_is_available(self) -> None:
+        response = self.client.get("/health")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), {"status": "ok"})
+
+    def test_diagram_query_page_is_available(self) -> None:
+        with patch("web_app.GlpiClient.from_environment", return_value=None):
+            response = self.client.get("/diagrams")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Consultar diagramas publicados", response.data)
+
+    def test_authentication_redirects_to_login_when_enabled(self) -> None:
+        self.app.config["AUTH_REQUIRED"] = True
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/login", response.headers["Location"])
+
+    def test_glpi_login_stores_technician_identity(self) -> None:
+        self.app.config["AUTH_REQUIRED"] = True
+        configured_client = GlpiClient("http://glpi", "app", "service")
+        configured_client.authenticate_user = lambda username, password: {
+            "id": 7,
+            "username": username,
+            "name": "Tecnico Prueba",
+        }
+        with patch("web_app.GlpiClient.from_environment", return_value=configured_client):
+            response = self.client.post(
+                "/login",
+                data={"username": "tecnico", "password": "clave"},
+            )
+        self.assertEqual(response.status_code, 302)
+        with self.client.session_transaction() as browser_session:
+            self.assertEqual(browser_session["technician"]["name"], "Tecnico Prueba")
+
+    def test_preview_page_loads_pending_diagram(self) -> None:
+        DOWNLOADS["preview-token"] = {
+            "filename": "demo.drawio",
+            "xml": "<mxfile />",
+            "entity_id": "",
+            "cliente": "Demo",
+            "sede": "Central",
+            "uploaded": False,
+        }
+        response = self.client.get("/preview/preview-token")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Previsualizaci", response.data)
+        self.assertIn(b"embed.diagrams.net", response.data)
+
+    def test_confirm_blocks_duplicate_diagram_without_override(self) -> None:
+        DOWNLOADS["duplicate-token"] = {
+            "filename": "demo.drawio",
+            "xml": "<mxfile />",
+            "entity_id": 7,
+            "cliente": "Demo",
+            "sede": "Central",
+            "uploaded": False,
+            "technician": {"username": "tech", "name": "Tecnico Uno"},
+        }
+        configured_client = GlpiClient("http://glpi", "a", "u")
+        configured_client.list_network_diagrams = lambda entity_id: [{"id": 99, "entities_id": entity_id}]
+        with patch("web_app.GlpiClient.from_environment", return_value=configured_client):
+            response = self.client.post("/confirm-glpi/duplicate-token")
+        self.assertEqual(response.status_code, 409)
+        self.assertIn(b"ya tiene un diagrama", response.data)
+
     def test_post_fails_when_required_fields_are_missing(self) -> None:
         response = self.client.post(
             "/generate",
@@ -288,6 +488,56 @@ class WebAppTests(unittest.TestCase):
         response = self.client.get("/upload-draw")
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Subir draw antiguo a GLPI", response.data)
+
+    def test_upload_draw_rejects_dtd_and_external_entity(self) -> None:
+        dangerous_xml = (
+            b'<?xml version="1.0"?>'
+            b'<!DOCTYPE mxfile [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>'
+            b"<mxfile><diagram>&xxe;</diagram></mxfile>"
+        )
+        response = self.client.post(
+            "/upload-draw",
+            data={
+                "glpi_entity_id": "7",
+                "glpi_cliente": "Cliente",
+                "glpi_sede": "Sede",
+                "drawio_file": (BytesIO(dangerous_xml), "peligroso.drawio"),
+            },
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"No se ha podido subir el diagrama", response.data)
+
+    def test_generate_rejects_invalid_glpi_entity_id(self) -> None:
+        response = self.client.post(
+            "/generate",
+            data={
+                "cliente": "Cliente Demo",
+                "sede": "Bilbao",
+                "direccion": "Gran Via 1",
+                "ont_modelo": "ONT ZTE",
+                "router_modelo": "MikroTik hAP ac2",
+                "library_path": LIBRARY,
+                "glpi_entity_id": "sede-7",
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn(b"ID entero positivo", response.data)
+
+    def test_confirm_rejects_invalid_persisted_entity_id(self) -> None:
+        DOWNLOADS["invalid-id"] = {
+            "filename": "demo.drawio",
+            "xml": "<mxfile />",
+            "entity_id": "not-an-id",
+            "cliente": "Demo",
+            "sede": "Central",
+            "uploaded": False,
+        }
+        configured_client = GlpiClient("http://glpi", "a", "u")
+        with patch("web_app.GlpiClient.from_environment", return_value=configured_client):
+            response = self.client.post("/confirm-glpi/invalid-id")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn(b"ID entero positivo", response.data)
 
 
 if __name__ == "__main__":

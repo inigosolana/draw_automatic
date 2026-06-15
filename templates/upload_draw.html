@@ -12,9 +12,16 @@
         <header class="panel-header">
           <h1>Subir draw antiguo a GLPI</h1>
           <p>Asocia diagramas existentes al cliente y sede correctos.</p>
+          {% if technician %}
+          <div class="technician-bar">
+            <span><strong>Técnico:</strong> {{ technician.name or technician.username }}</span>
+            <form method="post" action="{{ url_for('logout') }}"><button type="submit" class="link-button">Cerrar sesión</button></form>
+          </div>
+          {% endif %}
           <nav class="app-tabs">
             <a class="app-tab" href="{{ url_for('index') }}">Crear diagrama</a>
             <a class="app-tab active" href="{{ url_for('upload_draw') }}">Subir draw antiguo</a>
+            <a class="app-tab" href="{{ url_for('diagrams') }}">Consultar diagramas</a>
           </nav>
         </header>
 
@@ -61,6 +68,10 @@
               <input type="file" name="drawio_file" accept=".drawio,.xml,application/xml,text/xml" required>
             </label>
             <p class="helper-text">El archivo se valida antes de subirlo y se conserva sin modificar.</p>
+            <label class="checkbox-label">
+              <input type="checkbox" name="allow_duplicate" value="1">
+              Permitir otro diagrama aunque la sede ya tenga uno
+            </label>
           </section>
 
           <div class="actions">

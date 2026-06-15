@@ -2,10 +2,49 @@ from __future__ import annotations
 
 import json
 import re
+from dataclasses import dataclass
 from pathlib import Path
 
 
 REQUIRED_FIELDS = ("cliente", "sede", "direccion")
+
+
+@dataclass(frozen=True)
+class ValidatedEquipment:
+    cantidad: int
+    extensiones: list[str]
+
+    @classmethod
+    def from_dict(cls, team: dict, index: int) -> ValidatedEquipment:
+        label = str(team.get("modelo") or team.get("tipo") or f"equipo {index + 1}")
+        quantity = team.get("cantidad", 1)
+        if isinstance(quantity, bool) or not isinstance(quantity, int) or quantity <= 0:
+            raise ValueError(
+                f"El campo 'cantidad' del equipo '{label}' debe ser un entero positivo."
+            )
+        extensions = team.get("extensiones", [])
+        if extensions is None:
+            extensions = []
+        if not isinstance(extensions, list) or any(not isinstance(value, str) for value in extensions):
+            raise ValueError(
+                f"El campo 'extensiones' del equipo '{label}' debe ser una lista de textos."
+            )
+        return cls(cantidad=quantity, extensiones=extensions)
+
+
+def validate_input_schema(data: dict) -> None:
+    if not isinstance(data, dict):
+        raise ValueError("La entrada debe ser un objeto JSON.")
+    equipment = data.get("equipos", [])
+    if equipment is None:
+        data["equipos"] = []
+        return
+    if not isinstance(equipment, list):
+        raise ValueError("El campo 'equipos' debe ser una lista.")
+    for index, team in enumerate(equipment):
+        if not isinstance(team, dict):
+            raise ValueError(f"El equipo en la posicion {index + 1} debe ser un objeto.")
+        ValidatedEquipment.from_dict(team, index)
 
 
 def load_input(path: str | Path) -> dict:
@@ -20,6 +59,7 @@ def load_input(path: str | Path) -> dict:
         joined = ", ".join(missing)
         raise ValueError(f"Faltan campos obligatorios: {joined}")
     data.setdefault("equipos", [])
+    validate_input_schema(data)
     infer_template(data)
     return data
 
@@ -67,11 +107,14 @@ def parse_natural_text(text: str) -> dict:
 
 
 def parse_equipment_line(line: str) -> dict | None:
-    match = re.match(r"(?P<qty>\d+)\s+(?P<rest>.+)", line, re.IGNORECASE)
-    if not match:
+    line = line.strip()
+    if not line:
         return None
-    qty = int(match.group("qty"))
-    rest = match.group("rest").strip()
+    match = re.match(r"(?P<qty>\d+)\s+(?P<rest>.+)", line, re.IGNORECASE)
+    qty = int(match.group("qty")) if match else 1
+    rest = match.group("rest").strip() if match else line
+    if qty <= 0:
+        raise ValueError(f"El campo 'cantidad' del equipo '{rest}' debe ser un entero positivo.")
     ownership = "ajeno" if re.search(r"\b(ajeno|no nuestro)\b", rest, re.IGNORECASE) else "propio"
     rest = re.sub(r"\s*[\[(]?\b(?:propio|nuestro|ajeno|no nuestro)\b[\])]?\s*", " ", rest, flags=re.IGNORECASE).strip()
     ext_match = re.search(r",?\s*extensi\S*nes?\s+(.+)$|,?\s*extensi\S*n\s+(.+)$", rest, re.IGNORECASE)

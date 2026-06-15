@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 import tempfile
 import unittest
 
@@ -6,7 +7,7 @@ from generator.aliases import resolve_alias
 from generator.drawio_writer import build_drawio
 from generator.layout_engine import build_layout, summarize_equipment, validate_input_data
 from generator.library_loader import load_library
-from generator.parser import load_input
+from generator.parser import load_input, parse_equipment_line
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -50,12 +51,52 @@ class BasicTests(unittest.TestCase):
         self.assertIn('y="-14" as="offset"', result.xml)
         self.assertIn("image=data:image/png%3Bbase64,", result.xml)
         self.assertIn("exitX=0.5;exitY=1.0", result.xml)
+        ids = re.findall(r'<mxCell id="([^"]+)"', result.xml)
+        self.assertEqual(len(ids), len(set(ids)))
+        generated_ids = [cell_id for cell_id in ids if cell_id not in {"0", "1"}]
+        self.assertTrue(all(re.fullmatch(r"id-[0-9a-f]{12}", cell_id) for cell_id in generated_ids))
 
     def test_natural_text_input(self) -> None:
         data = load_input(TEXT_EXAMPLE)
         self.assertEqual(data["cliente"], "Pescados Ginés e Hijos")
         self.assertEqual(data["template"], "con_switch")
         self.assertEqual(len(data["equipos"]), 4)
+
+    def test_equipment_without_explicit_quantity_defaults_to_one(self) -> None:
+        equipment = parse_equipment_line("Fanvil V62, extension 2001")
+        self.assertEqual(equipment["cantidad"], 1)
+        self.assertEqual(equipment["extensiones"], ["2001"])
+        self.assertEqual(equipment["tipo"], "telefono")
+
+    def test_empty_equipment_line_is_ignored(self) -> None:
+        self.assertIsNone(parse_equipment_line("   "))
+
+    def test_invalid_quantity_reports_equipment(self) -> None:
+        data = {
+            "cliente": "Demo",
+            "sede": "Central",
+            "direccion": "Bilbao",
+            "equipos": [{"tipo": "telefono", "modelo": "Fanvil V62", "cantidad": 0}],
+        }
+        with self.assertRaisesRegex(ValueError, "Fanvil V62.*entero positivo"):
+            build_layout(data)
+
+    def test_extensions_must_be_list_of_strings(self) -> None:
+        data = {
+            "cliente": "Demo",
+            "sede": "Central",
+            "direccion": "Bilbao",
+            "equipos": [
+                {
+                    "tipo": "telefono",
+                    "modelo": "Fanvil V62",
+                    "cantidad": 1,
+                    "extensiones": "2001",
+                }
+            ],
+        }
+        with self.assertRaisesRegex(ValueError, "extensiones.*Fanvil V62.*lista de textos"):
+            validate_input_data(data)
 
     def test_multisite_template(self) -> None:
         data = load_input(MULTI_EXAMPLE)

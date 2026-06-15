@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from .aliases import resolve_alias
+from .parser import ValidatedEquipment, validate_input_schema
 
 
 DECT_BASE_MODELS = {"w60b", "w70b", "w80b", "w90b"}
@@ -69,6 +70,7 @@ def _ownership(team: dict) -> str:
 
 
 def validate_input_data(data: dict) -> list[str]:
+    validate_input_schema(data)
     warnings: list[str] = []
     internet = data.get("internet", {})
     router_model = _display_model(_safe(data.get("router", {}).get("modelo", "")))
@@ -78,9 +80,10 @@ def validate_input_data(data: dict) -> list[str]:
         and not internet.get("backup")
     ):
         warnings.append("La conexion Fibra + Backup con hAP ac2 necesita seleccionar WAP LTE o TELTONIKA para ETH2.")
-    for team in data.get("equipos", []):
-        qty = int(team.get("cantidad", 1))
-        extensions = team.get("extensiones") or []
+    for index, team in enumerate(data.get("equipos", [])):
+        validated = ValidatedEquipment.from_dict(team, index)
+        qty = validated.cantidad
+        extensions = validated.extensiones
         if qty > len(extensions) and extensions:
             warnings.append(
                 f"El equipo '{team.get('modelo', team.get('tipo', 'Equipo'))}' tiene cantidad {qty} y solo {len(extensions)} extension(es)."
@@ -123,6 +126,7 @@ def summarize_equipment(data: dict) -> str:
 
 
 def build_layout(data: dict) -> tuple[list[NodeSpec], list[EdgeSpec]]:
+    validate_input_schema(data)
     template = data.get("template", "oficina_simple")
     if template == "rack":
         return build_rack_layout(data)
@@ -241,11 +245,12 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
             column = 0
             row += 1
 
-    for team in data.get("equipos", []):
+    for team_index_in_data, team in enumerate(data.get("equipos", [])):
         if team.get("tipo") == "switch":
             continue
-        qty = int(team.get("cantidad", 1))
-        exts = team.get("extensiones", [])
+        validated = ValidatedEquipment.from_dict(team, team_index_in_data)
+        qty = validated.cantidad
+        exts = validated.extensiones
         normalized_model = _normalized_model(team)
         is_dect_base = normalized_model in DECT_BASE_MODELS
         is_dect_handset = normalized_model in DECT_HANDSET_MODELS

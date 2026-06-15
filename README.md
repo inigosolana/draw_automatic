@@ -58,9 +58,20 @@ La web permite:
 - seleccionar provincia, cliente y sede desde GLPI;
 - revisar el `.drawio` antes de confirmar su publicacion en GLPI;
 - subir diagramas antiguos desde la pestana `Subir draw antiguo`;
+- consultar por sede los diagramas que ya existen en GLPI;
+- iniciar sesion con las mismas credenciales de GLPI sin guardar la contrasena;
+- registrar el tecnico que publica cada diagrama;
+- previsualizar el diagrama y avisar de duplicados antes de publicarlo;
+- guardar por sede la direccion exacta corregida por el tecnico cuando GLPI solo aporta ciudad y codigo postal;
 - aprender iconos etiquetados de draws antiguos sin reemplazar la libreria oficial.
 
 Las credenciales GLPI solo se leen desde variables de entorno. No deben incluirse en el repositorio.
+
+## Produccion con Portainer
+
+El repositorio incluye `Dockerfile`, `docker-compose.yml`, `.env.example` y una guia
+completa en `PORTAINER.md`. La aplicacion se ejecuta con Gunicorn, conserva las
+descargas pendientes en un volumen y expone `/health` para monitorizacion.
 
 ## Formato JSON soportado
 
