@@ -79,6 +79,15 @@ ALIASES = {
     "mikrotik wap lte": "Mikrotik wAP LTE",
     "wap lte6": "Mikrotik wAP LTE",
     "teltonika": "TELTONIKA",
+    "grandstream ap": "Grandstream AP",
+    "gwn7600": "Grandstream AP",
+    "gwn7610": "Grandstream AP",
+    "gwn7615": "Grandstream AP",
+    "gwn7630": "Grandstream AP",
+    "gwn7660": "Grandstream AP",
+    "punto acceso grandstream": "Grandstream AP",
+    "punto de acceso grandstream": "Grandstream AP",
+    "ap grandstream": "Grandstream AP",
 }
 
 
