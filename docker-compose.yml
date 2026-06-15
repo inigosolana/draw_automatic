@@ -3,7 +3,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: ausarta-drawio:latest
     container_name: ausarta-drawio
     restart: unless-stopped
     ports:
