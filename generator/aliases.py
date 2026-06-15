@@ -70,6 +70,7 @@ ALIASES = {
     "w73": "yealink_inalambrico",
     "w73h": "yealink_inalambrico",
     "w71h": "W71H",
+    "w72h": "W71H",
     "s53ug+5haxd2haxd-tc&rg650e-eu (chateau 5g ax r17)": "CHATEAU",
     "chateau 5g ax r17": "CHATEAU",
     "router zte": "Router ZTE",

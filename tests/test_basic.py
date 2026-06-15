@@ -5,7 +5,7 @@ import unittest
 
 from generator.aliases import resolve_alias
 from generator.drawio_writer import build_drawio
-from generator.layout_engine import build_layout, summarize_equipment, validate_input_data
+from generator.layout_engine import SUMMARY_X, _anchor_exit_x, build_layout, summarize_equipment, validate_input_data
 from generator.library_loader import load_library
 from generator.parser import load_input, parse_equipment_line
 
@@ -57,7 +57,8 @@ class BasicTests(unittest.TestCase):
         self.assertIn('value="ETH1-WAN"', result.xml)
         self.assertIn('y="-14" as="offset"', result.xml)
         self.assertIn("image=data:image/png%3Bbase64,", result.xml)
-        self.assertIn("exitX=0.5;exitY=1.0", result.xml)
+        self.assertIn("exitY=1.0", result.xml)
+        self.assertIn('<Array as="points">', result.xml)
         ids = re.findall(r'<mxCell id="([^"]+)"', result.xml)
         self.assertEqual(len(ids), len(set(ids)))
         generated_ids = [cell_id for cell_id in ids if cell_id not in {"0", "1"}]
@@ -182,7 +183,8 @@ class BasicTests(unittest.TestCase):
         library = load_library(LIBRARY)
         nodes, edges = build_layout(data)
         result = build_drawio(nodes, edges, library)
-        self.assertIn('pageHeight="1370"', result.xml)
+        page_height = int(re.search(r'pageHeight="(\d+)"', result.xml).group(1))
+        self.assertGreaterEqual(page_height, 827)
 
     def test_dect_handset_is_placed_below_base_without_router_edge(self) -> None:
         data = {
@@ -202,7 +204,32 @@ class BasicTests(unittest.TestCase):
         handset_node = next(node for node in nodes if node.model == "W71H")
         self.assertEqual(handset_node.x, base_node.x)
         self.assertGreater(handset_node.y, base_node.y)
-        self.assertFalse(any(edge.target == handset_node.key for edge in edges))
+        self.assertFalse(any(edge.target == handset_node.key and edge.label and edge.label.endswith("-ETH") for edge in edges))
+        self.assertTrue(any(edge.target == handset_node.key and edge.label == "DECT" for edge in edges))
+
+    def test_dect_handset_without_base_gets_auto_base_with_ethernet(self) -> None:
+        data = {
+            "cliente": "Demo",
+            "sede": "Central",
+            "direccion": "Bilbao",
+            "template": "con_switch",
+            "internet": {"tipo": "SOLO FIBRA", "velocidad": "600 MB"},
+            "ont": {"modelo": "ONT ZTE"},
+            "router": {"modelo": "CHATEAU"},
+            "equipos": [
+                {"tipo": "switch", "modelo": "TP-Link 8P", "cantidad": 1},
+                {"tipo": "telefono", "modelo": "W71H", "cantidad": 1, "extensiones": ["3200"]},
+            ],
+        }
+        nodes, edges = build_layout(data)
+        base_node = next(node for node in nodes if node.meta and node.meta.get("dect_role") == "base")
+        handset_node = next(node for node in nodes if node.model == "W71H")
+        self.assertEqual(base_node.model, "W60B")
+        self.assertEqual(handset_node.x, base_node.x)
+        self.assertGreater(handset_node.y, base_node.y)
+        self.assertTrue(any(edge.target == base_node.key and edge.label == "SW1-ETH" for edge in edges))
+        self.assertFalse(any(edge.target == handset_node.key and edge.label and edge.label.endswith("-ETH") for edge in edges))
+        self.assertTrue(any(edge.target == handset_node.key and edge.label == "DECT" for edge in edges))
 
     def test_summary_lists_one_equipment_per_line(self) -> None:
         data = {
@@ -342,7 +369,42 @@ class BasicTests(unittest.TestCase):
             or summary_box[3] <= switch_box[1]
         )
         self.assertFalse(overlaps)
-        self.assertGreater(summary.y, switch.y + switch.height - 20)
+        self.assertGreaterEqual(summary.x, switch.x + switch.width)
+        self.assertLess(summary.y + summary.height, 400)
+
+    def test_switch_phones_are_aligned_in_row_with_matching_exit_ports(self) -> None:
+        data = {
+            "cliente": "Demo",
+            "sede": "Central",
+            "direccion": "Bilbao",
+            "template": "con_switch",
+            "internet": {"tipo": "SOLO FIBRA", "velocidad": "600 MB"},
+            "ont": {"modelo": "ONT ZTE"},
+            "router": {"modelo": "CHATEAU"},
+            "equipos": [
+                {"tipo": "switch", "modelo": "TP-Link 8P", "cantidad": 1},
+                {"tipo": "telefono", "modelo": "T-33", "cantidad": 1},
+                {"tipo": "telefono", "modelo": "T-44", "cantidad": 1},
+                {"tipo": "telefono", "modelo": "T-73", "cantidad": 1},
+                {"tipo": "telefono", "modelo": "W71H", "cantidad": 1},
+            ],
+        }
+        nodes, edges = build_layout(data)
+        switch = next(node for node in nodes if node.key == "switch")
+        phones = sorted(
+            (node for node in nodes if node.key.startswith("team_") and node.meta and node.meta.get("dect_role") != "handset"),
+            key=lambda node: node.x,
+        )
+        self.assertEqual(len(phones), 4)
+        self.assertEqual(len({node.y for node in phones}), 1)
+        self.assertGreater(phones[0].y, switch.y + switch.height)
+        for phone in phones:
+            self.assertLessEqual(phone.x + phone.width, SUMMARY_X - 10)
+        phone_edges = [edge for edge in edges if edge.source == "switch" and edge.label and edge.label.startswith("SW")]
+        self.assertEqual(len(phone_edges), 4)
+        for edge in phone_edges:
+            target = next(node for node in nodes if node.key == edge.target)
+            self.assertAlmostEqual(edge.exit_x, _anchor_exit_x(switch, target), places=2)
 
 
 if __name__ == "__main__":

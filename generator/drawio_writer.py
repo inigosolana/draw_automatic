@@ -140,9 +140,11 @@ def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryI
     for edge_spec in edges:
         edge_id = ids.next()
         style = EDGE_STYLE.replace("rounded=1", "rounded=0" if edge_spec.label and edge_spec.label.startswith("ETH1") else "rounded=1")
+        if edge_spec.label == "DECT":
+            style += "dashed=1;dashPattern=8 8;strokeColor=#6c8ebf;"
         style += (
-            f"exitX={edge_spec.exit_x};exitY={edge_spec.exit_y};exitDx=0;exitDy=0;exitPerimeter=0;"
-            f"entryX={edge_spec.entry_x};entryY={edge_spec.entry_y};entryDx=0;entryDy=0;"
+            f"exitX={edge_spec.exit_x};exitY={edge_spec.exit_y};exitDx=0;exitDy=0;exitPerimeter=1;"
+            f"entryX={edge_spec.entry_x};entryY={edge_spec.entry_y};entryDx=0;entryDy=0;entryPerimeter=1;"
         )
         edge = ET.SubElement(
             root,
@@ -158,6 +160,10 @@ def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryI
             },
         )
         geometry = ET.SubElement(edge, "mxGeometry", {"relative": "1", "as": "geometry"})
+        if edge_spec.waypoints:
+            points = ET.SubElement(geometry, "Array", {"as": "points"})
+            for waypoint_x, waypoint_y in edge_spec.waypoints:
+                ET.SubElement(points, "mxPoint", {"x": str(waypoint_x), "y": str(waypoint_y)})
         if edge_spec.label:
             ET.SubElement(geometry, "mxPoint", {"x": "0", "y": "-14", "as": "offset"})
 

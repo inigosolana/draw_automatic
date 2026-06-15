@@ -130,7 +130,7 @@ def parse_equipment_line(line: str) -> dict | None:
         tipo = "switch"
     elif any(model in lowered for model in ("w60b", "w70b", "w80b", "w90b")):
         tipo = "base_dect"
-    elif any(model in lowered for model in ("w71h", "w53", "w53h", "w73", "w73h")):
+    elif any(model in lowered for model in ("w71h", "w72h", "w53", "w53h", "w73h")):
         tipo = "terminal_dect"
     elif "ont" in lowered:
         tipo = "ont"
