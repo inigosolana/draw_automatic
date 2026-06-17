@@ -1,5 +1,6 @@
 from pathlib import Path
 from io import BytesIO
+import os
 import tempfile
 import time
 import unittest
@@ -111,10 +112,11 @@ class WebAdapterTests(unittest.TestCase):
 
     def test_glpi_diagram_url_points_to_archimap(self) -> None:
         client = GlpiClient("https://glpi.example/apirest.php", "app", "user")
-        self.assertEqual(
-            client.diagram_url(2265),
-            "https://glpi.example/marketplace/archimap/front/graph.form.php?id=2265",
-        )
+        with patch.dict(os.environ, {"GLPI_WEB_URL": ""}, clear=False):
+            self.assertEqual(
+                client.diagram_url(2265),
+                "https://glpi.example/marketplace/archimap/front/graph.form.php?id=2265",
+            )
 
     def test_glpi_diagram_uses_single_session(self) -> None:
         client = GlpiClient("http://glpi.test/apirest.php", "app", "user")
@@ -158,14 +160,14 @@ class WebAdapterTests(unittest.TestCase):
     def test_glpi_session_failure_has_clear_error(self) -> None:
         client = GlpiClient("http://glpi.test/apirest.php", "app", "user")
         client._request = lambda *args, **kwargs: {}
-        with self.assertRaisesRegex(GlpiError, "token de sesion"):
+        with self.assertRaisesRegex(GlpiError, "sesion de servicio"):
             with client.session():
                 pass
 
     def test_glpi_timeout_is_wrapped(self) -> None:
         client = GlpiClient("http://glpi.test/apirest.php", "app", "user")
         with patch("generator.glpi_client.urlopen", side_effect=URLError("timeout")):
-            with self.assertRaisesRegex(GlpiError, "No se ha podido consultar GLPI"):
+            with self.assertRaisesRegex(GlpiError, "No se ha podido conectar con GLPI"):
                 client._request("initSession", {})
 
     def test_glpi_invalid_entity_response_is_wrapped(self) -> None:
@@ -178,7 +180,7 @@ class WebAdapterTests(unittest.TestCase):
             BytesIO(b'["ERROR_ITEM_NOT_FOUND","Entidad invalida"]'),
         )
         with patch("generator.glpi_client.urlopen", side_effect=error):
-            with self.assertRaisesRegex(GlpiError, "GLPI ha rechazado la operacion \\(400\\)"):
+            with self.assertRaisesRegex(GlpiError, "GLPI ha rechazado la operacion \\(codigo 400\\)"):
                 client._request("PluginArchimapGraph", {}, method="POST", payload={"input": {}})
 
     def test_download_store_removes_expired_entries(self) -> None:
@@ -533,6 +535,8 @@ class WebAppTests(unittest.TestCase):
         DOWNLOADS.clear()
         self.app = create_app()
         self.app.config["TESTING"] = True
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        self.app.config["AUTH_REQUIRED"] = False
         self.client = self.app.test_client()
 
     def test_post_generates_downloadable_drawio(self) -> None:
@@ -556,6 +560,30 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(download.status_code, 200)
         self.assertIn(b"<mxfile", download.data)
         self.assertIn(b"attachment;", download.headers["Content-Disposition"].encode())
+
+    def test_import_work_order_with_pasted_text(self) -> None:
+        response = self.client.post(
+            "/api/import-work-order",
+            json={
+                "pasted_text": "CIF\nB12345678\nNombre del cliente\nCliente Demo\nProducto: GPON ONT\nProducto: SIP-T31G",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["cif"], "B12345678")
+        self.assertEqual(payload["cliente"], "Cliente Demo")
+        self.assertEqual(payload["ont_modelo"], "ONT ZTE")
+
+    def test_import_work_order_with_products_text(self) -> None:
+        response = self.client.post(
+            "/api/import-work-order",
+            json={"products_text": "GPON ONT\nSIP-T31G\nCargador PSU"},
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["ont_modelo"], "ONT ZTE")
+        self.assertEqual(payload["terminals"][0]["model"], "T-31")
+        self.assertTrue(any("Cargador" in item for item in payload["warnings"]))
 
     def test_health_endpoint_is_available(self) -> None:
         response = self.client.get("/health")
@@ -692,7 +720,7 @@ class WebAppTests(unittest.TestCase):
             content_type="multipart/form-data",
         )
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b"No se ha podido subir el diagrama", response.data)
+        self.assertIn(b"No se ha podido completar la subida del diagrama", response.data)
 
     def test_upload_draw_page_is_available(self) -> None:
         response = self.client.get("/upload-draw")
@@ -716,7 +744,7 @@ class WebAppTests(unittest.TestCase):
             content_type="multipart/form-data",
         )
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b"No se ha podido subir el diagrama", response.data)
+        self.assertIn(b"No se ha podido completar la subida del diagrama", response.data)
 
     def test_generate_rejects_invalid_glpi_entity_id(self) -> None:
         response = self.client.post(
@@ -747,7 +775,7 @@ class WebAppTests(unittest.TestCase):
         with patch("web_app.GlpiClient.from_environment", return_value=configured_client):
             response = self.client.post("/confirm-glpi/invalid-id")
         self.assertEqual(response.status_code, 400)
-        self.assertIn(b"ID entero positivo", response.data)
+        self.assertIn(b"No se ha podido completar la publicacion en GLPI", response.data)
 
 
 if __name__ == "__main__":

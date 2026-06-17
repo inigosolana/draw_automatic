@@ -20,14 +20,25 @@ from flask_wtf.csrf import CSRFProtect
 from generator.catalog_cache import CatalogCache
 from generator.diagram_activity import DiagramActivity
 from generator.download_store import DownloadStore
+from generator.comms_client import CommsClient, CommsError, import_products_text
+from generator.work_order_text_parser import parse_work_order_paste
+from generator.safe_errors import public_error_message
+from generator.glpi_merge import merge_import_with_glpi
 from generator.glpi_client import GlpiClient, GlpiError, build_customer_catalog
 from generator.knowledge_base import learn_from_drawio
 from generator.site_directory import SiteDirectory, apply_saved_addresses
 from generator.device_catalog import build_device_catalog
 from generator.web_adapter import build_drawio_from_data, form_to_data, form_to_structured_data
 
-
 PROJECT_ROOT = Path(__file__).resolve().parent
+
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(PROJECT_ROOT / ".env")
+except ImportError:
+    pass
+
 DOWNLOADS = DownloadStore(
     os.environ.get("DRAWIO_DOWNLOAD_DB", PROJECT_ROOT / "data" / "downloads.sqlite3"),
     ttl_seconds=int(os.environ.get("DRAWIO_DOWNLOAD_TTL", "86400")),
@@ -99,8 +110,7 @@ def create_app() -> Flask:
         strategy="fixed-window",
     )
     
-    # Security: HTTP Security Headers (Talisman)
-    # Only enforce HTTPS if explicitly enabled
+    # Security: HTTP Security Headers (Talisman) — optional (off in local dev)
     force_https = os.environ.get("DRAWIO_FORCE_HTTPS", "0") == "1"
     csp = {
         'default-src': "'self'",
@@ -110,17 +120,25 @@ def create_app() -> Flask:
         'frame-src': ["'self'", "embed.diagrams.net"],
         'connect-src': ["'self'"],
     }
-    Talisman(
-        app,
-        force_https=force_https,
-        strict_transport_security=force_https,
-        content_security_policy=csp,
-        content_security_policy_nonce_in=['script-src'],
-        frame_options='SAMEORIGIN',
-        referrer_policy='strict-origin-when-cross-origin',
+    # Security headers only in production (HTTPS). In local dev they block inline JS.
+    use_security_headers = (
+        os.environ.get("DRAWIO_ENABLE_SECURITY_HEADERS", "1") == "1"
+        and os.environ.get("DRAWIO_COOKIE_SECURE", "0") == "1"
     )
+    if use_security_headers:
+        Talisman(
+            app,
+            force_https=force_https,
+            strict_transport_security=force_https,
+            content_security_policy=csp,
+            frame_options='SAMEORIGIN',
+            referrer_policy='strict-origin-when-cross-origin',
+        )
     
     app.config["PREVIEW_URL"] = os.environ.get("DRAWIO_PREVIEW_URL", "https://embed.diagrams.net/").rstrip("/")
+    is_local_dev = os.environ.get("DRAWIO_COOKIE_SECURE", "0") != "1"
+    app.config["TEMPLATES_AUTO_RELOAD"] = is_local_dev
+    app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0 if is_local_dev else 43200
 
     def current_technician() -> dict:
         return session.get("technician") or {"username": "local", "name": "Tecnico local"}
@@ -146,7 +164,8 @@ def create_app() -> Flask:
             CATALOG.set("glpi_customer_catalog", catalog)
             return apply_saved_addresses(catalog, SITES.all()), ""
         except GlpiError as exc:
-            return [], str(exc)
+            security_logger.warning(f"GLPI catalog load failed: {exc} (IP: {get_remote_address()})")
+            return [], public_error_message(str(exc), context="carga del catalogo GLPI")
 
     @app.route("/login", methods=["GET", "POST"])
     @limiter.limit("10 per minute")
@@ -159,10 +178,10 @@ def create_app() -> Flask:
             
             client = GlpiClient.from_environment()
             if not client:
-                error = "GLPI no esta configurado."
+                error = "El acceso no esta disponible en este momento."
                 security_logger.warning(f"Login attempt failed: GLPI not configured (IP: {client_ip})")
             elif not username or not password:
-                error = "Introduce usuario y contraseña de GLPI."
+                error = "Introduce usuario y clave de acceso."
                 security_logger.warning(f"Login attempt failed: empty credentials (IP: {client_ip})")
             else:
                 try:
@@ -172,7 +191,7 @@ def create_app() -> Flask:
                     security_logger.info(f"Login successful: user={username}, IP={client_ip}")
                     return redirect(request.args.get("next") or url_for("index"))
                 except GlpiError:
-                    error = "Usuario o contraseña de GLPI incorrectos."
+                    error = "Usuario o clave incorrectos."
                     security_logger.warning(f"Login attempt failed: invalid credentials for user={username}, IP={client_ip}")
         return render_template("login.html", error=error)
 
@@ -184,12 +203,16 @@ def create_app() -> Flask:
         security_logger.info(f"Logout: user={username}, IP={client_ip}")
         return redirect(url_for("login"))
 
+    def comms_configured() -> bool:
+        return CommsClient.from_environment() is not None
+
     def index_context(**extra):
         glpi_customers, glpi_error = load_glpi_catalog()
         context = {
             "device_catalog": build_device_catalog(app.config["DEFAULT_LIBRARY"]),
             "glpi_customers": glpi_customers,
             "glpi_error": glpi_error,
+            "comms_configured": comms_configured(),
             "technician": current_technician(),
         }
         context.update(extra)
@@ -238,7 +261,7 @@ def create_app() -> Flask:
                         }
                     )
             except (ValueError, GlpiError) as exc:
-                glpi_error = str(exc)
+                glpi_error = public_error_message(str(exc), context="consulta de diagramas GLPI")
         return render_template(
             "diagrams.html",
             glpi_customers=glpi_customers,
@@ -336,7 +359,7 @@ def create_app() -> Flask:
                     }
                     security_logger.info(f"File uploaded successfully: diagram_id={diagram_id}, file={uploaded_file.filename}, user={technician_name}, IP={client_ip}")
                 except (UnicodeDecodeError, DefusedET.ParseError, DefusedXmlException, ValueError, GlpiError) as exc:
-                    upload_error = f"No se ha podido subir el diagrama: {exc}"
+                    upload_error = public_error_message(str(exc), context="subida del diagrama")
                     security_logger.warning(f"Upload failed: {exc}, user={technician_name}, IP={client_ip}")
         return render_template(
             "upload_draw.html",
@@ -467,6 +490,92 @@ def create_app() -> Flask:
             preview_base_url=app.config["PREVIEW_URL"],
         )
 
+    @app.post("/api/import-work-order")
+    @login_required
+    @limiter.limit("30 per hour")
+    def import_work_order() -> Response:
+        payload = request.get_json(silent=True) or {}
+        pasted_text = str(
+            payload.get("pasted_text")
+            or payload.get("work_order_text")
+            or request.form.get("pasted_text")
+            or ""
+        ).strip()
+        url = str(payload.get("url") or request.form.get("url") or "").strip()
+        products_text = str(payload.get("products_text") or request.form.get("products_text") or "").strip()
+        try:
+            if pasted_text:
+                result = parse_work_order_paste(pasted_text)
+            elif products_text and not url:
+                result = import_products_text(products_text)
+            elif url:
+                client = CommsClient.from_environment()
+                if not client:
+                    raise CommsError(
+                        "AusartaConecta no esta configurado. Pega el texto copiado de la OT."
+                    )
+                result = client.import_work_order(url)
+            else:
+                raise CommsError("Pega el texto copiado de la orden de trabajo o un enlace de comms.")
+        except (CommsError, ValueError) as exc:
+            security_logger.warning(f"Work order import failed: {exc} (IP: {get_remote_address()})")
+            return Response(
+                json.dumps(
+                    {"error": public_error_message(str(exc), context="importacion de la oferta")},
+                    ensure_ascii=False,
+                ),
+                status=400,
+                mimetype="application/json; charset=utf-8",
+            )
+
+        glpi_customers, glpi_error = load_glpi_catalog()
+        imported = {
+            "cliente": result.cliente,
+            "cif": result.cif,
+            "sede": result.sede,
+            "direccion": result.direccion,
+        }
+        glpi_merge = merge_import_with_glpi(imported, glpi_customers)
+        response_warnings = list(result.warnings)
+        for correction in glpi_merge.get("corrections") or []:
+            response_warnings.append(
+                f"{correction['label']} corregido ({correction['source']}): "
+                f"«{correction['before']}» → «{correction['after']}»"
+            )
+
+        security_logger.info(
+            f"Work order imported: id={result.work_order_id or 'text'}, "
+            f"products={len(result.terminals) + len(result.devices_json)}, "
+            f"glpi_matched={glpi_merge.get('matched')}, IP={get_remote_address()}"
+        )
+        return Response(
+            json.dumps(
+                {
+                    "work_order_id": result.work_order_id,
+                    "cliente": glpi_merge.get("cliente") or result.cliente,
+                    "cif": glpi_merge.get("cif") or result.cif,
+                    "sede": glpi_merge.get("sede") or result.sede,
+                    "direccion": glpi_merge.get("direccion") or result.direccion,
+                    "glpi_entity_id": glpi_merge.get("glpi_entity_id") or "",
+                    "glpi_matched": glpi_merge.get("matched", False),
+                    "glpi_message": glpi_merge.get("message") or public_error_message(glpi_error, context="sincronizacion GLPI"),
+                    "glpi_corrections": glpi_merge.get("corrections") or [],
+                    "internet_tipo": result.internet_tipo,
+                    "internet_proveedor": result.internet_proveedor,
+                    "internet_velocidad": result.internet_velocidad,
+                    "ont_modelo": result.ont_modelo,
+                    "router_modelo": result.router_modelo,
+                    "backup_modelo": result.backup_modelo,
+                    "router_ip": result.router_ip,
+                    "devices_json": result.devices_json,
+                    "terminals": result.terminals,
+                    "warnings": response_warnings,
+                },
+                ensure_ascii=False,
+            ),
+            mimetype="application/json; charset=utf-8",
+        )
+
     @app.post("/confirm-glpi/<token>")
     @login_required
     def confirm_glpi(token: str) -> str:
@@ -508,9 +617,10 @@ def create_app() -> Flask:
                 source="Generado",
             )
         except ValueError as exc:
-            return Response(str(exc), status=400, mimetype="text/plain; charset=utf-8")
+            return Response(public_error_message(str(exc), context="publicacion en GLPI"), status=400, mimetype="text/plain; charset=utf-8")
         except GlpiError as exc:
-            return Response(str(exc), status=502, mimetype="text/plain; charset=utf-8")
+            security_logger.warning(f"GLPI confirm failed: {exc} (IP: {get_remote_address()})")
+            return Response(public_error_message(str(exc), context="publicacion en GLPI"), status=502, mimetype="text/plain; charset=utf-8")
         DOWNLOADS.update_payload(token, uploaded=True)
         return Response(
             json.dumps({"id": diagram_id, "url": client.diagram_url(diagram_id)}),
@@ -521,4 +631,7 @@ def create_app() -> Flask:
 
 
 if __name__ == "__main__":
-    create_app().run(host=DEFAULT_HOST, port=DEFAULT_PORT, debug=False)
+    local_dev = os.environ.get("DRAWIO_COOKIE_SECURE", "0") != "1"
+    print(f"Ausarta Draw.io — carpeta: {PROJECT_ROOT}")
+    print(f"Local: http://127.0.0.1:{DEFAULT_PORT}/")
+    create_app().run(host=DEFAULT_HOST, port=DEFAULT_PORT, debug=local_dev, use_reloader=local_dev)

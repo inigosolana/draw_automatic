@@ -149,6 +149,8 @@ def _equipment_label(team: dict, extension: str = "", port_label: str = "") -> s
         parts.append(f"SN {_safe(team.get('serial_number'))}")
     if team.get("mac"):
         parts.append(f"MAC {_safe(team.get('mac'))}")
+    if team.get("ip"):
+        parts.append(f"IP {_safe(team.get('ip'))}")
     return "<br>".join(parts)
 
 

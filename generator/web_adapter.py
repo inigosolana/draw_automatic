@@ -66,6 +66,22 @@ def _parse_equipment_block(text: str) -> list[dict]:
     return equipos
 
 
+def _terminal_detail_keys(parts: list[str]) -> tuple[str, ...]:
+    has_model = bool(
+        parts
+        and parts[0]
+        and not parts[0].isdigit()
+        and any(char.isalpha() for char in parts[0])
+    )
+    if has_model:
+        if len(parts) >= 7:
+            return ("model", "extension", "serial_number", "mac", "ip", "propiedad", "dect_base")
+        return ("model", "extension", "serial_number", "mac", "propiedad", "dect_base")
+    if len(parts) >= 6 and (parts[3] or "").lower() in {"propio", "ajeno"}:
+        return ("extension", "serial_number", "mac", "propiedad", "dect_base", "model")
+    return ("extension", "serial_number", "mac", "ip", "propiedad", "dect_base", "model")
+
+
 def _parse_terminal_details(details_text: str) -> list[dict]:
     details: list[dict] = []
     for line in details_text.splitlines():
@@ -73,10 +89,7 @@ def _parse_terminal_details(details_text: str) -> list[dict]:
             continue
         parts = [part.strip() for part in line.split("|")]
         detail: dict = {}
-        if len(parts) >= 1 and parts[0] and not parts[0].isdigit() and any(char.isalpha() for char in parts[0]):
-            keys = ("model", "extension", "serial_number", "mac", "propiedad", "dect_base")
-        else:
-            keys = ("extension", "serial_number", "mac", "propiedad", "dect_base", "model")
+        keys = _terminal_detail_keys(parts)
         for key, value in zip(keys, parts):
             if not value:
                 continue
@@ -114,7 +127,7 @@ def _expand_terminal_equipment(equipos: list[dict], details: list[dict]) -> list
             extension = detail.get("extension") or (extensions[index] if index < len(extensions) else "")
             if extension:
                 item["extension"] = extension
-            for key in ("serial_number", "mac", "propiedad", "dect_base"):
+            for key in ("serial_number", "mac", "ip", "propiedad", "dect_base"):
                 if detail.get(key):
                     item[key] = detail[key]
             expanded.append(item)

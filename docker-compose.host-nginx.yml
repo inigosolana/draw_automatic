@@ -1,0 +1,79 @@
+# Despliegue seguro usando el Nginx del servidor (no contenedor nginx).
+# La app solo escucha en 127.0.0.1:8000; el acceso publico va por Nginx en 443.
+
+services:
+  drawio-generator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ausarta-drawio:latest
+    container_name: ausarta-drawio
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      GLPI_URL: "${GLPI_URL}"
+      GLPI_WEB_URL: "${GLPI_WEB_URL}"
+      GLPI_APP_TOKEN: "${GLPI_APP_TOKEN}"
+      GLPI_USER_TOKEN: "${GLPI_USER_TOKEN}"
+      DRAWIO_LIBRARY_PATH: "/app/libreria_Ausarta_JUN_2026.xml"
+      DRAWIO_DOWNLOAD_DB: "/app/data/downloads.sqlite3"
+      DRAWIO_SITE_DB: "/app/data/sites.sqlite3"
+      DRAWIO_CATALOG_DB: "/app/data/catalog.sqlite3"
+      DRAWIO_ACTIVITY_DB: "/app/data/activity.sqlite3"
+      DRAWIO_CATALOG_TTL: "${DRAWIO_CATALOG_TTL:-300}"
+      DRAWIO_DOWNLOAD_TTL: "${DRAWIO_DOWNLOAD_TTL:-86400}"
+      DRAWIO_MAX_UPLOAD_BYTES: "${DRAWIO_MAX_UPLOAD_BYTES:-15728640}"
+      DRAWIO_AUTH_REQUIRED: "1"
+      DRAWIO_COOKIE_SECURE: "1"
+      DRAWIO_FORCE_HTTPS: "0"
+      DRAWIO_SECRET_KEY: "${DRAWIO_SECRET_KEY}"
+      DRAWIO_SESSION_HOURS: "${DRAWIO_SESSION_HOURS:-8}"
+      DRAWIO_PREVIEW_URL: "${DRAWIO_PREVIEW_URL:-https://embed.diagrams.net/}"
+      DRAWIO_RATELIMIT_STORAGE: "redis://redis:6379"
+    volumes:
+      - drawio_data:/app/data
+    networks:
+      - drawio_internal
+    depends_on:
+      - redis
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100M
+
+  redis:
+    image: redis:7-alpine
+    container_name: ausarta-drawio-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - drawio_internal
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETGID
+      - SETUID
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=50M
+
+volumes:
+  drawio_data:
+  redis_data:
+
+networks:
+  drawio_internal:
+    driver: bridge
+    internal: true

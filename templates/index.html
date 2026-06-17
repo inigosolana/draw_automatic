@@ -6,12 +6,30 @@
     <title>Ausarta Draw.io Local</title>
     <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='images/ausarta-drawio-32.png') }}">
     <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='images/ausarta-drawio-180.png') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=20260617c">
   </head>
   <body>
     {% include "_app_header.html" %}
+
     <main class="page page-wide">
       <section class="panel creation-panel">
+
+        <div class="paste-bar-wrap">
+          <input type="hidden" id="page-csrf-token" value="{{ csrf_token() }}">
+          <div class="paste-bar">
+            <textarea
+              id="work-order-paste"
+              rows="1"
+              spellcheck="false"
+              aria-label="Pegar oferta"
+              placeholder="Pega aquí todo el contenido de la oferta (Ctrl+V)"
+            ></textarea>
+            <button type="button" class="paste-bar-button" id="import-work-order">Rellenar</button>
+          </div>
+          <p id="import-work-order-status" class="paste-bar-status" aria-live="polite"></p>
+          <p id="import-glpi-status" class="paste-bar-status" aria-live="polite"></p>
+          <ul id="import-work-order-warnings" class="import-warnings"></ul>
+        </div>
 
         {% if errors %}
         <div class="message error">
@@ -181,6 +199,7 @@
         <form method="post" action="{{ url_for('generate') }}" class="creation-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" id="glpi-entity-id" name="glpi_entity_id" value="{{ form_data.get('glpi_entity_id', '') }}">
+
           <div class="creation-top-grid">
           <section class="form-section destination-card">
             <h2><span class="section-icon">◆</span> Destino GLPI</h2>
@@ -235,11 +254,17 @@
             <label id="internet-velocidad-label"><span id="internet-metric-label">Velocidad</span>
               <select name="internet_velocidad" id="internet-velocidad" data-selected="{{ form_data.get('internet_velocidad', '') }}">
                 <option value="">Selecciona una velocidad</option>
+                {% for speed in ['300 MB', '600 MB', '1 GB'] %}
+                <option value="{{ speed }}" {% if form_data.get('internet_velocidad') == speed %}selected{% endif %}>{{ speed }}</option>
+                {% endfor %}
               </select>
             </label>
             <label>Proveedor
               <select name="internet_proveedor" id="internet-proveedor" data-selected="{{ form_data.get('internet_proveedor', '') }}">
                 <option value="">Selecciona un proveedor</option>
+                {% for provider in ['AIRE', 'ADAMO', 'MAS MOVIL', 'EUSKALTEL', 'SARENET', 'SARENET ORANGE'] %}
+                <option value="{{ provider }}" {% if form_data.get('internet_proveedor') == provider %}selected{% endif %}>{{ provider }}</option>
+                {% endfor %}
               </select>
             </label>
             <label id="ont-label">Modelo ONT
@@ -301,7 +326,7 @@
                   <button type="button" class="add-row-button" id="add-terminal"><span class="add-row-emoji" aria-hidden="true">📞</span> Añadir terminal</button>
                 </div>
                 <div class="terminal-columns" aria-hidden="true">
-                  <strong>MODELO</strong><strong>BASE DECT</strong><strong>EXTENSIÓN</strong><strong>SERIAL NUMBER</strong><strong>MAC</strong><strong>PROPIEDAD</strong><strong></strong>
+                  <strong>MODELO</strong><strong>BASE DECT</strong><strong>EXTENSIÓN</strong><strong>SERIAL NUMBER</strong><strong>MAC</strong><strong>IP</strong><strong>PROPIEDAD</strong><strong></strong>
                 </div>
                 <div id="terminal-rows" class="terminal-rows"></div>
                 <input type="hidden" name="terminal_details" id="terminal-details" value="{{ form_data.get('terminal_details', '') }}">
@@ -402,7 +427,17 @@
               },
               getSelected() {
                 return selected;
-              }
+              },
+              selectItem(item) {
+                if (!item) {
+                  return;
+                }
+                selected = item;
+                label.textContent = item.nombre;
+                element.classList.remove("open");
+                filter.value = "";
+                onSelect(item);
+              },
             };
           }
 
@@ -436,6 +471,130 @@
           });
 
           provinceControl.setItems(glpiCustomers, "Selecciona una provincia");
+
+          window.__drawioGlpiSelectByEntityId = function (entityId) {
+            if (!entityId || !glpiCustomers.length) {
+              return false;
+            }
+            const targetId = String(entityId);
+            for (const province of glpiCustomers) {
+              for (const customer of province.clientes || []) {
+                for (const site of customer.sedes || []) {
+                  if (String(site.id) !== targetId) {
+                    continue;
+                  }
+                  provinceControl.selectItem(province);
+                  customerControl.selectItem(customer);
+                  siteControl.selectItem(site);
+                  fields.cliente.value = customer.nombre || "";
+                  fields.cif.value = customer.cif || "";
+                  fields.sede.value = site.nombre || "";
+                  glpiEntityId.value = targetId;
+                  return true;
+                }
+              }
+            }
+            return false;
+          };
+
+          window.__drawioGlpiMatch = function (imported) {
+            if (!imported || !glpiCustomers.length) {
+              return { matched: false, message: "" };
+            }
+            if (imported.glpi_entity_id && window.__drawioGlpiSelectByEntityId(imported.glpi_entity_id)) {
+              if (imported.cliente) fields.cliente.value = imported.cliente;
+              if (imported.cif) fields.cif.value = imported.cif;
+              if (imported.sede) fields.sede.value = imported.sede;
+              if (imported.direccion) fields.direccion.value = imported.direccion;
+              glpiEntityId.value = String(imported.glpi_entity_id);
+              const source = document.getElementById("address-source");
+              if (source && imported.direccion) {
+                source.textContent = "Dirección revisada con GLPI y la oferta. Puedes corregirla si ha cambiado.";
+              }
+              return {
+                matched: true,
+                message: imported.glpi_message || `GLPI: ${imported.cliente} / ${imported.sede}`,
+              };
+            }
+
+            const normalize = function (value) {
+              return String(value || "")
+                .toLocaleLowerCase("es")
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .replace(/\s+/g, " ")
+                .trim();
+            };
+            const targetCif = (imported.cif || "").replace(/\s+/g, "").toUpperCase();
+            const targetClient = normalize(imported.cliente);
+            const targetSite = normalize(imported.sede);
+            const targetAddress = normalize(imported.direccion);
+
+            function siteScore(site) {
+              let score = 0;
+              const siteName = normalize(site.nombre);
+              const siteAddress = normalize(site.direccion);
+              if (targetSite && (siteName.includes(targetSite) || targetSite.includes(siteName))) {
+                score += 20;
+              }
+              targetAddress.split(/[\s,.-]+/).filter(function (token) {
+                return token.length > 3;
+              }).forEach(function (token) {
+                if (siteAddress.includes(token) || siteName.includes(token)) {
+                  score += 2;
+                }
+              });
+              return score;
+            }
+
+            for (const province of glpiCustomers) {
+              for (const customer of province.clientes || []) {
+                const customerCif = (customer.cif || "").replace(/\s+/g, "").toUpperCase();
+                const customerName = normalize(customer.nombre);
+                const cifMatch = targetCif && customerCif && targetCif === customerCif;
+                const nameMatch = targetClient && customerName && (
+                  customerName.includes(targetClient) || targetClient.includes(customerName)
+                );
+                if (!cifMatch && !nameMatch) {
+                  continue;
+                }
+
+                const sites = customer.sedes || [];
+                let bestSite = sites[0] || null;
+                let bestScore = -1;
+                sites.forEach(function (site) {
+                  const score = siteScore(site);
+                  if (score > bestScore) {
+                    bestScore = score;
+                    bestSite = site;
+                  }
+                });
+
+                provinceControl.selectItem(province);
+                customerControl.selectItem(customer);
+                if (bestSite) {
+                  siteControl.selectItem(bestSite);
+                  if (imported.direccion) {
+                    fields.direccion.value = imported.direccion;
+                  }
+                } else {
+                  fields.cliente.value = customer.nombre || imported.cliente || "";
+                  fields.cif.value = customer.cif || imported.cif || "";
+                  fields.sede.value = imported.sede || "";
+                  fields.direccion.value = imported.direccion || customer.direccion || "";
+                  glpiEntityId.value = "";
+                }
+
+                return {
+                  matched: true,
+                  message: bestSite
+                    ? `GLPI: ${customer.nombre} / ${bestSite.nombre}`
+                    : `GLPI: cliente ${customer.nombre} encontrado. Selecciona la sede manualmente.`,
+                };
+              }
+            }
+            return { matched: false, message: "No se ha encontrado el cliente en GLPI. Rellena la sede manualmente." };
+          };
 
           document.addEventListener("click", function (event) {
             if (!event.target.closest(".search-select")) {
@@ -592,6 +751,15 @@
           });
           document.querySelector(".creation-form").addEventListener("submit", syncDeviceRows);
           loadExistingDeviceRows();
+          window.__drawioDevices = {
+            rows: deviceRows,
+            addRow: addDeviceRow,
+            sync: syncDeviceRows,
+            clear: function () {
+              deviceRows.innerHTML = "";
+              devicesJson.value = "[]";
+            },
+          };
         </script>
         <script>
           const internetType = document.getElementById("internet-tipo");
@@ -611,6 +779,7 @@
             "Movistar M2M": "400 GB",
             "Vodafone": "1 TB",
             "Orange": "700 GB",
+            "PTVTELECOM": "700 GB",
           };
 
           function providerCapacity(provider) {
@@ -824,9 +993,10 @@
               const extension = row.querySelector('[data-field="extension"]').value.trim();
               const serial = row.querySelector('[data-field="serial"]').value.trim();
               const mac = row.querySelector('[data-field="mac"]').value.trim();
+              const ip = row.querySelector('[data-field="ip"]').value.trim();
               const ownership = row.querySelector('[data-field="ownership"]').value;
-              if (!model && !extension && !serial && !mac) return;
-              detailLines.push([model, extension, serial, mac, ownership, dectBase].join(" | "));
+              if (!model && !extension && !serial && !mac && !ip) return;
+              detailLines.push([model, extension, serial, mac, ip, ownership, dectBase].join(" | "));
               if (model) {
                 const extensionText = extension ? `, extension ${extension}` : "";
                 const baseText = isDectHandset(model) && dectBase ? `, base ${dectBase}` : "";
@@ -864,6 +1034,7 @@
               <input data-field="extension" type="text" inputmode="numeric" placeholder="Extensión" value="${escapeAttribute(values.extension)}" aria-label="Extensión">
               <input data-field="serial" type="text" placeholder="Serial number" value="${escapeAttribute(values.serial)}" aria-label="Serial number">
               <input data-field="mac" type="text" placeholder="MAC" value="${escapeAttribute(values.mac)}" aria-label="MAC">
+              <input data-field="ip" type="text" placeholder="IP" value="${escapeAttribute(values.ip)}" aria-label="IP">
               <select data-field="ownership" aria-label="Propiedad">
                 <option value="propio"${values.ownership !== "ajeno" ? " selected" : ""}>Propio</option>
                 <option value="ajeno"${values.ownership === "ajeno" ? " selected" : ""}>Ajeno</option>
@@ -889,6 +1060,53 @@
             syncTerminalRows();
           }
 
+          function parseTerminalDetailLine(line) {
+            const parts = line.split("|").map(function (part) { return part.trim(); });
+            const hasModel = parts[0] && !/^\d+$/.test(parts[0]) && /[A-Za-z]/.test(parts[0]);
+            if (hasModel) {
+              if (parts.length >= 7) {
+                return {
+                  model: parts[0] || "",
+                  extension: parts[1] || "",
+                  serial: parts[2] || "",
+                  mac: parts[3] || "",
+                  ip: parts[4] || "",
+                  ownership: (parts[5] || "propio").toLocaleLowerCase("es"),
+                  dectBase: parts[6] || "",
+                };
+              }
+              return {
+                model: parts[0] || "",
+                extension: parts[1] || "",
+                serial: parts[2] || "",
+                mac: parts[3] || "",
+                ip: "",
+                ownership: (parts[4] || "propio").toLocaleLowerCase("es"),
+                dectBase: parts[5] || "",
+              };
+            }
+            if (parts.length >= 6 && /^(propio|ajeno)$/i.test(parts[3] || "")) {
+              return {
+                extension: parts[0] || "",
+                serial: parts[1] || "",
+                mac: parts[2] || "",
+                ip: "",
+                ownership: (parts[3] || "propio").toLocaleLowerCase("es"),
+                dectBase: parts[4] || "",
+                model: parts[5] || "",
+              };
+            }
+            return {
+              extension: parts[0] || "",
+              serial: parts[1] || "",
+              mac: parts[2] || "",
+              ip: parts[3] || "",
+              ownership: (parts[4] || "propio").toLocaleLowerCase("es"),
+              dectBase: parts[5] || "",
+              model: parts[6] || "",
+            };
+          }
+
           function loadExistingTerminalRows() {
             const lines = terminalDetails.value.split(/\r?\n/).filter(function (line) {
               return line.trim();
@@ -898,25 +1116,7 @@
               return;
             }
             lines.forEach(function (line) {
-              const parts = line.split("|").map(function (part) { return part.trim(); });
-              if (parts.length >= 5 && parts[0] && !/^\d+$/.test(parts[0]) && /[A-Za-z]/.test(parts[0])) {
-                addTerminalRow({
-                  model: parts[0] || "",
-                  extension: parts[1] || "",
-                  serial: parts[2] || "",
-                  mac: parts[3] || "",
-                  ownership: (parts[4] || "propio").toLocaleLowerCase("es"),
-                  dectBase: parts[5] || "",
-                });
-                return;
-              }
-              addTerminalRow({
-                extension: parts[0] || "",
-                serial: parts[1] || "",
-                mac: parts[2] || "",
-                ownership: (parts[3] || "propio").toLocaleLowerCase("es"),
-                dectBase: parts[4] || "",
-              });
+              addTerminalRow(parseTerminalDetailLine(line));
             });
             syncTerminalRows();
           }
@@ -927,6 +1127,193 @@
           });
           document.querySelector(".creation-form").addEventListener("submit", syncTerminalRows);
           loadExistingTerminalRows();
+          window.__drawioTerminals = {
+            clear: function () {
+              terminalRows.innerHTML = "";
+              terminalDetails.value = "";
+              terminalEquipmentText.value = "";
+            },
+            addRow: addTerminalRow,
+            sync: syncTerminalRows,
+          };
+
+          window.__drawioConnectivity = {
+            apply: function (data) {
+              if (data.internet_tipo) {
+                internetType.value = data.internet_tipo;
+              }
+              if (data.internet_proveedor) {
+                internetProveedor.dataset.selected = data.internet_proveedor;
+              }
+              if (data.internet_velocidad) {
+                internetVelocidad.dataset.selected = data.internet_velocidad;
+              }
+              updateInternetFields();
+              if (data.internet_proveedor) {
+                internetProveedor.value = data.internet_proveedor;
+              }
+              if (data.internet_velocidad) {
+                internetVelocidad.value = data.internet_velocidad;
+              }
+              if (data.ont_modelo) {
+                ontModel.value = data.ont_modelo;
+              }
+              if (data.router_modelo) {
+                routerModel.value = data.router_modelo;
+              }
+              if (data.backup_modelo) {
+                backupModel.value = data.backup_modelo;
+              }
+              const routerIpField = document.querySelector('input[name="router_ip"]');
+              if (routerIpField && data.router_ip) {
+                routerIpField.value = data.router_ip;
+              }
+              updateBackupSelector();
+            },
+          };
+
+          const importButton = document.getElementById("import-work-order");
+          const importStatus = document.getElementById("import-work-order-status");
+          const importGlpiStatus = document.getElementById("import-glpi-status");
+          const importWarnings = document.getElementById("import-work-order-warnings");
+          const workOrderPaste = document.getElementById("work-order-paste");
+
+          function csrfTokenValue() {
+            const pageToken = document.getElementById("page-csrf-token");
+            const formToken = document.querySelector('input[name="csrf_token"]');
+            return (pageToken && pageToken.value) || (formToken && formToken.value) || "";
+          }
+
+          function renderImportWarnings(warnings) {
+            if (!importWarnings) {
+              return;
+            }
+            importWarnings.innerHTML = "";
+            (warnings || []).forEach(function (warning) {
+              const item = document.createElement("li");
+              item.textContent = warning;
+              importWarnings.appendChild(item);
+            });
+          }
+
+          function applyImportedForm(data) {
+            const clienteField = document.getElementById("cliente");
+            const cifField = document.getElementById("cif");
+            const sedeField = document.getElementById("sede");
+            const direccionField = document.getElementById("direccion");
+            const entityField = document.getElementById("glpi-entity-id");
+
+            if (data.cliente) clienteField.value = data.cliente;
+            if (data.cif) cifField.value = data.cif;
+            if (data.sede) sedeField.value = data.sede;
+            if (data.direccion) direccionField.value = data.direccion;
+            if (data.glpi_entity_id) entityField.value = String(data.glpi_entity_id);
+
+            let glpiResult = { matched: false, message: data.glpi_message || "" };
+            if (window.__drawioGlpiMatch) {
+              glpiResult = window.__drawioGlpiMatch(data);
+            } else if (!data.glpi_entity_id) {
+              if (data.cliente) clienteField.value = data.cliente;
+              if (data.cif) cifField.value = data.cif;
+              if (data.sede) sedeField.value = data.sede;
+              if (data.direccion) direccionField.value = data.direccion;
+            }
+            if (importGlpiStatus) {
+              importGlpiStatus.textContent = glpiResult.message || data.glpi_message || "";
+            }
+            if (window.__drawioConnectivity) {
+              window.__drawioConnectivity.apply(data);
+            }
+            if (window.__drawioDevices) {
+              window.__drawioDevices.clear();
+              (data.devices_json || []).forEach(function (device) {
+                window.__drawioDevices.addRow(device);
+              });
+              window.__drawioDevices.sync();
+            }
+            if (window.__drawioTerminals) {
+              window.__drawioTerminals.clear();
+              const terminals = data.terminals || [];
+              if (!terminals.length) {
+                window.__drawioTerminals.addRow();
+              } else {
+                terminals.forEach(function (terminal) {
+                  window.__drawioTerminals.addRow(terminal);
+                });
+              }
+              window.__drawioTerminals.sync();
+            }
+          }
+
+          if (importButton) {
+            function resizePasteField() {
+              if (!workOrderPaste) {
+                return;
+              }
+              workOrderPaste.style.height = "auto";
+              workOrderPaste.style.height = Math.min(workOrderPaste.scrollHeight, 120) + "px";
+            }
+
+            async function runImport() {
+              const pastedText = (workOrderPaste && workOrderPaste.value || "").trim();
+              if (!pastedText) {
+                importStatus.textContent = "Pega primero el contenido de la oferta.";
+                if (workOrderPaste) {
+                  workOrderPaste.focus();
+                }
+                return;
+              }
+              importButton.disabled = true;
+              importStatus.textContent = "Rellenando...";
+              if (importGlpiStatus) {
+                importGlpiStatus.textContent = "";
+              }
+              renderImportWarnings([]);
+              try {
+                const csrfToken = csrfTokenValue();
+                const response = await fetch("{{ url_for('import_work_order') }}", {
+                  method: "POST",
+                  credentials: "same-origin",
+                  headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": csrfToken,
+                  },
+                  body: JSON.stringify({ pasted_text: pastedText }),
+                });
+                const body = await response.json();
+                if (!response.ok) {
+                  throw new Error(body.error || "No se ha podido rellenar el formulario.");
+                }
+                applyImportedForm(body);
+                const label = body.work_order_id ? `OT ${body.work_order_id}` : "Oferta";
+                importStatus.textContent = `${label} rellenada. Revisa el formulario de abajo.`;
+                renderImportWarnings(body.warnings || []);
+                const clienteField = document.getElementById("cliente");
+                if (clienteField) {
+                  clienteField.scrollIntoView({ behavior: "smooth", block: "center" });
+                }
+              } catch (error) {
+                importStatus.textContent = error.message;
+              } finally {
+                importButton.disabled = false;
+              }
+            }
+
+            importButton.addEventListener("click", runImport);
+
+            if (workOrderPaste) {
+              workOrderPaste.addEventListener("input", resizePasteField);
+              workOrderPaste.addEventListener("paste", function () {
+                window.setTimeout(resizePasteField, 0);
+              });
+              workOrderPaste.addEventListener("keydown", function (event) {
+                if (event.ctrlKey && event.key === "Enter") {
+                  event.preventDefault();
+                  runImport();
+                }
+              });
+            }
+          }
         </script>
       </section>
     </main>

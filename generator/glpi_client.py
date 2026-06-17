@@ -52,10 +52,11 @@ class GlpiClient:
             with urlopen(request, timeout=self.timeout) as response:
                 return json.loads(response.read().decode("utf-8"))
         except HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")
-            raise GlpiError(f"GLPI ha rechazado la operacion ({exc.code}): {detail}") from exc
-        except (URLError, TimeoutError, json.JSONDecodeError) as exc:
-            raise GlpiError(f"No se ha podido consultar GLPI: {exc}") from exc
+            raise GlpiError(f"GLPI ha rechazado la operacion (codigo {exc.code}).") from exc
+        except URLError as exc:
+            raise GlpiError("No se ha podido conectar con GLPI.") from exc
+        except (TimeoutError, json.JSONDecodeError) as exc:
+            raise GlpiError("No se ha podido consultar GLPI.") from exc
 
     def authenticate_user(self, username: str, password: str) -> dict:
         credentials = b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii")
@@ -66,7 +67,7 @@ class GlpiClient:
         payload = self._request("initSession", auth_headers)
         session_token = payload.get("session_token") if isinstance(payload, dict) else None
         if not session_token:
-            raise GlpiError("GLPI no ha aceptado las credenciales.")
+            raise GlpiError("No se ha podido iniciar sesion.")
         headers = {"App-Token": self.app_token, "Session-Token": session_token}
         try:
             full_session = self._request("getFullSession", headers)
@@ -91,7 +92,7 @@ class GlpiClient:
         payload = self._request("initSession", auth_headers)
         session_token = payload.get("session_token") if isinstance(payload, dict) else None
         if not session_token:
-            raise GlpiError("GLPI no ha devuelto un token de sesion.")
+            raise GlpiError("No se ha podido iniciar sesion de servicio.")
         headers = {"App-Token": self.app_token, "Session-Token": session_token}
         try:
             yield headers
@@ -172,7 +173,7 @@ class GlpiClient:
             )
             diagram_id = response.get("id") if isinstance(response, dict) else None
             if not diagram_id:
-                raise GlpiError(f"GLPI no ha devuelto el ID del diagrama creado: {response}")
+                raise GlpiError("GLPI no ha devuelto el ID del diagrama creado.")
             self.link_diagram_to_entity(diagram_id, entity_id, headers=headers)
         return int(diagram_id)
 
@@ -199,7 +200,7 @@ class GlpiClient:
             )
         relation_id = response.get("id") if isinstance(response, dict) else None
         if not relation_id:
-            raise GlpiError(f"GLPI no ha podido asociar el diagrama a la sede: {response}")
+            raise GlpiError("GLPI no ha podido asociar el diagrama a la sede.")
         return int(relation_id)
 
     def diagram_url(self, diagram_id: int) -> str:

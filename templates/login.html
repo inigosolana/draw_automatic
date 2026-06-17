@@ -17,14 +17,14 @@
             <span>Diagramas de red</span>
           </div>
           <h1>Acceso de técnicos</h1>
-          <p>Utiliza el mismo usuario y contraseña que en GLPI.</p>
+          <p>Identifícate con tu usuario corporativo.</p>
         </header>
         {% if error %}<div class="message error">{{ error }}</div>{% endif %}
         <form method="post" action="{{ request.full_path }}" autocomplete="on">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <label for="glpi-username">Usuario GLPI
+          <label for="access-username">Usuario
             <input
-              id="glpi-username"
+              id="access-username"
               type="text"
               name="username"
               autocomplete="username"
@@ -34,9 +34,9 @@
               autofocus
             >
           </label>
-          <label for="glpi-password">Contraseña
+          <label for="access-password">Clave de acceso
             <input
-              id="glpi-password"
+              id="access-password"
               type="password"
               name="password"
               autocomplete="current-password"
@@ -45,7 +45,6 @@
           </label>
           <button class="button primary" type="submit">Entrar</button>
         </form>
-        <p class="helper-text">La contraseña se envía a GLPI para validarla y no se almacena.</p>
       </section>
     </main>
   </body>

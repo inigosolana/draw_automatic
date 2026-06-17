@@ -1,5 +1,6 @@
 __pycache__/
 *.pyc
+.venv/
 salida*.drawio
 prueba*.drawio
 *.err.log

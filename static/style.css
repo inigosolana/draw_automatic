@@ -344,8 +344,8 @@ svg {
 
 .terminal-columns {
   display: grid;
-  grid-template-columns: 1.05fr 0.95fr 0.65fr 0.95fr 1.05fr 0.7fr 34px;
-  gap: 12px;
+  grid-template-columns: 1fr 0.9fr 0.6fr 0.9fr 0.9fr 0.75fr 0.65fr 34px;
+  gap: 10px;
   margin: 0 10px 7px;
   color: #344b5a;
   font-size: 0.7rem;
@@ -360,7 +360,7 @@ svg {
 
 .terminal-row {
   display: grid;
-  grid-template-columns: 1.05fr 0.95fr 0.65fr 0.95fr 1.05fr 0.7fr 34px;
+  grid-template-columns: 1fr 0.9fr 0.6fr 0.9fr 0.9fr 0.75fr 0.65fr 34px;
   gap: 10px;
   padding: 10px;
   align-items: center;
@@ -403,6 +403,170 @@ svg {
   grid-template-columns: 1.4fr 0.6fr;
   gap: 18px;
   margin-top: 16px;
+}
+
+.import-offer-card {
+  border: 2px solid #b8d4e8;
+  background: linear-gradient(180deg, #f7fbff 0%, #ffffff 100%);
+}
+
+.paste-bar-wrap {
+  margin-bottom: 18px;
+  padding: 12px;
+  border: 2px solid #146c94;
+  border-radius: 12px;
+  background: #eef7ff;
+}
+
+.paste-bar {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.paste-bar textarea {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 44px;
+  min-height: 44px;
+  max-height: 120px;
+  margin: 0;
+  padding: 10px 14px;
+  border: 2px solid #7eb8dc;
+  border-radius: 10px;
+  background: #fff;
+  font: inherit;
+  line-height: 1.35;
+  resize: none;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.paste-bar textarea:focus {
+  outline: none;
+  border-color: #146c94;
+  box-shadow: 0 0 0 3px rgba(20, 108, 148, 0.15);
+}
+
+.paste-bar-button {
+  flex: 0 0 auto;
+  min-width: 120px;
+  padding: 0 24px;
+  border: none;
+  border-radius: 10px;
+  background: #146c94;
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.paste-bar-button:hover {
+  background: #0f5878;
+}
+
+.paste-bar-button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.paste-bar-status {
+  margin: 6px 0 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #1f5f3f;
+}
+
+.paste-bar-status:empty {
+  display: none;
+}
+
+.paste-offer-top {
+  margin-bottom: 20px;
+  padding: 18px 20px 16px;
+  border: 2px solid #7eb8dc;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #eef7ff 0%, #ffffff 100%);
+}
+
+.paste-offer-top-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 16px;
+  margin-bottom: 10px;
+}
+
+.paste-offer-top-head h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  color: #1a4a6e;
+}
+
+.paste-offer-top textarea {
+  width: 100%;
+  min-height: 140px;
+  margin: 0;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  border-radius: 8px;
+  border: 1px solid #b8d0e2;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.paste-offer-top-actions {
+  margin-top: 12px;
+}
+
+.paste-fill-button {
+  min-width: 140px;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.import-offer-card textarea {
+  min-height: 220px;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.import-offer-card kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  border: 1px solid #c5d5e2;
+  border-radius: 4px;
+  background: #fff;
+  font-size: 0.85em;
+}
+
+.import-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.import-hint {
+  margin-top: 4px;
+}
+
+.import-status:not(:empty) {
+  margin-top: 10px;
+  font-weight: 600;
+  color: #1f5f3f;
+}
+
+.import-advanced {
+  margin-top: 12px;
+}
+
+.import-warnings {
+  margin: 8px 0 0;
+  padding-left: 1.2rem;
+  color: #8a5a00;
 }
 
 .creation-actions {
@@ -1018,7 +1182,7 @@ textarea {
 
   .terminal-columns,
   .terminal-row {
-    grid-template-columns: 1.1fr 0.65fr 0.9fr 1fr 0.7fr 32px;
+    grid-template-columns: 1fr 0.85fr 0.6fr 0.85fr 0.85fr 0.7fr 0.65fr 32px;
     gap: 7px;
   }
 
@@ -1066,7 +1230,7 @@ textarea {
   }
 
   .terminal-row {
-    grid-template-columns: minmax(150px, 1.15fr) minmax(90px, 0.65fr) minmax(130px, 1fr) minmax(150px, 1.15fr) minmax(100px, 0.75fr) 32px;
+    grid-template-columns: minmax(140px, 1fr) minmax(80px, 0.85fr) minmax(70px, 0.6fr) minmax(110px, 0.85fr) minmax(110px, 0.85fr) minmax(90px, 0.7fr) minmax(80px, 0.65fr) 32px;
     overflow-x: auto;
   }
 
