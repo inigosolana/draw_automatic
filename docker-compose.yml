@@ -5,8 +5,9 @@ services:
       dockerfile: Dockerfile
     container_name: ausarta-drawio
     restart: unless-stopped
-    ports:
-      - "${DRAWIO_PUBLIC_PORT:-8000}:8000"
+    # No exponemos el puerto directamente - nginx será el único punto de entrada
+    expose:
+      - "8000"
     environment:
       GLPI_URL: "${GLPI_URL}"
       GLPI_WEB_URL: "${GLPI_WEB_URL}"
@@ -21,17 +22,108 @@ services:
       DRAWIO_DOWNLOAD_TTL: "${DRAWIO_DOWNLOAD_TTL:-86400}"
       DRAWIO_MAX_UPLOAD_BYTES: "${DRAWIO_MAX_UPLOAD_BYTES:-15728640}"
       DRAWIO_AUTH_REQUIRED: "1"
-      DRAWIO_COOKIE_SECURE: "${DRAWIO_COOKIE_SECURE:-0}"
+      DRAWIO_COOKIE_SECURE: "1"  # Always secure when behind HTTPS proxy
+      DRAWIO_FORCE_HTTPS: "0"  # Nginx handles HTTPS
       DRAWIO_SECRET_KEY: "${DRAWIO_SECRET_KEY}"
+      DRAWIO_SESSION_HOURS: "${DRAWIO_SESSION_HOURS:-8}"
       DRAWIO_PREVIEW_URL: "${DRAWIO_PREVIEW_URL:-https://embed.diagrams.net/}"
+      # Rate limiting with Redis (optional - memory:// fallback)
+      DRAWIO_RATELIMIT_STORAGE: "redis://redis:6379"
     volumes:
       - drawio_data:/app/data
     networks:
-      - drawio_network
+      - internal_network
+    depends_on:
+      - redis
+    # Security: Run with limited capabilities
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100M
+
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: ausarta-drawio-nginx
+    restart: unless-stopped
+    ports:
+      - "${DRAWIO_PUBLIC_PORT:-443}:443"
+      - "${DRAWIO_HTTP_PORT:-80}:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - nginx_ssl:/etc/nginx/ssl:ro
+      - certbot_webroot:/var/www/certbot:ro
+      - nginx_logs:/var/log/nginx
+    networks:
+      - internal_network
+      - external_network
+    depends_on:
+      - drawio-generator
+    # Security: Run with limited capabilities
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+      - CHOWN
+      - SETGID
+      - SETUID
+    security_opt:
+      - no-new-privileges:true
+
+  redis:
+    image: redis:7-alpine
+    container_name: ausarta-drawio-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - internal_network
+    # Security: Run with limited capabilities
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETGID
+      - SETUID
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=50M
+
+  # Optional: Certbot for Let's Encrypt SSL certificates
+  # Uncomment if you want to use Let's Encrypt
+  # certbot:
+  #   image: certbot/certbot:latest
+  #   container_name: ausarta-drawio-certbot
+  #   volumes:
+  #     - nginx_ssl:/etc/letsencrypt
+  #     - certbot_webroot:/var/www/certbot
+  #   entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
 
 volumes:
   drawio_data:
+    driver: local
+  redis_data:
+    driver: local
+  nginx_ssl:
+    driver: local
+  certbot_webroot:
+    driver: local
+  nginx_logs:
+    driver: local
 
 networks:
-  drawio_network:
+  # Red interna: Solo comunicación entre contenedores
+  internal_network:
+    driver: bridge
+    internal: true
+  # Red externa: Solo nginx tiene acceso
+  external_network:
     driver: bridge

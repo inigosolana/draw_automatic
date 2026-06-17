@@ -146,11 +146,15 @@
                   confirmButton.disabled = true;
                   confirmResult.textContent = "Subiendo y asociando el diagrama a la sede...";
                   try {
+                    const csrfToken = document.querySelector('input[name="csrf_token"]').value;
                     const response = await fetch(confirmButton.dataset.confirmUrl, {
                       method: "POST",
                       credentials: "same-origin",
-                      headers: {"Content-Type": "application/x-www-form-urlencoded"},
-                      body: `allow_duplicate=${confirmButton.dataset.allowDuplicate || "0"}`
+                      headers: {
+                        "Content-Type": "application/x-www-form-urlencoded",
+                        "X-CSRFToken": csrfToken
+                      },
+                      body: `csrf_token=${encodeURIComponent(csrfToken)}&allow_duplicate=${confirmButton.dataset.allowDuplicate || "0"}`
                     });
                     const body = await response.text();
                     if (!response.ok) {
@@ -175,6 +179,7 @@
         {% endif %}
 
         <form method="post" action="{{ url_for('generate') }}" class="creation-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" id="glpi-entity-id" name="glpi_entity_id" value="{{ form_data.get('glpi_entity_id', '') }}">
           <div class="creation-top-grid">
           <section class="form-section destination-card">

@@ -19,6 +19,7 @@
       {% if technician %}
       <span class="technician-pill" title="Técnico conectado">{{ technician.name or technician.username }}</span>
       <form method="post" action="{{ url_for('logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="icon-button" title="Cerrar sesión" aria-label="Cerrar sesión">&#10140;</button>
       </form>
       {% endif %}

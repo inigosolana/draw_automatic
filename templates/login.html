@@ -21,6 +21,7 @@
         </header>
         {% if error %}<div class="message error">{{ error }}</div>{% endif %}
         <form method="post" action="{{ request.full_path }}" autocomplete="on">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <label for="glpi-username">Usuario GLPI
             <input
               id="glpi-username"

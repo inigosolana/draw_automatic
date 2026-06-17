@@ -1,15 +1,21 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
+import secrets
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
 from pathlib import Path
 
 from defusedxml import ElementTree as DefusedET
 from defusedxml.common import DefusedXmlException
 from flask import Flask, Response, redirect, render_template, request, session, url_for
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask_talisman import Talisman
+from flask_wtf.csrf import CSRFProtect
 
 from generator.catalog_cache import CatalogCache
 from generator.diagram_activity import DiagramActivity
@@ -38,7 +44,14 @@ ACTIVITY = DiagramActivity(
 )
 DEFAULT_HOST = os.environ.get("DRAWIO_HOST", "0.0.0.0")
 DEFAULT_PORT = int(os.environ.get("DRAWIO_PORT", os.environ.get("PORT", "8000")))
-DEFAULT_SECRET_KEY = "development-only-change-me"
+
+# Configure security logging
+security_logger = logging.getLogger("security")
+security_logger.setLevel(logging.INFO)
+if not security_logger.handlers:
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)s [SECURITY] %(message)s"))
+    security_logger.addHandler(handler)
 
 
 def _positive_integer(value: object, field_name: str) -> int:
@@ -55,11 +68,58 @@ def create_app() -> Flask:
         "libreria_Ausarta_JUN_2026.xml",
     )
     app.config["MAX_CONTENT_LENGTH"] = int(os.environ.get("DRAWIO_MAX_UPLOAD_BYTES", str(15 * 1024 * 1024)))
-    app.config["SECRET_KEY"] = os.environ.get("DRAWIO_SECRET_KEY", "").strip() or DEFAULT_SECRET_KEY
+    
+    # Security: Generate strong SECRET_KEY if not provided
+    secret_key = os.environ.get("DRAWIO_SECRET_KEY", "").strip()
+    if not secret_key:
+        security_logger.warning("DRAWIO_SECRET_KEY no esta configurado. Generando clave temporal (las sesiones se perderan al reiniciar).")
+        secret_key = secrets.token_hex(32)
+    app.config["SECRET_KEY"] = secret_key
+    
     app.config["AUTH_REQUIRED"] = os.environ.get("DRAWIO_AUTH_REQUIRED", "0") == "1"
+    
+    # Security: Session configuration
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
     app.config["SESSION_COOKIE_SECURE"] = os.environ.get("DRAWIO_COOKIE_SECURE", "0") == "1"
+    app.config["SESSION_COOKIE_NAME"] = "drawio_session"
+    app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=int(os.environ.get("DRAWIO_SESSION_HOURS", "8")))
+    
+    # Security: CSRF Protection
+    app.config["WTF_CSRF_TIME_LIMIT"] = None  # CSRF tokens never expire (tied to session)
+    app.config["WTF_CSRF_SSL_STRICT"] = app.config["SESSION_COOKIE_SECURE"]
+    csrf = CSRFProtect(app)
+    
+    # Security: Rate Limiting
+    limiter = Limiter(
+        get_remote_address,
+        app=app,
+        default_limits=["200 per day", "50 per hour"],
+        storage_uri=os.environ.get("DRAWIO_RATELIMIT_STORAGE", "memory://"),
+        strategy="fixed-window",
+    )
+    
+    # Security: HTTP Security Headers (Talisman)
+    # Only enforce HTTPS if explicitly enabled
+    force_https = os.environ.get("DRAWIO_FORCE_HTTPS", "0") == "1"
+    csp = {
+        'default-src': "'self'",
+        'script-src': ["'self'", "'unsafe-inline'", "embed.diagrams.net"],
+        'style-src': ["'self'", "'unsafe-inline'"],
+        'img-src': ["'self'", "data:", "embed.diagrams.net"],
+        'frame-src': ["'self'", "embed.diagrams.net"],
+        'connect-src': ["'self'"],
+    }
+    Talisman(
+        app,
+        force_https=force_https,
+        strict_transport_security=force_https,
+        content_security_policy=csp,
+        content_security_policy_nonce_in=['script-src'],
+        frame_options='SAMEORIGIN',
+        referrer_policy='strict-origin-when-cross-origin',
+    )
+    
     app.config["PREVIEW_URL"] = os.environ.get("DRAWIO_PREVIEW_URL", "https://embed.diagrams.net/").rstrip("/")
 
     def current_technician() -> dict:
@@ -89,28 +149,39 @@ def create_app() -> Flask:
             return [], str(exc)
 
     @app.route("/login", methods=["GET", "POST"])
+    @limiter.limit("10 per minute")
     def login() -> str:
         error = ""
         if request.method == "POST":
             username = request.form.get("username", "").strip()
             password = request.form.get("password", "")
+            client_ip = get_remote_address()
+            
             client = GlpiClient.from_environment()
             if not client:
                 error = "GLPI no esta configurado."
+                security_logger.warning(f"Login attempt failed: GLPI not configured (IP: {client_ip})")
             elif not username or not password:
                 error = "Introduce usuario y contraseña de GLPI."
+                security_logger.warning(f"Login attempt failed: empty credentials (IP: {client_ip})")
             else:
                 try:
                     session.clear()
                     session["technician"] = client.authenticate_user(username, password)
+                    session.permanent = True
+                    security_logger.info(f"Login successful: user={username}, IP={client_ip}")
                     return redirect(request.args.get("next") or url_for("index"))
                 except GlpiError:
                     error = "Usuario o contraseña de GLPI incorrectos."
+                    security_logger.warning(f"Login attempt failed: invalid credentials for user={username}, IP={client_ip}")
         return render_template("login.html", error=error)
 
     @app.post("/logout")
     def logout() -> Response:
+        username = session.get("technician", {}).get("username", "unknown")
+        client_ip = get_remote_address()
         session.clear()
+        security_logger.info(f"Logout: user={username}, IP={client_ip}")
         return redirect(url_for("login"))
 
     def index_context(**extra):
@@ -133,6 +204,8 @@ def create_app() -> Flask:
         )
 
     @app.get("/health")
+    @csrf.exempt
+    @limiter.limit("30 per minute")
     def health() -> Response:
         return Response(
             json.dumps({"status": "ok"}),
@@ -194,6 +267,7 @@ def create_app() -> Flask:
 
     @app.route("/upload-draw", methods=["GET", "POST"])
     @login_required
+    @limiter.limit("20 per hour")
     def upload_draw() -> str:
         glpi_customers, glpi_error = load_glpi_catalog()
         upload_error = ""
@@ -203,12 +277,16 @@ def create_app() -> Flask:
             client_name = request.form.get("glpi_cliente", "").strip()
             site_name = request.form.get("glpi_sede", "").strip()
             uploaded_file = request.files.get("drawio_file")
+            client_ip = get_remote_address()
+            technician_name = current_technician().get("name", "unknown")
+            
             if not entity_id:
                 upload_error = "Selecciona una sede de GLPI."
             elif not uploaded_file or not uploaded_file.filename:
                 upload_error = "Selecciona un archivo .drawio."
             elif not uploaded_file.filename.lower().endswith((".drawio", ".xml")):
                 upload_error = "El archivo debe tener extension .drawio o .xml."
+                security_logger.warning(f"Upload attempt with invalid file type: {uploaded_file.filename}, user={technician_name}, IP={client_ip}")
             else:
                 raw = uploaded_file.read()
                 try:
@@ -256,8 +334,10 @@ def create_app() -> Flask:
                         "sede": site_name,
                         "learned_models": learned_models,
                     }
+                    security_logger.info(f"File uploaded successfully: diagram_id={diagram_id}, file={uploaded_file.filename}, user={technician_name}, IP={client_ip}")
                 except (UnicodeDecodeError, DefusedET.ParseError, DefusedXmlException, ValueError, GlpiError) as exc:
                     upload_error = f"No se ha podido subir el diagrama: {exc}"
+                    security_logger.warning(f"Upload failed: {exc}, user={technician_name}, IP={client_ip}")
         return render_template(
             "upload_draw.html",
             glpi_customers=glpi_customers,
@@ -269,6 +349,7 @@ def create_app() -> Flask:
 
     @app.post("/generate")
     @login_required
+    @limiter.limit("30 per hour")
     def generate() -> str:
         form_data = request.form.to_dict()
         form_data.setdefault("library_path", app.config["DEFAULT_LIBRARY"])

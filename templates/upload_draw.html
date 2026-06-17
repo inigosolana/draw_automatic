@@ -34,6 +34,7 @@
         {% endif %}
 
         <form method="post" enctype="multipart/form-data" class="upload-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" id="upload-entity-id" name="glpi_entity_id">
           <input type="hidden" id="upload-client-name" name="glpi_cliente">
           <input type="hidden" id="upload-site-name" name="glpi_sede">
