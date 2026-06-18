@@ -20,5 +20,10 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt pytest
 
+      - name: Prepare test library
+        run: |
+          mkdir -p library
+          cp tests/fixtures/test_library.xml library/libreria_Ausarta_JUN_2026.xml
+
       - name: Run tests
         run: pytest tests/ -v --tb=short
