@@ -21,6 +21,7 @@ services:
       DRAWIO_SITE_DB: "/app/data/sites.sqlite3"
       DRAWIO_CATALOG_DB: "/app/data/catalog.sqlite3"
       DRAWIO_ACTIVITY_DB: "/app/data/activity.sqlite3"
+      DRAWIO_SECLOG_DB: "/app/data/security.sqlite3"
       DRAWIO_CATALOG_TTL: "${DRAWIO_CATALOG_TTL:-300}"
       DRAWIO_DOWNLOAD_TTL: "${DRAWIO_DOWNLOAD_TTL:-86400}"
       DRAWIO_MAX_UPLOAD_BYTES: "${DRAWIO_MAX_UPLOAD_BYTES:-15728640}"

@@ -80,6 +80,38 @@
           </div>
           {% endif %}
 
+          <h2 style="margin-top: 2rem;">Últimos eventos de seguridad</h2>
+          {% if recent_events %}
+          <div class="diagram-table-wrap" style="max-height: 400px; overflow-y: auto;">
+            <table class="diagram-table">
+              <thead>
+                <tr>
+                  <th>Fecha / Hora</th>
+                  <th>Nivel</th>
+                  <th>Mensaje</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for ev in recent_events %}
+                <tr class="{{ 'text-danger' if ev.level == 'WARNING' else '' }}">
+                  <td style="white-space: nowrap;">{{ ev.ts_label }}</td>
+                  <td>
+                    <span style="font-weight: 600; color: {{ '#dc2626' if ev.level == 'WARNING' else '#16a34a' }};">
+                      {{ ev.level }}
+                    </span>
+                  </td>
+                  <td style="font-size: 0.85rem; word-break: break-word;">{{ ev.message }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="message">
+            <strong>No hay eventos de seguridad registrados.</strong>
+          </div>
+          {% endif %}
+
           <p style="margin-top: 1.5rem;">
             <a class="button" href="{{ url_for('index') }}">Volver al inicio</a>
           </p>

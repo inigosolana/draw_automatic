@@ -26,6 +26,7 @@ from generator.safe_errors import public_error_message
 from generator.glpi_merge import merge_import_with_glpi
 from generator.glpi_client import GlpiClient, GlpiError, build_customer_catalog
 from generator.knowledge_base import learn_from_drawio
+from generator.security_log import SecurityLog
 from generator.site_directory import SiteDirectory, apply_saved_addresses
 from generator.device_catalog import build_device_catalog
 from generator.utils import is_safe_redirect, positive_integer
@@ -54,8 +55,20 @@ CATALOG = CatalogCache(
 ACTIVITY = DiagramActivity(
     os.environ.get("DRAWIO_ACTIVITY_DB", PROJECT_ROOT / "data" / "activity.sqlite3")
 )
+SECLOG = SecurityLog(
+    os.environ.get("DRAWIO_SECLOG_DB", PROJECT_ROOT / "data" / "security.sqlite3")
+)
 DEFAULT_HOST = os.environ.get("DRAWIO_HOST", "0.0.0.0")
 DEFAULT_PORT = int(os.environ.get("DRAWIO_PORT", os.environ.get("PORT", "8000")))
+
+
+class _SQLiteHandler(logging.Handler):
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            SECLOG.write(record.levelname, self.format(record))
+        except Exception:
+            pass
+
 
 # Configure security logging
 security_logger = logging.getLogger("security")
@@ -64,6 +77,11 @@ if not security_logger.handlers:
     handler = logging.StreamHandler()
     handler.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)s [SECURITY] %(message)s"))
     security_logger.addHandler(handler)
+    sqlite_handler = _SQLiteHandler()
+    sqlite_handler.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)s [SECURITY] %(message)s"))
+    security_logger.addHandler(sqlite_handler)
+
+ADMIN_USERS = {"iñigo solana", "alberto ferez", "marcos medina"}
 
 
 def create_app() -> Flask:
@@ -290,6 +308,14 @@ def create_app() -> Flask:
     @app.get("/admin")
     @login_required
     def admin_dashboard() -> str:
+        technician = current_technician()
+        tech_name = (technician.get("name") or technician.get("username") or "").strip().lower()
+        if tech_name not in ADMIN_USERS:
+            security_logger.warning(
+                f"Acceso denegado a /admin: user={tech_name}, IP={get_remote_address()}"
+            )
+            return Response("Acceso restringido.", status=403, mimetype="text/plain; charset=utf-8")
+
         from collections import Counter
 
         now = datetime.utcnow()
@@ -299,13 +325,17 @@ def create_app() -> Flask:
         top_technicians = Counter(
             r.get("technician_name") or r.get("technician", {}).get("name", "?") for r in week
         ).most_common(5)
+        recent_events = SECLOG.recent(limit=50)
+        for ev in recent_events:
+            ev["ts_label"] = datetime.fromtimestamp(ev["ts"]).strftime("%d/%m/%Y %H:%M:%S")
         return render_template(
             "admin.html",
             total_today=len(today),
             total_week=len(week),
             total_all=len(all_rows),
             top_technicians=top_technicians,
-            technician=current_technician(),
+            recent_events=recent_events,
+            technician=technician,
         )
 
     @app.route("/upload-draw", methods=["GET", "POST"])
