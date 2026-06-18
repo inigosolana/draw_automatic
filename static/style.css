@@ -1385,6 +1385,21 @@ textarea {
   font-size: 0.95rem;
 }
 
+.generation-result-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.generation-result-actions .button {
+  margin-left: 0;
+}
+
+.generation-scroll-hint {
+  display: none;
+}
+
 .upload-error {
   padding: 10px 12px;
   border-left: 4px solid #c97322;
@@ -1722,7 +1737,11 @@ ul {
   /* Reserva espacio para la bottom-nav */
   .page,
   .page-wide {
-    padding: 14px 12px calc(76px + env(safe-area-inset-bottom, 0px));
+    padding: 14px 12px calc(88px + env(safe-area-inset-bottom, 0px));
+  }
+
+  body.has-generation-result .page-wide {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
   }
 
   .page-wide .creation-panel {
@@ -1755,7 +1774,7 @@ ul {
   /* Bottom-nav visible y fija */
   .bottom-nav {
     position: fixed;
-    z-index: 200;
+    z-index: 1000;
     bottom: 0;
     left: 0;
     right: 0;
@@ -1769,6 +1788,8 @@ ul {
     box-shadow: 0 -6px 18px rgba(26, 52, 77, 0.1);
     -webkit-backdrop-filter: blur(12px);
     backdrop-filter: blur(12px);
+    transform: translate3d(0, 0, 0);
+    -webkit-transform: translate3d(0, 0, 0);
   }
 
   .bottom-nav-item {
@@ -1930,7 +1951,7 @@ ul {
 
   /* Selectores GLPI: menú tipo hoja sobre la bottom-nav */
   .search-select.open {
-    z-index: 250;
+    z-index: 1100;
   }
 
   .search-select.open .search-select-menu {
@@ -1941,7 +1962,7 @@ ul {
     right: 12px;
     width: auto;
     max-height: min(55vh, 360px);
-    z-index: 251;
+    z-index: 1101;
     box-shadow: 0 -10px 32px rgba(26, 52, 77, 0.18);
   }
 
@@ -2049,6 +2070,28 @@ ul {
 
   .preview-grid {
     grid-template-columns: 1fr;
+  }
+
+  .generation-result-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .generation-result-actions .button {
+    width: 100%;
+    min-height: 48px;
+    text-align: center;
+  }
+
+  .message.success {
+    margin-bottom: 0.5rem;
+  }
+
+  .generation-scroll-hint {
+    display: block;
+    margin-bottom: 0.25rem;
+    padding-bottom: 0.25rem;
+    font-weight: 600;
   }
 
   /* Admin móvil */

@@ -8,7 +8,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='images/ausarta-drawio-180.png') }}?v={{ static_v }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ static_v }}">
   </head>
-  <body>
+  <body{% if preview %} class="has-generation-result"{% endif %}>
     {% include "_app_header.html" %}
 
     <main class="page page-wide">
@@ -44,7 +44,7 @@
         {% endif %}
 
         {% if preview %}
-        <div class="message success">
+        <div class="message success" id="generation-result">
           <h2>Generacion completada</h2>
           <p>Se ha preparado <strong>{{ preview.filename }}</strong>.</p>
           <div class="preview-grid">
@@ -86,7 +86,7 @@
             <summary>Ver JSON estructurado</summary>
             <pre>{{ preview.structured_json }}</pre>
           </details>
-          <p>
+          <div class="generation-result-actions">
             <button
               type="button"
               class="button secondary"
@@ -118,7 +118,7 @@
               {% if preview.existing_diagrams %}Publicar otro igualmente{% else %}Confirmar y subir a GLPI{% endif %}
             </button>
             {% endif %}
-          </p>
+          </div>
           {% if preview.confirm_url %}
           <p class="helper-text">Primero revisa el archivo descargado. Solo se publicara en GLPI cuando pulses confirmar.</p>
           <p id="glpi-confirm-result" class="helper-text"></p>
@@ -126,8 +126,14 @@
           <p class="helper-text">
             Si el navegador bloquea la descarga directa, el boton la fuerza como archivo local.
           </p>
+          <p class="helper-text generation-scroll-hint">Desliza hacia abajo para editar el formulario o generar otro diagrama.</p>
           <script>
             window.addEventListener("load", function () {
+              const resultPanel = document.getElementById("generation-result");
+              if (resultPanel) {
+                resultPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+              }
+
               const button = document.getElementById("download-drawio");
               if (!button) {
                 return;
@@ -1441,5 +1447,6 @@
         </script>
       </section>
     </main>
+    {% include "_app_footer.html" %}
   </body>
 </html>

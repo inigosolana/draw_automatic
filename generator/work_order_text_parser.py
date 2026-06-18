@@ -12,6 +12,7 @@ INSTALLATION_ADDRESS_PATTERN = re.compile(
     re.IGNORECASE,
 )
 PRODUCT_LINE_PATTERN = re.compile(r"producto\s*:\s*(.+)$", re.IGNORECASE)
+SERVICE_LINE_PATTERN = re.compile(r"servicio\s*:\s*(.+)$", re.IGNORECASE)
 FIBER_PRODUCT_PATTERN = re.compile(r"fibra\s+pro\s+max", re.IGNORECASE)
 
 
@@ -148,6 +149,17 @@ def _extract_installation(lines: list[str]) -> tuple[str, str]:
     return sede, direccion
 
 
+def _extract_servicio_lines(lines: list[str]) -> list[str]:
+    services: list[str] = []
+    for line in lines:
+        match = SERVICE_LINE_PATTERN.search(line)
+        if match:
+            name = match.group(1).strip()
+            if name:
+                services.append(name)
+    return services
+
+
 def _extract_products(lines: list[str]) -> list[str]:
     products: list[str] = []
     for line in lines:
@@ -201,7 +213,10 @@ def parse_work_order_paste(text: str) -> ImportResult:
     work_order_id = _extract_work_order_number(lines, full_text) or extract_work_order_id(raw)
     sede, direccion = _extract_installation(lines)
     product_names = _extract_products(lines)
+    servicio_lines = _extract_servicio_lines(lines)
     connectivity_text = _extract_connectivity_text(lines, full_text)
+    if servicio_lines:
+        connectivity_text = f"{connectivity_text} {' '.join(servicio_lines)}"
 
     if not product_names:
         product_names = [

@@ -146,6 +146,8 @@ def _normalize_terminal_model(name: str) -> str:
 
 def _detect_router_model(name: str) -> str:
     lowered = name.lower()
+    if _detect_backup_model(name):
+        return ""
     if "chateau" in lowered or "s53ug" in lowered or "ax r17" in lowered:
         return "CHATEAU"
     if "hap ac3" in lowered or "ac3" in lowered and "hap" in lowered:
@@ -170,7 +172,14 @@ def _detect_backup_model(name: str) -> str:
     lowered = name.lower()
     if "teltonika" in lowered:
         return "TELTONIKA"
-    if "wap lte" in lowered or re.search(r"\bwap\b", lowered):
+    if (
+        "wap lte" in lowered
+        or "wapr" in lowered
+        or "ec200a" in lowered
+        or re.search(r"\bwap\b", lowered)
+        or "router backup especial" in lowered
+        or "backup especial 4g" in lowered
+    ):
         return "WAP LTE"
     return ""
 
@@ -213,11 +222,43 @@ def _normalize_speed(text: str) -> str:
     return ""
 
 
-def _infer_internet_type(text: str, has_backup_device: bool) -> str:
+def _is_masmovil_fiber_backup_tunnel(
+    text: str,
+    *,
+    has_backup_device: bool,
+    router_model: str,
+) -> bool:
+    """MásMóvil fibra + Router Backup Especial 4G: túnel dedicado, mismo diagrama que hAP + WAP LTE."""
     lowered = (text or "").lower()
-    if "4g monitorizado" in lowered or "solo 4g" in lowered:
+    if "router backup especial" in lowered or "backup especial 4g" in lowered:
+        return True
+    if has_backup_device and any(
+        token in lowered for token in ("mas movil", "masmovil", "fibra profesional", "fibra pro")
+    ):
+        return True
+    if has_backup_device and router_model in {"MikroTik hAP ac2", "MikroTik hAP ac3"}:
+        if any(token in lowered for token in ("mas movil", "masmovil", "fibra")):
+            return True
+    return False
+
+
+def _infer_internet_type(text: str, has_backup_device: bool, router_model: str = "") -> str:
+    lowered = (text or "").lower()
+    masmovil_tunnel = _is_masmovil_fiber_backup_tunnel(
+        text,
+        has_backup_device=has_backup_device,
+        router_model=router_model,
+    )
+    if ("4g monitorizado" in lowered or "solo 4g" in lowered) and not masmovil_tunnel:
         return "SOLO 4G MONITORIZADO"
-    if has_backup_device or re.search(r"fibra\s*\+\s*bu\b", lowered) or "fibra + back" in lowered or "fibra + backup" in lowered or re.search(r"\bbackup\b", lowered):
+    if (
+        masmovil_tunnel
+        or has_backup_device
+        or re.search(r"fibra\s*\+\s*bu\b", lowered)
+        or "fibra + back" in lowered
+        or "fibra + backup" in lowered
+        or re.search(r"\bbackup\b", lowered)
+    ):
         return "FIBRA + BACK UP"
     if "fibra" in lowered or "ftth" in lowered or "gpon" in lowered:
         return "SOLO FIBRA"
@@ -302,6 +343,11 @@ def map_offer_to_form(
                 )
             continue
 
+        backup_model = _detect_backup_model(name)
+        if backup_model and not result.backup_modelo:
+            result.backup_modelo = backup_model
+            continue
+
         router_model = _detect_router_model(name)
         if router_model and not result.router_modelo:
             result.router_modelo = router_model
@@ -310,11 +356,6 @@ def map_offer_to_form(
         ont_model = _detect_ont_model(name, result.internet_proveedor)
         if ont_model and not result.ont_modelo:
             result.ont_modelo = ont_model
-            continue
-
-        backup_model = _detect_backup_model(name)
-        if backup_model and not result.backup_modelo:
-            result.backup_modelo = backup_model
             continue
 
         device = _detect_device_category(name)
@@ -346,11 +387,31 @@ def map_offer_to_form(
     if speed:
         result.internet_velocidad = speed
 
-    internet_type = _infer_internet_type(connectivity_blob, bool(result.backup_modelo))
+    internet_type = _infer_internet_type(
+        connectivity_blob,
+        bool(result.backup_modelo),
+        result.router_modelo,
+    )
     if internet_type:
         result.internet_tipo = internet_type
     elif result.ont_modelo or result.router_modelo:
         result.internet_tipo = "SOLO FIBRA"
+
+    if (
+        result.internet_tipo == "FIBRA + BACK UP"
+        and _is_masmovil_fiber_backup_tunnel(
+            connectivity_blob,
+            has_backup_device=bool(result.backup_modelo),
+            router_model=result.router_modelo,
+        )
+        and result.internet_proveedor in {"", "MAS MOVIL"}
+    ):
+        result.internet_proveedor = "MAS MOVIL"
+        if result.router_modelo in {"MikroTik hAP ac2", "MikroTik hAP ac3"} and result.backup_modelo == "WAP LTE":
+            result.warnings.append(
+                "MásMóvil con Router Backup Especial 4G: túnel dedicado; "
+                "el diagrama es el mismo que hAP ac2 + WAP LTE en ETH2."
+            )
 
     if result.internet_tipo == "FIBRA + BACK UP" and result.router_modelo == "CHATEAU":
         result.backup_modelo = ""

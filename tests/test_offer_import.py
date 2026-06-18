@@ -94,6 +94,27 @@ class OfferImportTests(unittest.TestCase):
         self.assertEqual(result.internet_velocidad, "600 MB")
         self.assertEqual(result.terminals[0]["dect_base"], "W70B")
 
+    def test_masmovil_fiber_backup_tunnel_maps_like_hap_and_wap_lte(self) -> None:
+        products = parse_product_lines(
+            "\n".join(
+                [
+                    "Mikrotik wAPR-2Nd&EC200A-EU- Nuevo wAP LTE Kit CPU",
+                    "hAP ac2 - RBD52G-5HacD2HnD-TC",
+                    "GPON ONT",
+                ]
+            )
+        )
+        result = map_offer_to_form(
+            products,
+            connectivity_text="Servicio: Router Backup Especial 4G Monitorizado Fibra Profesional mas movil",
+        )
+        self.assertEqual(result.internet_proveedor, "MAS MOVIL")
+        self.assertEqual(result.internet_tipo, "FIBRA + BACK UP")
+        self.assertEqual(result.router_modelo, "MikroTik hAP ac2")
+        self.assertEqual(result.backup_modelo, "WAP LTE")
+        self.assertEqual(result.ont_modelo, "ONT ZTE")
+        self.assertTrue(any("túnel dedicado" in warning for warning in result.warnings))
+
 
 if __name__ == "__main__":
     unittest.main()
