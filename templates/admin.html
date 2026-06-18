@@ -93,10 +93,10 @@
               </thead>
               <tbody>
                 {% for ev in recent_events %}
-                <tr class="{{ 'text-danger' if ev.level == 'WARNING' else '' }}">
-                  <td style="white-space: nowrap;">{{ ev.ts_label }}</td>
+                <tr>
+                  <td style="white-space: nowrap; font-size: 0.85rem;">{{ ev.ts_label }}</td>
                   <td>
-                    <span style="font-weight: 600; color: {{ '#dc2626' if ev.level == 'WARNING' else '#16a34a' }};">
+                    <span style="font-weight: 600; color: {{ '#dc2626' if ev.level in ('WARNING', 'ERROR') else '#16a34a' }};">
                       {{ ev.level }}
                     </span>
                   </td>

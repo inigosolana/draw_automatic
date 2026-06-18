@@ -86,6 +86,7 @@ ADMIN_USERS = {"iñigo solana", "alberto ferez", "marcos medina"}
 
 def create_app() -> Flask:
     app = Flask(__name__, template_folder=str(PROJECT_ROOT / "templates"), static_folder=str(PROJECT_ROOT / "static"))
+    SECLOG.purge_old(days=30)
     app.config["DEFAULT_LIBRARY"] = os.environ.get(
         "DRAWIO_LIBRARY_PATH",
         str(PROJECT_ROOT / "library" / "libreria_Ausarta_JUN_2026.xml"),
