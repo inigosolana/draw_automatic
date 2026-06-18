@@ -1,7 +1,7 @@
 <header class="topbar">
   <div class="topbar-inner">
     <a class="topbar-brand" href="{{ url_for('index') }}" aria-label="Ausarta Draw.io">
-      <img src="{{ url_for('static', filename='images/ausarta-transparent.png') }}" alt="Ausarta">
+      <img src="{{ url_for('static', filename='images/ausarta-transparent.png') }}?v={{ static_v }}" alt="Ausarta">
     </a>
     <nav class="topbar-nav" aria-label="Navegación principal">
       <a class="topbar-link {{ 'active' if request.endpoint in ('index', 'generate') else '' }}" href="{{ url_for('index') }}">Crear diagrama</a>

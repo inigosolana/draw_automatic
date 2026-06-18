@@ -4,16 +4,16 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Acceso - Ausarta Draw.io</title>
-    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='images/ausarta-drawio-32.png') }}">
-    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='images/ausarta-drawio-180.png') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=20260618d">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='images/ausarta-drawio-32.png') }}?v={{ static_v }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='images/ausarta-drawio-180.png') }}?v={{ static_v }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ static_v }}">
   </head>
   <body>
     <main class="page login-page">
       <section class="panel login-panel">
         <header class="panel-header">
           <div class="login-brand">
-            <img src="{{ url_for('static', filename='images/ausarta.png') }}" alt="Ausarta">
+            <img src="{{ url_for('static', filename='images/ausarta.png') }}?v={{ static_v }}" alt="Ausarta">
             <span>Diagramas de red</span>
           </div>
           <h1>Acceso de técnicos</h1>
