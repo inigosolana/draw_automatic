@@ -78,9 +78,9 @@
           <div style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap; margin-top:1.5rem; margin-bottom:0.75rem;">
             <h2 id="chartTitle" style="margin:0;">Diagramas últimos 7 días</h2>
             <div style="display:flex; gap:0.5rem; margin-left:auto;">
-              <button class="sec-filter period-filter active" data-period="week">Semana</button>
-              <button class="sec-filter period-filter" data-period="month">Mes</button>
-              <button class="sec-filter period-filter" data-period="year">Año</button>
+              <button class="period-filter active" data-period="week">Semana</button>
+              <button class="period-filter" data-period="month">Mes</button>
+              <button class="period-filter" data-period="year">Año</button>
             </div>
           </div>
           <div style="max-width:100%; margin-bottom:1.5rem;">
@@ -158,7 +158,7 @@
     </main>
 
     <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="{{ url_for('static', filename='js/chart.umd.min.js') }}"></script>
     <script>
     (function(){
       const chartPeriods = {{ chart_periods | tojson }};
@@ -171,7 +171,7 @@
       /* ── Gráfico actividad ── */
       const ctx = document.getElementById('activityChart');
       let activityChart = null;
-      if (ctx) {
+      if (ctx && typeof Chart !== 'undefined') {
         activityChart = new Chart(ctx, {
           type: 'bar',
           data: {
@@ -230,11 +230,13 @@
 
       function setPeriod(period) {
         const data = chartPeriods[period];
-        if (!data || !activityChart) return;
+        if (!data) return;
 
-        activityChart.data.labels = data.labels;
-        activityChart.data.datasets[0].data = data.values;
-        activityChart.update();
+        if (activityChart) {
+          activityChart.data.labels = data.labels;
+          activityChart.data.datasets[0].data = data.values;
+          activityChart.update();
+        }
 
         const titles = periodTitles[period];
         document.getElementById('chartTitle').textContent = titles.chart;

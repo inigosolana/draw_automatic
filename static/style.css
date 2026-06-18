@@ -1377,7 +1377,8 @@ ul {
 .sec-badge-error   { background: #fee2e2; color: #991b1b; }
 .sec-badge-critical{ background: #fce7f3; color: #9d174d; }
 
-.sec-filter {
+.sec-filter,
+.period-filter {
   padding: 0.2rem 0.65rem;
   border: 1px solid var(--border, #e2e8f0);
   border-radius: 9999px;
@@ -1387,7 +1388,9 @@ ul {
   transition: background 0.15s, color 0.15s;
 }
 .sec-filter.active,
-.sec-filter:hover {
+.sec-filter:hover,
+.period-filter.active,
+.period-filter:hover {
   background: var(--primary, #01696f);
   color: #fff;
   border-color: var(--primary, #01696f);
