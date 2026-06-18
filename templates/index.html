@@ -6,7 +6,7 @@
     <title>Ausarta Draw.io Local</title>
     <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='images/ausarta-drawio-32.png') }}">
     <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='images/ausarta-drawio-180.png') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=20260618b">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=20260618d">
   </head>
   <body>
     {% include "_app_header.html" %}
@@ -688,16 +688,26 @@
               return `<option value="${category.id}"${values.category === category.id ? " selected" : ""}>${escapeAttribute(category.label)}</option>`;
             }).join("");
             row.innerHTML = `
-              <select data-field="category" aria-label="Tipo de dispositivo">${categoryOptions}</select>
-              <div class="device-model-field">
+              <label class="row-field">
+                <span class="field-mobile-label">Tipo</span>
+                <select data-field="category" aria-label="Tipo de dispositivo">${categoryOptions}</select>
+              </label>
+              <div class="row-field device-model-field">
+                <span class="field-mobile-label">Modelo</span>
                 <select data-field="model" aria-label="Modelo de dispositivo"></select>
                 <input data-field="custom-model" type="text" placeholder="Modelo personalizado" value="${escapeAttribute(values.modelo)}" aria-label="Modelo personalizado" hidden disabled>
               </div>
-              <input data-field="quantity" type="number" min="1" value="${escapeAttribute(values.cantidad || 1)}" aria-label="Cantidad">
-              <select data-field="ownership" aria-label="Propiedad">
-                <option value="propio"${values.propiedad !== "ajeno" ? " selected" : ""}>Propio</option>
-                <option value="ajeno"${values.propiedad === "ajeno" ? " selected" : ""}>Ajeno</option>
-              </select>
+              <label class="row-field">
+                <span class="field-mobile-label">Cantidad</span>
+                <input data-field="quantity" type="number" min="1" value="${escapeAttribute(values.cantidad || 1)}" aria-label="Cantidad">
+              </label>
+              <label class="row-field">
+                <span class="field-mobile-label">Propiedad</span>
+                <select data-field="ownership" aria-label="Propiedad">
+                  <option value="propio"${values.propiedad !== "ajeno" ? " selected" : ""}>Propio</option>
+                  <option value="ajeno"${values.propiedad === "ajeno" ? " selected" : ""}>Ajeno</option>
+                </select>
+              </label>
               <button type="button" class="remove-device" title="Eliminar dispositivo" aria-label="Eliminar dispositivo">×</button>`;
             const categoryField = row.querySelector('[data-field="category"]');
             if (values.category) {
@@ -1029,16 +1039,37 @@
               }))
               .join("");
             row.innerHTML = `
-              <select data-field="model" aria-label="Modelo de terminal">${modelOptions}</select>
-              <select data-field="dect-base" class="dect-base-field${values.dectBase || isDectHandset(values.model) ? "" : " is-hidden"}" aria-label="Base DECT">${dectBaseOptions}</select>
-              <input data-field="extension" type="text" inputmode="numeric" placeholder="Extensión" value="${escapeAttribute(values.extension)}" aria-label="Extensión">
-              <input data-field="serial" type="text" placeholder="Serial number" value="${escapeAttribute(values.serial)}" aria-label="Serial number">
-              <input data-field="mac" type="text" placeholder="MAC" value="${escapeAttribute(values.mac)}" aria-label="MAC">
-              <input data-field="ip" type="text" placeholder="IP" value="${escapeAttribute(values.ip)}" aria-label="IP">
-              <select data-field="ownership" aria-label="Propiedad">
-                <option value="propio"${values.ownership !== "ajeno" ? " selected" : ""}>Propio</option>
-                <option value="ajeno"${values.ownership === "ajeno" ? " selected" : ""}>Ajeno</option>
-              </select>
+              <label class="row-field">
+                <span class="field-mobile-label">Modelo</span>
+                <select data-field="model" aria-label="Modelo de terminal">${modelOptions}</select>
+              </label>
+              <label class="row-field">
+                <span class="field-mobile-label">Base DECT</span>
+                <select data-field="dect-base" class="dect-base-field${values.dectBase || isDectHandset(values.model) ? "" : " is-hidden"}" aria-label="Base DECT">${dectBaseOptions}</select>
+              </label>
+              <label class="row-field">
+                <span class="field-mobile-label">Extensión</span>
+                <input data-field="extension" type="text" inputmode="numeric" placeholder="Extensión" value="${escapeAttribute(values.extension)}" aria-label="Extensión">
+              </label>
+              <label class="row-field">
+                <span class="field-mobile-label">Serial</span>
+                <input data-field="serial" type="text" placeholder="Serial number" value="${escapeAttribute(values.serial)}" aria-label="Serial number">
+              </label>
+              <label class="row-field">
+                <span class="field-mobile-label">MAC</span>
+                <input data-field="mac" type="text" placeholder="MAC" value="${escapeAttribute(values.mac)}" aria-label="MAC">
+              </label>
+              <label class="row-field">
+                <span class="field-mobile-label">IP</span>
+                <input data-field="ip" type="text" placeholder="IP" value="${escapeAttribute(values.ip)}" aria-label="IP">
+              </label>
+              <label class="row-field">
+                <span class="field-mobile-label">Propiedad</span>
+                <select data-field="ownership" aria-label="Propiedad">
+                  <option value="propio"${values.ownership !== "ajeno" ? " selected" : ""}>Propio</option>
+                  <option value="ajeno"${values.ownership === "ajeno" ? " selected" : ""}>Ajeno</option>
+                </select>
+              </label>
               <button type="button" class="remove-terminal" title="Eliminar terminal" aria-label="Eliminar terminal">×</button>`;
             row.querySelectorAll("input, select").forEach(function (field) {
               field.addEventListener("input", syncTerminalRows);

@@ -6,7 +6,7 @@
     <title>Administración</title>
     <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='images/ausarta-drawio-32.png') }}">
     <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='images/ausarta-drawio-180.png') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=20260618b">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=20260618d">
   </head>
   <body>
     {% include "_app_header.html" %}
@@ -85,7 +85,7 @@
             <div class="admin-card">
               <div class="admin-toolbar" style="margin-top:0;">
                 <h2 id="chartTitle">Diagramas últimos 7 días</h2>
-                <div class="toolbar-spacer" style="display:flex; gap:0.5rem;">
+                <div class="toolbar-spacer filter-row">
                   <button class="period-filter active" data-period="week">Semana</button>
                   <button class="period-filter" data-period="month">Mes</button>
                   <button class="period-filter" data-period="year">Año</button>
@@ -108,7 +108,7 @@
           <!-- Eventos de seguridad -->
           <div class="admin-toolbar">
             <h2>Últimos eventos de seguridad</h2>
-            <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+            <div class="filter-row">
               <button class="sec-filter active" data-level="ALL">Todos</button>
               <button class="sec-filter" data-level="INFO">INFO</button>
               <button class="sec-filter" data-level="WARNING">WARNING</button>
