@@ -8,8 +8,7 @@
       <a class="topbar-link {{ 'active' if request.endpoint == 'upload_draw' else '' }}" href="{{ url_for('upload_draw') }}">Subir draw antiguo</a>
       <a class="topbar-link {{ 'active' if request.endpoint == 'diagrams' else '' }}" href="{{ url_for('diagrams') }}">Consultar diagramas</a>
       <a class="topbar-link {{ 'active' if request.endpoint == 'my_diagrams' else '' }}" href="{{ url_for('my_diagrams') }}">Mis diagramas</a>
-      {% set _admin_name = (technician.name or technician.username or '') | lower | trim %}
-      {% if _admin_name in ('iñigo solana', 'alberto ferez', 'marcos medina') %}
+      {% if technician_is_admin %}
       <a class="topbar-link {{ 'active' if request.endpoint == 'admin_dashboard' else '' }}"
          href="{{ url_for('admin_dashboard') }}">Admin</a>
       {% endif %}

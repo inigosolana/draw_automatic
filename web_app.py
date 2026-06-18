@@ -29,7 +29,7 @@ from generator.knowledge_base import learn_from_drawio
 from generator.security_log import SecurityLog
 from generator.site_directory import SiteDirectory, apply_saved_addresses
 from generator.device_catalog import build_device_catalog
-from generator.utils import is_safe_redirect, positive_integer
+from generator.utils import is_safe_redirect, positive_integer, technician_is_admin
 from generator.web_adapter import build_drawio_from_data, form_to_data, form_to_structured_data
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -155,6 +155,13 @@ def create_app() -> Flask:
 
     def current_technician() -> dict:
         return session.get("technician") or {"username": "local", "name": "Tecnico local"}
+
+    @app.context_processor
+    def inject_admin_flag() -> dict:
+        tech = session.get("technician")
+        return {
+            "technician_is_admin": technician_is_admin(tech, ADMIN_USERS) if tech else False,
+        }
 
     def login_required(view):
         @wraps(view)
@@ -310,8 +317,10 @@ def create_app() -> Flask:
     @login_required
     def admin_dashboard() -> str:
         technician = current_technician()
-        tech_name = (technician.get("name") or technician.get("username") or "").strip().lower()
-        if tech_name not in ADMIN_USERS:
+        if not technician_is_admin(technician, ADMIN_USERS):
+            tech_name = (
+                technician.get("name") or technician.get("username") or ""
+            ).strip().lower()
             security_logger.warning(
                 f"Acceso denegado a /admin: user={tech_name}, IP={get_remote_address()}"
             )
