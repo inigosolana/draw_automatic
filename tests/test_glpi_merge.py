@@ -1,6 +1,6 @@
 import unittest
 
-from generator.glpi_merge import merge_import_with_glpi
+from generator.glpi_merge import find_glpi_suggestions, merge_import_with_glpi
 
 
 CATALOG = [
@@ -23,7 +23,19 @@ CATALOG = [
                         "direccion": "Polígono industrial, Santander",
                     },
                 ],
-            }
+            },
+            {
+                "nombre": "Nort Control Iberia",
+                "cif": "B11111111",
+                "direccion": "Torrelavega, Cantabria",
+                "sedes": [
+                    {
+                        "id": 601,
+                        "nombre": "Central",
+                        "direccion": "Torrelavega 39300",
+                    },
+                ],
+            },
         ],
     }
 ]
@@ -42,6 +54,7 @@ class GlpiMergeTests(unittest.TestCase):
         )
 
         self.assertTrue(merged["matched"])
+        self.assertEqual(merged["confidence"], "high")
         self.assertEqual(merged["glpi_entity_id"], "501")
         self.assertEqual(merged["cliente"], "Nort Iberian Control")
         self.assertEqual(merged["cif"], "B39357124")
@@ -61,6 +74,35 @@ class GlpiMergeTests(unittest.TestCase):
             CATALOG,
         )
         self.assertEqual(merged["direccion"], "Santander 39009, Cantabria")
+
+    def test_suggests_similar_clients_when_no_exact_match(self) -> None:
+        merged = merge_import_with_glpi(
+            {
+                "cliente": "Iberian Control Norte",
+                "cif": "",
+                "sede": "Central",
+                "direccion": "Torrelavega",
+            },
+            CATALOG,
+        )
+        self.assertFalse(merged["matched"])
+        self.assertIn(merged["confidence"], ("low", "none"))
+        self.assertGreaterEqual(len(merged["suggestions"]), 1)
+
+    def test_find_glpi_suggestions_ranks_by_name_similarity(self) -> None:
+        suggestions = find_glpi_suggestions(
+            {
+                "cliente": "Nort Control",
+                "cif": "",
+                "sede": "Central",
+                "direccion": "Torrelavega",
+            },
+            CATALOG,
+            limit=3,
+        )
+        self.assertGreaterEqual(len(suggestions), 1)
+        names = {item["cliente"] for item in suggestions}
+        self.assertTrue("Nort Control Iberia" in names or "Nort Iberian Control" in names)
 
 
 if __name__ == "__main__":

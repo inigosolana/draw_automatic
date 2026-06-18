@@ -498,6 +498,77 @@ svg {
   display: none;
 }
 
+.paste-bar-status.is-warn {
+  color: #9a3412;
+}
+
+.glpi-suggestions {
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid #f0c987;
+  border-radius: 10px;
+  background: #fffaf0;
+}
+
+.glpi-suggestions-title {
+  margin: 0 0 10px;
+  color: #9a3412;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.glpi-suggestions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.glpi-suggestion-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #e8c88a;
+  border-radius: 10px;
+  background: #fff;
+  color: #0f1d28;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.glpi-suggestion-card:hover {
+  border-color: #146c94;
+  background: #f7fbff;
+  box-shadow: 0 4px 12px rgba(20, 108, 148, 0.12);
+}
+
+.glpi-suggestion-card strong {
+  font-size: 0.92rem;
+  color: #0f5878;
+}
+
+.glpi-suggestion-meta {
+  color: #526572;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.glpi-suggestion-address {
+  color: #526572;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+@media (max-width: 900px) {
+  .glpi-suggestion-card {
+    min-height: 44px;
+  }
+}
+
 .paste-offer-top {
   margin-bottom: 20px;
   padding: 18px 20px 16px;

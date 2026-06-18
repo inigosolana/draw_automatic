@@ -6,7 +6,7 @@
     <title>Ausarta Draw.io Local</title>
     <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='images/ausarta-drawio-32.png') }}">
     <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='images/ausarta-drawio-180.png') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=20260618d">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=20260618e">
   </head>
   <body>
     {% include "_app_header.html" %}
@@ -28,6 +28,7 @@
           </div>
           <p id="import-work-order-status" class="paste-bar-status" aria-live="polite"></p>
           <p id="import-glpi-status" class="paste-bar-status" aria-live="polite"></p>
+          <div id="import-glpi-suggestions" class="glpi-suggestions" hidden></div>
           <ul id="import-work-order-warnings" class="import-warnings"></ul>
         </div>
 
@@ -1227,6 +1228,86 @@
             });
           }
 
+          function renderGlpiSuggestions(suggestions) {
+            const panel = document.getElementById("import-glpi-suggestions");
+            if (!panel) {
+              return;
+            }
+            panel.innerHTML = "";
+            if (!suggestions || !suggestions.length) {
+              panel.hidden = true;
+              return;
+            }
+            panel.hidden = false;
+
+            const title = document.createElement("p");
+            title.className = "glpi-suggestions-title";
+            title.textContent = "Opciones posibles en GLPI (elige una o selecciona manualmente abajo):";
+            panel.appendChild(title);
+
+            const list = document.createElement("div");
+            list.className = "glpi-suggestions-list";
+            suggestions.forEach(function (item) {
+              const btn = document.createElement("button");
+              btn.type = "button";
+              btn.className = "glpi-suggestion-card";
+
+              const heading = document.createElement("strong");
+              heading.textContent = `${item.cliente} / ${item.sede}`;
+              btn.appendChild(heading);
+
+              const meta = document.createElement("span");
+              meta.className = "glpi-suggestion-meta";
+              const parts = [item.province];
+              if (item.cif) parts.push(`CIF ${item.cif}`);
+              if (item.reasons && item.reasons.length) parts.push(item.reasons.join(", "));
+              meta.textContent = parts.join(" · ");
+              btn.appendChild(meta);
+
+              if (item.direccion) {
+                const addr = document.createElement("span");
+                addr.className = "glpi-suggestion-address";
+                addr.textContent = item.direccion;
+                btn.appendChild(addr);
+              }
+
+              btn.addEventListener("click", function () {
+                window.__drawioApplyGlpiSuggestion(item);
+              });
+              list.appendChild(btn);
+            });
+            panel.appendChild(list);
+          }
+
+          window.__drawioApplyGlpiSuggestion = function (item) {
+            if (!item || !item.glpi_entity_id) {
+              return;
+            }
+            const ok = window.__drawioGlpiSelectByEntityId
+              ? window.__drawioGlpiSelectByEntityId(item.glpi_entity_id)
+              : false;
+            const clienteField = document.getElementById("cliente");
+            const cifField = document.getElementById("cif");
+            const sedeField = document.getElementById("sede");
+            const direccionField = document.getElementById("direccion");
+            const entityField = document.getElementById("glpi-entity-id");
+            if (item.cliente) clienteField.value = item.cliente;
+            if (item.cif) cifField.value = item.cif;
+            if (item.sede) sedeField.value = item.sede;
+            if (item.direccion) direccionField.value = item.direccion;
+            entityField.value = String(item.glpi_entity_id);
+            if (importGlpiStatus) {
+              importGlpiStatus.textContent = ok
+                ? `GLPI seleccionado: ${item.cliente} / ${item.sede}`
+                : `Datos aplicados: ${item.cliente} / ${item.sede}. Revisa la sede en el desplegable.`;
+            }
+            renderGlpiSuggestions([]);
+            const source = document.getElementById("address-source");
+            if (source) {
+              source.textContent = "Dirección de la opción elegida. Puedes corregirla si ha cambiado.";
+            }
+          };
+
           function applyImportedForm(data) {
             const clienteField = document.getElementById("cliente");
             const cifField = document.getElementById("cif");
@@ -1238,19 +1319,31 @@
             if (data.cif) cifField.value = data.cif;
             if (data.sede) sedeField.value = data.sede;
             if (data.direccion) direccionField.value = data.direccion;
-            if (data.glpi_entity_id) entityField.value = String(data.glpi_entity_id);
 
-            let glpiResult = { matched: false, message: data.glpi_message || "" };
-            if (window.__drawioGlpiMatch) {
-              glpiResult = window.__drawioGlpiMatch(data);
-            } else if (!data.glpi_entity_id) {
+            const confidence = data.glpi_confidence || (data.glpi_matched ? "high" : "none");
+            let glpiMessage = data.glpi_message || "";
+
+            if (confidence === "high" && data.glpi_entity_id) {
+              entityField.value = String(data.glpi_entity_id);
+              if (window.__drawioGlpiSelectByEntityId) {
+                window.__drawioGlpiSelectByEntityId(data.glpi_entity_id);
+              }
               if (data.cliente) clienteField.value = data.cliente;
               if (data.cif) cifField.value = data.cif;
               if (data.sede) sedeField.value = data.sede;
               if (data.direccion) direccionField.value = data.direccion;
+              renderGlpiSuggestions([]);
+            } else {
+              entityField.value = "";
+              renderGlpiSuggestions(data.glpi_suggestions || []);
+              if (!glpiMessage && (data.glpi_suggestions || []).length) {
+                glpiMessage = "Elige una opción similar o selecciona provincia, cliente y sede manualmente.";
+              }
             }
+
             if (importGlpiStatus) {
-              importGlpiStatus.textContent = glpiResult.message || data.glpi_message || "";
+              importGlpiStatus.textContent = glpiMessage;
+              importGlpiStatus.classList.toggle("is-warn", confidence !== "high");
             }
             if (window.__drawioConnectivity) {
               window.__drawioConnectivity.apply(data);
