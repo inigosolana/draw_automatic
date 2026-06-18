@@ -81,14 +81,21 @@ if not security_logger.handlers:
     sqlite_handler.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)s [SECURITY] %(message)s"))
     security_logger.addHandler(sqlite_handler)
 
-ADMIN_USERS = {
-    "iñigo solana",
-    "solana iñigo",
-    "alberto ferez",
-    "ferez alberto",
-    "marcos medina",
-    "medina marcos",
-}
+def _load_admin_users() -> set[str]:
+    raw = os.environ.get("DRAWIO_ADMIN_USERS", "")
+    if raw.strip():
+        return {u.strip().lower() for u in raw.split(",") if u.strip()}
+    return {
+        "iñigo solana",
+        "solana iñigo",
+        "alberto ferez",
+        "ferez alberto",
+        "marcos medina",
+        "medina marcos",
+    }
+
+
+ADMIN_USERS = _load_admin_users()
 
 _MONTHS_ES = (
     "ene", "feb", "mar", "abr", "may", "jun",
