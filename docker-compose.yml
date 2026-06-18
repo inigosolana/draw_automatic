@@ -135,7 +135,7 @@ services:
     container_name: ausarta-drawio-backup
     restart: unless-stopped
     volumes:
-      - drawio_data:/app/data:ro
+      - drawio_data:/app/data
       - drawio_backup:/backup
     entrypoint: >
       /bin/sh -c "apk add --no-cache sqlite && trap exit TERM;
@@ -147,8 +147,6 @@ services:
         find /backup -name '*.sqlite3' -mtime +7 -delete;
         sleep 24h & wait $${!};
       done"
-    networks:
-      - internal_network
     depends_on:
       - drawio-generator
 
