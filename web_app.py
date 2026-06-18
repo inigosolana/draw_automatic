@@ -288,6 +288,21 @@ def create_app() -> Flask:
         strategy="fixed-window",
     )
     
+    static_asset_version = os.environ.get("DRAWIO_STATIC_VERSION", "20260618f")
+
+    @app.after_request
+    def adjust_response_headers(response: Response) -> Response:
+        if request.path.startswith("/static/"):
+            response.headers.pop("Expires", None)
+            response.headers.pop("Content-Security-Policy", None)
+            response.headers.pop("X-Frame-Options", None)
+            response.headers.pop("Referrer-Policy", None)
+            response.headers.pop("Permissions-Policy", None)
+        elif response.content_type and "text/html" in response.content_type:
+            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+            response.headers.pop("Expires", None)
+        return response
+
     # Security: HTTP Security Headers (Talisman) — optional (off in local dev)
     force_https = os.environ.get("DRAWIO_FORCE_HTTPS", "0") == "1"
     csp = {
@@ -313,8 +328,6 @@ def create_app() -> Flask:
             frame_options=None,
             referrer_policy='strict-origin-when-cross-origin',
         )
-    
-    static_asset_version = os.environ.get("DRAWIO_STATIC_VERSION", "20260618f")
     
     app.config["PREVIEW_URL"] = os.environ.get("DRAWIO_PREVIEW_URL", "https://embed.diagrams.net/").rstrip("/")
     is_local_dev = os.environ.get("DRAWIO_COOKIE_SECURE", "0") != "1"
@@ -899,19 +912,6 @@ def create_app() -> Flask:
             json.dumps({"id": diagram_id, "url": client.diagram_url(diagram_id)}),
             mimetype="application/json",
         )
-
-    @app.after_request
-    def adjust_response_headers(response: Response) -> Response:
-        if request.path.startswith("/static/"):
-            response.headers.pop("Expires", None)
-            response.headers.pop("Content-Security-Policy", None)
-            response.headers.pop("X-Frame-Options", None)
-            response.headers.pop("Referrer-Policy", None)
-            response.headers.pop("Permissions-Policy", None)
-        elif response.content_type and "text/html" in response.content_type:
-            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
-            response.headers.pop("Expires", None)
-        return response
 
     return app
 
