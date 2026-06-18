@@ -8,6 +8,7 @@ import uuid
 from datetime import datetime, timedelta
 from functools import wraps
 from pathlib import Path
+from urllib.parse import urlparse
 
 from defusedxml import ElementTree as DefusedET
 from defusedxml.common import DefusedXmlException
@@ -97,7 +98,7 @@ def create_app() -> Flask:
     app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=int(os.environ.get("DRAWIO_SESSION_HOURS", "8")))
     
     # Security: CSRF Protection
-    app.config["WTF_CSRF_TIME_LIMIT"] = None  # CSRF tokens never expire (tied to session)
+    app.config["WTF_CSRF_TIME_LIMIT"] = 14400  # 4 horas en segundos
     app.config["WTF_CSRF_SSL_STRICT"] = app.config["SESSION_COOKIE_SECURE"]
     csrf = CSRFProtect(app)
     
@@ -167,6 +168,13 @@ def create_app() -> Flask:
             security_logger.warning(f"GLPI catalog load failed: {exc} (IP: {get_remote_address()})")
             return [], public_error_message(str(exc), context="carga del catalogo GLPI")
 
+    def _is_safe_redirect(url: str) -> bool:
+        """Solo permite rutas internas relativas (sin dominio ni esquema)."""
+        if not url:
+            return False
+        parsed = urlparse(url)
+        return not parsed.netloc and not parsed.scheme and url.startswith("/")
+
     @app.route("/login", methods=["GET", "POST"])
     @limiter.limit("10 per minute")
     def login() -> str:
@@ -189,7 +197,8 @@ def create_app() -> Flask:
                     session["technician"] = client.authenticate_user(username, password)
                     session.permanent = True
                     security_logger.info(f"Login successful: user={username}, IP={client_ip}")
-                    return redirect(request.args.get("next") or url_for("index"))
+                    next_url = request.args.get("next", "")
+                    return redirect(next_url if _is_safe_redirect(next_url) else url_for("index"))
                 except GlpiError:
                     error = "Usuario o clave incorrectos."
                     security_logger.warning(f"Login attempt failed: invalid credentials for user={username}, IP={client_ip}")
@@ -470,6 +479,12 @@ def create_app() -> Flask:
         payload = DOWNLOADS.get(token)
         if not payload:
             return Response("Archivo no encontrado.", status=404, mimetype="text/plain; charset=utf-8")
+        if payload.get("uploaded"):
+            return Response(
+                "El diagrama ya fue publicado en GLPI y no puede descargarse de nuevo.",
+                status=410,
+                mimetype="text/plain; charset=utf-8",
+            )
         return Response(
             payload["xml"],
             mimetype="application/xml; charset=utf-8",

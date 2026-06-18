@@ -2,6 +2,7 @@ Flask>=3.0.0
 defusedxml>=0.7.1
 gunicorn>=22.0.0
 Flask-Limiter>=3.5.0
+redis>=5.0.0
 Flask-WTF>=1.2.1
 Flask-Talisman>=1.1.0
 cryptography>=42.0.0

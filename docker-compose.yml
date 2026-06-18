@@ -56,8 +56,9 @@ services:
       - "${DRAWIO_PUBLIC_PORT:-443}:443"
       - "${DRAWIO_HTTP_PORT:-80}:80"
     volumes:
-      - nginx_ssl:/etc/nginx/ssl:ro
-      - certbot_webroot:/var/www/certbot:ro
+      - ./certbot/www:/var/www/certbot:ro
+      - ./certbot/conf/live/draw.ausarta.net:/etc/letsencrypt/live/draw.ausarta.net:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
       - nginx_logs:/var/log/nginx
     configs:
       - source: nginx_config
@@ -99,24 +100,26 @@ services:
     tmpfs:
       - /tmp:noexec,nosuid,size=50M
 
-  # Optional: Certbot for Let's Encrypt SSL certificates
-  # Uncomment if you want to use Let's Encrypt
-  # certbot:
-  #   image: certbot/certbot:latest
-  #   container_name: ausarta-drawio-certbot
-  #   volumes:
-  #     - nginx_ssl:/etc/letsencrypt
-  #     - certbot_webroot:/var/www/certbot
-  #   entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+  certbot:
+    image: certbot/certbot:latest
+    container_name: drawio-certbot
+    volumes:
+      - ./certbot/www:/var/www/certbot:rw
+      - ./certbot/conf:/etc/letsencrypt:rw
+    entrypoint: >
+      /bin/sh -c "trap exit TERM;
+      while :; do
+        certbot renew --quiet --webroot --webroot-path=/var/www/certbot;
+        sleep 12h & wait $${!};
+      done"
+    depends_on:
+      - nginx
+    restart: unless-stopped
 
 volumes:
   drawio_data:
     driver: local
   redis_data:
-    driver: local
-  nginx_ssl:
-    driver: local
-  certbot_webroot:
     driver: local
   nginx_logs:
     driver: local
