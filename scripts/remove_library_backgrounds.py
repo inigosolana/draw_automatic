@@ -11,7 +11,7 @@ from rembg import remove
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ASSETS_DIR = PROJECT_ROOT / "assets"
-DEFAULT_LIBRARY = PROJECT_ROOT / "libreria_Ausarta_JUN_2026.xml"
+DEFAULT_LIBRARY = PROJECT_ROOT / "library" / "libreria_Ausarta_JUN_2026.xml"
 DATA_URI_RE = re.compile(r"^data:image/[^;]+;base64,(.+)$", re.DOTALL)
 
 

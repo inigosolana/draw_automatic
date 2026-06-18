@@ -511,7 +511,7 @@ class WebAdapterTests(unittest.TestCase):
             self.assertEqual(resolved.name, "libreria_Ausarta_JUN_2026.xml")
 
     def test_real_library_loads_custom_w71h_icon(self) -> None:
-        real_library = ROOT.parent / "libreria_Ausarta_JUN_2026.xml"
+        real_library = ROOT.parent / "library" / "libreria_Ausarta_JUN_2026.xml"
         if not real_library.exists():
             self.skipTest("La libreria real no esta disponible en este entorno.")
         generated = build_drawio_from_data(

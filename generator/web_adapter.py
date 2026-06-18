@@ -27,7 +27,7 @@ ALLOWED_EQUIPMENT_TYPES = {
 }
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_LIBRARY_NAME = "libreria_Ausarta_JUN_2026.xml"
-BUNDLED_LIBRARY = PROJECT_ROOT / DEFAULT_LIBRARY_NAME
+BUNDLED_LIBRARY = PROJECT_ROOT / "library" / DEFAULT_LIBRARY_NAME
 
 
 @dataclass
@@ -297,6 +297,7 @@ def resolve_library_path(library_path: str | Path) -> Path:
         candidates.extend(
             [
                 Path.cwd() / path,
+                PROJECT_ROOT / "library" / path.name,
                 PROJECT_ROOT / path,
                 PROJECT_ROOT.parent / path,
             ]

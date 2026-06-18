@@ -14,3 +14,5 @@ data/activity.sqlite3*
 NORTH_IBERIAN_CONTROL_S_L_SEDE_1_OFICINA.drawio
 libreria_Ausarta_JUN_2026.xml
 library/*.xml
+LOCAL_ONLY_MANIFEST.txt
+scripts/sync-local-to-server.ps1

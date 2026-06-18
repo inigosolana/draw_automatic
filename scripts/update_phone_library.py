@@ -11,7 +11,7 @@ from pathlib import Path
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
-LIBRARY_PATH = ROOT / "libreria_Ausarta_JUN_2026.xml"
+LIBRARY_PATH = ROOT / "library" / "libreria_Ausarta_JUN_2026.xml"
 MAX_DIMENSION = 520
 
 LIBRARY_SOURCES = {

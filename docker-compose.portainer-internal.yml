@@ -23,7 +23,7 @@ services:
       COMMS_USERNAME: "${COMMS_USERNAME:-}"
       COMMS_PASSWORD: "${COMMS_PASSWORD:-}"
       COMMS_API_TOKEN: "${COMMS_API_TOKEN:-}"
-      DRAWIO_LIBRARY_PATH: "/app/libreria_Ausarta_JUN_2026.xml"
+      DRAWIO_LIBRARY_PATH: "/app/library/${DRAWIO_LIBRARY_VERSION:-libreria_Ausarta_JUN_2026}.xml"
       DRAWIO_DOWNLOAD_DB: "/app/data/downloads.sqlite3"
       DRAWIO_SITE_DB: "/app/data/sites.sqlite3"
       DRAWIO_CATALOG_DB: "/app/data/catalog.sqlite3"
@@ -41,6 +41,7 @@ services:
       DRAWIO_RATELIMIT_STORAGE: "redis://redis:6379"
     volumes:
       - drawio_data:/app/data
+      - ./library:/app/library:ro
     networks:
       - drawio_internal
     depends_on:

@@ -70,7 +70,7 @@ def create_app() -> Flask:
     app = Flask(__name__, template_folder=str(PROJECT_ROOT / "templates"), static_folder=str(PROJECT_ROOT / "static"))
     app.config["DEFAULT_LIBRARY"] = os.environ.get(
         "DRAWIO_LIBRARY_PATH",
-        "libreria_Ausarta_JUN_2026.xml",
+        str(PROJECT_ROOT / "library" / "libreria_Ausarta_JUN_2026.xml"),
     )
     app.config["MAX_CONTENT_LENGTH"] = int(os.environ.get("DRAWIO_MAX_UPLOAD_BYTES", str(15 * 1024 * 1024)))
     

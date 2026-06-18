@@ -16,9 +16,9 @@ Generador de diagramas `.drawio` para instalaciones de telecomunicaciones.
 La CLI actual sigue funcionando:
 
 ```bash
-python app.py --input examples/cliente_demo.json --library libreria_Ausarta_JUN_2026.xml --output salida.drawio
-python app.py --input examples/cliente_demo.txt --library libreria_Ausarta_JUN_2026.xml --output salida_texto.drawio
-python app.py --input examples\cliente_multisede.json --library libreria_Ausarta_JUN_2026.xml --output salida_multi.drawio --template multisede
+python app.py --input examples/cliente_demo.json --library library/libreria_Ausarta_JUN_2026.xml --output salida.drawio
+python app.py --input examples/cliente_demo.txt --library library/libreria_Ausarta_JUN_2026.xml --output salida_texto.drawio
+python app.py --input examples\cliente_multisede.json --library library/libreria_Ausarta_JUN_2026.xml --output salida_multi.drawio --template multisede
 ```
 
 ## Interfaz web local
