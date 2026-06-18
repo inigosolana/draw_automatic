@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import unicodedata
 from urllib.parse import urlparse
 
 
@@ -21,16 +22,27 @@ def positive_integer(value: object, field_name: str) -> int:
 def normalize_person_name(name: str) -> str:
     """Normaliza nombre para comparar sin depender del orden apellido/nombre."""
     text = str(name or "").strip().lower()
+    if "," in text:
+        surname, given = (part.strip() for part in text.split(",", 1))
+        if surname and given:
+            text = f"{given} {surname}"
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(char for char in text if not unicodedata.combining(char))
     parts = text.split()
     if len(parts) >= 2:
         return " ".join(sorted(parts))
     return text
 
 
+def normalized_admin_users(admin_users: set[str]) -> set[str]:
+    return {normalize_person_name(name) for name in admin_users}
+
+
 def technician_is_admin(technician: dict | None, admin_users: set[str]) -> bool:
     if not technician:
         return False
+    allowed = normalized_admin_users(admin_users)
     for key in ("name", "username"):
-        if normalize_person_name(str(technician.get(key) or "")) in admin_users:
+        if normalize_person_name(str(technician.get(key) or "")) in allowed:
             return True
     return False

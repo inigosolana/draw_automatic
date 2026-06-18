@@ -81,7 +81,14 @@ if not security_logger.handlers:
     sqlite_handler.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)s [SECURITY] %(message)s"))
     security_logger.addHandler(sqlite_handler)
 
-ADMIN_USERS = {"iñigo solana", "alberto ferez", "marcos medina"}
+ADMIN_USERS = {
+    "iñigo solana",
+    "solana iñigo",
+    "alberto ferez",
+    "ferez alberto",
+    "marcos medina",
+    "medina marcos",
+}
 
 
 def create_app() -> Flask:
