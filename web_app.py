@@ -90,6 +90,69 @@ ADMIN_USERS = {
     "medina marcos",
 }
 
+_MONTHS_ES = (
+    "ene", "feb", "mar", "abr", "may", "jun",
+    "jul", "ago", "sep", "oct", "nov", "dic",
+)
+
+
+def _activity_technician_name(row: dict) -> str:
+    return row.get("technician_name") or row.get("technician", {}).get("name", "?")
+
+
+def _build_admin_chart_periods(all_rows: list[dict], now: datetime) -> dict:
+    from collections import Counter
+
+    def rows_since(days: int) -> list[dict]:
+        cutoff = now - timedelta(days=days)
+        return [r for r in all_rows if datetime.utcfromtimestamp(r["created_at"]) >= cutoff]
+
+    def daily_buckets(days: int) -> tuple[list[str], list[int]]:
+        labels: list[str] = []
+        values: list[int] = []
+        for i in range(days - 1, -1, -1):
+            day = (now - timedelta(days=i)).date()
+            labels.append(day.strftime("%d/%m"))
+            values.append(len([
+                r for r in all_rows
+                if datetime.utcfromtimestamp(r["created_at"]).date() == day
+            ]))
+        return labels, values
+
+    week_labels, week_values = daily_buckets(7)
+    month_labels, month_values = daily_buckets(30)
+
+    year_labels: list[str] = []
+    year_values: list[int] = []
+    for i in range(11, -1, -1):
+        month = now.month - i
+        year = now.year
+        while month <= 0:
+            month += 12
+            year -= 1
+        start = datetime(year, month, 1)
+        end = datetime(year + 1, 1, 1) if month == 12 else datetime(year, month + 1, 1)
+        year_labels.append(f"{_MONTHS_ES[month - 1]} {str(year)[2:]}")
+        year_values.append(len([
+            r for r in all_rows
+            if start <= datetime.utcfromtimestamp(r["created_at"]) < end
+        ]))
+
+    def period_payload(rows: list[dict], labels: list[str], values: list[int]) -> dict:
+        top = Counter(_activity_technician_name(r) for r in rows).most_common(5)
+        return {
+            "labels": labels,
+            "values": values,
+            "total": len(rows),
+            "top": [{"name": name, "count": count} for name, count in top],
+        }
+
+    return {
+        "week": period_payload(rows_since(7), week_labels, week_values),
+        "month": period_payload(rows_since(30), month_labels, month_values),
+        "year": period_payload(rows_since(365), year_labels, year_values),
+    }
+
 
 def create_app() -> Flask:
     app = Flask(__name__, template_folder=str(PROJECT_ROOT / "templates"), static_folder=str(PROJECT_ROOT / "static"))
@@ -339,9 +402,8 @@ def create_app() -> Flask:
         all_rows = ACTIVITY.list_all() if hasattr(ACTIVITY, "list_all") else []
         today = [r for r in all_rows if datetime.utcfromtimestamp(r["created_at"]).date() == now.date()]
         week = [r for r in all_rows if datetime.utcfromtimestamp(r["created_at"]) >= now - timedelta(days=7)]
-        top_technicians = Counter(
-            r.get("technician_name") or r.get("technician", {}).get("name", "?") for r in week
-        ).most_common(5)
+        month = [r for r in all_rows if datetime.utcfromtimestamp(r["created_at"]) >= now - timedelta(days=30)]
+        chart_periods = _build_admin_chart_periods(all_rows, now)
         import re as _re
         recent_events = SECLOG.recent(limit=200)
         warn_count = 0
@@ -359,23 +421,12 @@ def create_app() -> Flask:
             "admin.html",
             total_today=len(today),
             total_week=len(week),
+            total_month=len(month),
             total_all=len(all_rows),
-            top_technicians=top_technicians,
             recent_events=recent_events,
             technician=technician,
             warn_count=warn_count,
-            chart_labels=[
-                (now - timedelta(days=i)).strftime("%d/%m")
-                for i in range(6, -1, -1)
-            ],
-            chart_values=[
-                len([
-                    r for r in all_rows
-                    if datetime.utcfromtimestamp(r["created_at"]).date()
-                    == (now - timedelta(days=i)).date()
-                ])
-                for i in range(6, -1, -1)
-            ],
+            chart_periods=chart_periods,
         )
 
     @app.route("/upload-draw", methods=["GET", "POST"])

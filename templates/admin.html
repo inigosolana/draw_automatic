@@ -56,6 +56,11 @@
               <small>diagrama{{ 's' if total_week != 1 else '' }}</small>
             </div>
             <div class="admin-stat-card">
+              <span>Este mes</span>
+              <strong>{{ total_month }}</strong>
+              <small>diagrama{{ 's' if total_month != 1 else '' }}</small>
+            </div>
+            <div class="admin-stat-card">
               <span>Total histórico</span>
               <strong>{{ total_all }}</strong>
               <small>diagrama{{ 's' if total_all != 1 else '' }}</small>
@@ -69,30 +74,30 @@
             {% endif %}
           </div>
 
-          <!-- Gráfico 7 días -->
-          <h2 style="margin-top:1.5rem;">Diagramas últimos 7 días</h2>
-          <div style="max-width:640px; margin-bottom:1.5rem;">
+          <!-- Gráfico actividad -->
+          <div style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap; margin-top:1.5rem; margin-bottom:0.75rem;">
+            <h2 id="chartTitle" style="margin:0;">Diagramas últimos 7 días</h2>
+            <div style="display:flex; gap:0.5rem; margin-left:auto;">
+              <button class="sec-filter period-filter active" data-period="week">Semana</button>
+              <button class="sec-filter period-filter" data-period="month">Mes</button>
+              <button class="sec-filter period-filter" data-period="year">Año</button>
+            </div>
+          </div>
+          <div style="max-width:100%; margin-bottom:1.5rem;">
             <canvas id="activityChart" height="120"></canvas>
           </div>
 
           <!-- Top técnicos -->
-          <h2>Top técnicos (7 días)</h2>
-          {% if top_technicians %}
-          <div class="diagram-table-wrap" style="margin-bottom:1.5rem;">
+          <h2 id="topTechTitle">Top técnicos (7 días)</h2>
+          <div class="diagram-table-wrap" id="topTechWrap" style="margin-bottom:1.5rem;">
             <table class="diagram-table">
               <thead><tr><th>Técnico</th><th>Diagramas</th></tr></thead>
-              <tbody>
-                {% for name, count in top_technicians %}
-                <tr><td>{{ name }}</td><td>{{ count }}</td></tr>
-                {% endfor %}
-              </tbody>
+              <tbody id="topTechBody"></tbody>
             </table>
           </div>
-          {% else %}
-          <div class="message" style="margin-bottom:1.5rem;">
-            <strong>No hay actividad registrada esta semana.</strong>
+          <div class="message" id="topTechEmpty" style="display:none; margin-bottom:1.5rem;">
+            <strong>No hay actividad registrada en este periodo.</strong>
           </div>
-          {% endif %}
 
           <!-- Eventos de seguridad -->
           <div style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap; margin-bottom:0.5rem;">
@@ -156,16 +161,24 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script>
     (function(){
+      const chartPeriods = {{ chart_periods | tojson }};
+      const periodTitles = {
+        week: { chart: 'Diagramas últimos 7 días', top: 'Top técnicos (7 días)' },
+        month: { chart: 'Diagramas últimos 30 días', top: 'Top técnicos (30 días)' },
+        year: { chart: 'Diagramas últimos 12 meses', top: 'Top técnicos (12 meses)' },
+      };
+
       /* ── Gráfico actividad ── */
       const ctx = document.getElementById('activityChart');
+      let activityChart = null;
       if (ctx) {
-        new Chart(ctx, {
+        activityChart = new Chart(ctx, {
           type: 'bar',
           data: {
-            labels: {{ chart_labels | tojson }},
+            labels: chartPeriods.week.labels,
             datasets: [{
               label: 'Diagramas publicados',
-              data: {{ chart_values | tojson }},
+              data: chartPeriods.week.values,
               backgroundColor: 'rgba(1,105,111,0.18)',
               borderColor: '#01696f',
               borderWidth: 2,
@@ -176,11 +189,68 @@
             responsive: true,
             plugins: { legend: { display: false } },
             scales: {
+              x: {
+                ticks: {
+                  maxRotation: 45,
+                  autoSkip: true,
+                  maxTicksLimit: 15,
+                }
+              },
               y: { beginAtZero: true, ticks: { stepSize: 1, precision: 0 } }
             }
           }
         });
       }
+
+      function renderTopTechnicians(period) {
+        const data = chartPeriods[period];
+        const tbody = document.getElementById('topTechBody');
+        const wrap = document.getElementById('topTechWrap');
+        const empty = document.getElementById('topTechEmpty');
+        if (!tbody || !wrap || !empty) return;
+
+        tbody.innerHTML = '';
+        if (!data.top.length) {
+          wrap.style.display = 'none';
+          empty.style.display = '';
+          return;
+        }
+        wrap.style.display = '';
+        empty.style.display = 'none';
+        data.top.forEach(row => {
+          const tr = document.createElement('tr');
+          const nameTd = document.createElement('td');
+          nameTd.textContent = row.name;
+          const countTd = document.createElement('td');
+          countTd.textContent = row.count;
+          tr.append(nameTd, countTd);
+          tbody.appendChild(tr);
+        });
+      }
+
+      function setPeriod(period) {
+        const data = chartPeriods[period];
+        if (!data || !activityChart) return;
+
+        activityChart.data.labels = data.labels;
+        activityChart.data.datasets[0].data = data.values;
+        activityChart.update();
+
+        const titles = periodTitles[period];
+        document.getElementById('chartTitle').textContent = titles.chart;
+        document.getElementById('topTechTitle').textContent = titles.top;
+        renderTopTechnicians(period);
+      }
+
+      document.querySelectorAll('.period-filter').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.period-filter').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          setPeriod(btn.dataset.period);
+        });
+      });
+
+      setPeriod('week');
 
       /* ── Filtros de nivel ── */
       const rows = Array.from(document.querySelectorAll('#secTable .sec-row'));
