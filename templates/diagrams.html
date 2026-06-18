@@ -6,7 +6,7 @@
     <title>Consultar diagramas</title>
     <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='images/ausarta-drawio-32.png') }}">
     <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='images/ausarta-drawio-180.png') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=20260618b">
   </head>
   <body>
     {% include "_app_header.html" %}
@@ -50,24 +50,26 @@
         <section class="form-section full diagram-results">
           <h2>Resultados</h2>
           {% if diagrams %}
-          <div class="diagram-table-wrap">
-            <table class="diagram-table">
+          <div class="diagram-table-wrap is-cards">
+            <table class="diagram-table is-cards">
               <thead><tr><th>ID</th><th>Nombre</th><th>Descripcion</th><th>Estado</th><th></th></tr></thead>
               <tbody>
                 {% for diagram in diagrams %}
                 <tr>
-                  <td>#{{ diagram.id }}</td>
-                  <td>{{ diagram.name }}</td>
-                  <td>{{ diagram.description }}</td>
-                  <td>{{ diagram.state }}</td>
-                  <td><a class="button glpi" href="{{ diagram.url }}" target="_blank" rel="noopener">Abrir</a></td>
+                  <td data-label="ID">#{{ diagram.id }}</td>
+                  <td data-label="Nombre">{{ diagram.name }}</td>
+                  <td data-label="Descripcion">{{ diagram.description }}</td>
+                  <td data-label="Estado">{{ diagram.state }}</td>
+                  <td data-label=""><a class="button glpi" href="{{ diagram.url }}" target="_blank" rel="noopener">Abrir</a></td>
                 </tr>
                 {% endfor %}
               </tbody>
             </table>
           </div>
           {% else %}
-          <p>No se han encontrado diagramas asociados a esta sede.</p>
+          <div class="message">
+            <strong>No se han encontrado diagramas asociados a esta sede.</strong>
+          </div>
           {% endif %}
         </section>
         {% endif %}

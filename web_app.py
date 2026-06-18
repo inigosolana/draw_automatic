@@ -154,6 +154,94 @@ def _build_admin_chart_periods(all_rows: list[dict], now: datetime) -> dict:
     }
 
 
+def _build_coverage_data(
+    catalog: list[dict],
+    client,
+    activity_rows: list[dict],
+) -> dict | None:
+    """Build coverage map: provinces with sites lacking a diagram.
+
+    Returns a dict with keys:
+        provinces: list of {name, technician, total_missing, clientes: [...]}
+        total_sites: int
+        covered_sites: int
+        missing_sites: int
+        error: str or None
+    Returns None if GLPI is not configured.
+    """
+    if not client:
+        return None
+
+    from collections import Counter
+
+    # Fetch all diagrams from GLPI (entity_ids that have diagrams)
+    try:
+        all_diagrams = client.list_network_diagrams()
+    except GlpiError as exc:
+        return {"provinces": [], "total_sites": 0, "covered_sites": 0,
+                "missing_sites": 0, "error": public_error_message(str(exc), context="consulta de diagramas GLPI")}
+
+    covered_entity_ids: set[int] = set()
+    for diag in all_diagrams:
+        eid = diag.get("entities_id")
+        if eid and str(eid).isdigit():
+            covered_entity_ids.add(int(eid))
+
+    # Build entity_id → province_name map from catalog for activity lookup
+    entity_to_province: dict[int, str] = {}
+    total_sites = 0
+    provinces_coverage: list[dict] = []
+
+    for province in catalog:
+        prov_name = province.get("nombre", "?")
+        prov_data: dict = {"name": prov_name, "technician": "", "total_missing": 0, "clientes": []}
+
+        for cliente in province.get("clientes", []):
+            cli_name = cliente.get("nombre", "?")
+            cli_data: dict = {"name": cli_name, "sedes": []}
+
+            for sede in cliente.get("sedes", []):
+                eid = sede.get("id")
+                if eid is None:
+                    continue
+                total_sites += 1
+                entity_to_province[eid] = prov_name
+                if int(eid) not in covered_entity_ids:
+                    cli_data["sedes"].append({
+                        "name": sede.get("nombre", "?"),
+                        "direccion": sede.get("direccion", ""),
+                        "entity_id": int(eid),
+                    })
+                    prov_data["total_missing"] += 1
+
+            if cli_data["sedes"]:
+                prov_data["clientes"].append(cli_data)
+
+        # Detect most common technician for this province from activity
+        prov_technicians: Counter = Counter()
+        for row in activity_rows:
+            row_eid = row.get("entity_id")
+            if row_eid and entity_to_province.get(row_eid) == prov_name:
+                tech = row.get("technician_name") or row.get("technician_username", "?")
+                if tech and tech != "?":
+                    prov_technicians[tech] += 1
+        if prov_technicians:
+            prov_data["technician"] = prov_technicians.most_common(1)[0][0]
+
+        if prov_data["clientes"]:
+            provinces_coverage.append(prov_data)
+
+    provinces_coverage.sort(key=lambda p: p["total_missing"], reverse=True)
+    covered = total_sites - sum(p["total_missing"] for p in provinces_coverage)
+    return {
+        "provinces": provinces_coverage,
+        "total_sites": total_sites,
+        "covered_sites": covered,
+        "missing_sites": sum(p["total_missing"] for p in provinces_coverage),
+        "error": None,
+    }
+
+
 def create_app() -> Flask:
     app = Flask(__name__, template_folder=str(PROJECT_ROOT / "templates"), static_folder=str(PROJECT_ROOT / "static"))
     SECLOG.purge_old(days=30)
@@ -404,6 +492,23 @@ def create_app() -> Flask:
         week = [r for r in all_rows if datetime.utcfromtimestamp(r["created_at"]) >= now - timedelta(days=7)]
         month = [r for r in all_rows if datetime.utcfromtimestamp(r["created_at"]) >= now - timedelta(days=30)]
         chart_periods = _build_admin_chart_periods(all_rows, now)
+
+        # Coverage: provinces/clients/sites without diagrams
+        coverage_data = None
+        try:
+            glpi_client = GlpiClient.from_environment()
+            if glpi_client:
+                catalog_for_coverage, _ = load_glpi_catalog()
+                if catalog_for_coverage:
+                    cached = CATALOG.get("admin_coverage")
+                    if cached is not None:
+                        coverage_data = cached
+                    else:
+                        coverage_data = _build_coverage_data(catalog_for_coverage, glpi_client, all_rows)
+                        CATALOG.set("admin_coverage", coverage_data)
+        except Exception:
+            pass
+
         import re as _re
         recent_events = SECLOG.recent(limit=200)
         warn_count = 0
@@ -427,6 +532,8 @@ def create_app() -> Flask:
             technician=technician,
             warn_count=warn_count,
             chart_periods=chart_periods,
+            now_label=now.strftime("%d/%m/%Y %H:%M") + " UTC",
+            coverage_data=coverage_data,
         )
 
     @app.route("/upload-draw", methods=["GET", "POST"])

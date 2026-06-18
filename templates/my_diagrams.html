@@ -6,7 +6,7 @@
     <title>Mis diagramas</title>
     <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='images/ausarta-drawio-32.png') }}">
     <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='images/ausarta-drawio-180.png') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=20260618b">
   </head>
   <body>
     {% include "_app_header.html" %}
@@ -19,21 +19,21 @@
 
         <section class="form-section full diagram-results">
           {% if diagrams %}
-          <div class="diagram-table-wrap">
-            <table class="diagram-table">
+          <div class="diagram-table-wrap is-cards">
+            <table class="diagram-table is-cards">
               <thead>
                 <tr><th>Fecha</th><th>ID</th><th>Cliente</th><th>Sede</th><th>Nombre</th><th>Origen</th><th></th></tr>
               </thead>
               <tbody>
                 {% for diagram in diagrams %}
                 <tr class="diagram-row">
-                  <td>{{ diagram.created_label }}</td>
-                  <td>#{{ diagram.diagram_id }}</td>
-                  <td>{{ diagram.client_name }}</td>
-                  <td>{{ diagram.site_name }}</td>
-                  <td>{{ diagram.diagram_name }}</td>
-                  <td>{{ diagram.source }}</td>
-                  <td>
+                  <td data-label="Fecha">{{ diagram.created_label }}</td>
+                  <td data-label="ID">#{{ diagram.diagram_id }}</td>
+                  <td data-label="Cliente">{{ diagram.client_name }}</td>
+                  <td data-label="Sede">{{ diagram.site_name }}</td>
+                  <td data-label="Nombre">{{ diagram.diagram_name }}</td>
+                  <td data-label="Origen">{{ diagram.source }}</td>
+                  <td data-label="">
                     {% if diagram.url %}
                     <a class="button glpi" href="{{ diagram.url }}" target="_blank" rel="noopener">Abrir</a>
                     {% endif %}
