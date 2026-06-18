@@ -342,9 +342,19 @@ def create_app() -> Flask:
         top_technicians = Counter(
             r.get("technician_name") or r.get("technician", {}).get("name", "?") for r in week
         ).most_common(5)
-        recent_events = SECLOG.recent(limit=50)
+        import re as _re
+        recent_events = SECLOG.recent(limit=200)
+        warn_count = 0
         for ev in recent_events:
             ev["ts_label"] = datetime.fromtimestamp(ev["ts"]).strftime("%d/%m/%Y %H:%M:%S")
+            clean = _re.sub(
+                r'^\[[\d\-: ,]+\]\s*(WARNING|INFO|ERROR|CRITICAL)\s*\[SECURITY\]\s*',
+                '',
+                ev.get("message", ""),
+            )
+            ev["message_clean"] = clean or ev.get("message", "")
+            if ev.get("level") in ("WARNING", "ERROR", "CRITICAL"):
+                warn_count += 1
         return render_template(
             "admin.html",
             total_today=len(today),
@@ -353,6 +363,19 @@ def create_app() -> Flask:
             top_technicians=top_technicians,
             recent_events=recent_events,
             technician=technician,
+            warn_count=warn_count,
+            chart_labels=[
+                (now - timedelta(days=i)).strftime("%d/%m")
+                for i in range(6, -1, -1)
+            ],
+            chart_values=[
+                len([
+                    r for r in all_rows
+                    if datetime.utcfromtimestamp(r["created_at"]).date()
+                    == (now - timedelta(days=i)).date()
+                ])
+                for i in range(6, -1, -1)
+            ],
         )
 
     @app.route("/upload-draw", methods=["GET", "POST"])

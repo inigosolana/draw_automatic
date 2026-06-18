@@ -42,81 +42,199 @@
         </header>
 
         <section class="form-section full">
+
+          <!-- Tarjetas métricas -->
           <div class="admin-stats">
             <div class="admin-stat-card">
               <span>Hoy</span>
               <strong>{{ total_today }}</strong>
+              <small>diagrama{{ 's' if total_today != 1 else '' }}</small>
             </div>
             <div class="admin-stat-card">
               <span>Esta semana</span>
               <strong>{{ total_week }}</strong>
+              <small>diagrama{{ 's' if total_week != 1 else '' }}</small>
             </div>
             <div class="admin-stat-card">
               <span>Total histórico</span>
               <strong>{{ total_all }}</strong>
+              <small>diagrama{{ 's' if total_all != 1 else '' }}</small>
             </div>
+            {% if warn_count > 0 %}
+            <div class="admin-stat-card admin-stat-warn">
+              <span>Alertas seguridad</span>
+              <strong>{{ warn_count }}</strong>
+              <small>WARNING / ERROR</small>
+            </div>
+            {% endif %}
           </div>
 
+          <!-- Gráfico 7 días -->
+          <h2 style="margin-top:1.5rem;">Diagramas últimos 7 días</h2>
+          <div style="max-width:640px; margin-bottom:1.5rem;">
+            <canvas id="activityChart" height="120"></canvas>
+          </div>
+
+          <!-- Top técnicos -->
           <h2>Top técnicos (7 días)</h2>
           {% if top_technicians %}
-          <div class="diagram-table-wrap">
+          <div class="diagram-table-wrap" style="margin-bottom:1.5rem;">
             <table class="diagram-table">
-              <thead>
-                <tr><th>Técnico</th><th>Diagramas</th></tr>
-              </thead>
+              <thead><tr><th>Técnico</th><th>Diagramas</th></tr></thead>
               <tbody>
                 {% for name, count in top_technicians %}
-                <tr>
-                  <td>{{ name }}</td>
-                  <td>{{ count }}</td>
-                </tr>
+                <tr><td>{{ name }}</td><td>{{ count }}</td></tr>
                 {% endfor %}
               </tbody>
             </table>
           </div>
           {% else %}
-          <div class="message">
+          <div class="message" style="margin-bottom:1.5rem;">
             <strong>No hay actividad registrada esta semana.</strong>
           </div>
           {% endif %}
 
-          <h2 style="margin-top: 2rem;">Últimos eventos de seguridad</h2>
+          <!-- Eventos de seguridad -->
+          <div style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap; margin-bottom:0.5rem;">
+            <h2 style="margin:0;">Últimos eventos de seguridad</h2>
+            <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+              <button class="sec-filter active" data-level="ALL">Todos</button>
+              <button class="sec-filter" data-level="INFO">INFO</button>
+              <button class="sec-filter" data-level="WARNING">WARNING</button>
+              <button class="sec-filter" data-level="ERROR">ERROR</button>
+            </div>
+            <input id="secSearch" type="search" placeholder="Buscar en mensajes…"
+                   style="margin-left:auto; padding:0.3rem 0.6rem; border:1px solid var(--border,#e2e8f0);
+                          border-radius:0.375rem; font-size:0.875rem; min-width:200px;">
+            <button id="exportCsv" style="padding:0.3rem 0.75rem; border:1px solid var(--border,#e2e8f0);
+                    border-radius:0.375rem; font-size:0.875rem; cursor:pointer; background:none;">
+              ↓ CSV
+            </button>
+          </div>
+
           {% if recent_events %}
-          <div class="diagram-table-wrap" style="max-height: 400px; overflow-y: auto;">
-            <table class="diagram-table">
+          <div class="diagram-table-wrap" style="max-height:420px; overflow-y:auto;">
+            <table class="diagram-table" id="secTable">
               <thead>
                 <tr>
-                  <th>Fecha / Hora</th>
+                  <th style="white-space:nowrap;">Fecha / Hora</th>
                   <th>Nivel</th>
                   <th>Mensaje</th>
                 </tr>
               </thead>
               <tbody>
                 {% for ev in recent_events %}
-                <tr>
-                  <td style="white-space: nowrap; font-size: 0.85rem;">{{ ev.ts_label }}</td>
+                <tr class="sec-row {{ 'row-warn' if ev.level in ('WARNING','ERROR','CRITICAL') else 'row-info' }}"
+                    data-level="{{ ev.level }}">
+                  <td style="white-space:nowrap; font-size:0.85rem;">{{ ev.ts_label }}</td>
                   <td>
-                    <span style="font-weight: 600; color: {{ '#dc2626' if ev.level in ('WARNING', 'ERROR') else '#16a34a' }};">
-                      {{ ev.level }}
-                    </span>
+                    <span class="sec-badge sec-badge-{{ ev.level | lower }}">{{ ev.level }}</span>
                   </td>
-                  <td style="font-size: 0.85rem; word-break: break-word;">{{ ev.message }}</td>
+                  <td style="font-size:0.85rem; word-break:break-word;">{{ ev.message_clean }}</td>
                 </tr>
                 {% endfor %}
               </tbody>
             </table>
           </div>
+          <p id="secEmpty" style="display:none; color:var(--muted,#64748b); font-size:0.9rem; margin-top:0.5rem;">
+            No hay eventos que coincidan con el filtro.
+          </p>
           {% else %}
           <div class="message">
             <strong>No hay eventos de seguridad registrados.</strong>
           </div>
           {% endif %}
 
-          <p style="margin-top: 1.5rem;">
+          <p style="margin-top:1.5rem;">
             <a class="button" href="{{ url_for('index') }}">Volver al inicio</a>
           </p>
         </section>
       </section>
     </main>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script>
+    (function(){
+      /* ── Gráfico actividad ── */
+      const ctx = document.getElementById('activityChart');
+      if (ctx) {
+        new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: {{ chart_labels | tojson }},
+            datasets: [{
+              label: 'Diagramas publicados',
+              data: {{ chart_values | tojson }},
+              backgroundColor: 'rgba(1,105,111,0.18)',
+              borderColor: '#01696f',
+              borderWidth: 2,
+              borderRadius: 4,
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+              y: { beginAtZero: true, ticks: { stepSize: 1, precision: 0 } }
+            }
+          }
+        });
+      }
+
+      /* ── Filtros de nivel ── */
+      const rows = Array.from(document.querySelectorAll('#secTable .sec-row'));
+      const emptyMsg = document.getElementById('secEmpty');
+      let activeLevel = 'ALL';
+      let searchTerm = '';
+
+      function applyFilters() {
+        let visible = 0;
+        rows.forEach(r => {
+          const level = r.dataset.level;
+          const text = r.textContent.toLowerCase();
+          const matchLevel = activeLevel === 'ALL' || level === activeLevel;
+          const matchSearch = !searchTerm || text.includes(searchTerm);
+          r.style.display = matchLevel && matchSearch ? '' : 'none';
+          if (matchLevel && matchSearch) visible++;
+        });
+        if (emptyMsg) emptyMsg.style.display = visible === 0 ? '' : 'none';
+      }
+
+      document.querySelectorAll('.sec-filter').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.sec-filter').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          activeLevel = btn.dataset.level;
+          applyFilters();
+        });
+      });
+
+      const searchInput = document.getElementById('secSearch');
+      if (searchInput) {
+        searchInput.addEventListener('input', e => {
+          searchTerm = e.target.value.toLowerCase().trim();
+          applyFilters();
+        });
+      }
+
+      /* ── Exportar CSV ── */
+      document.getElementById('exportCsv')?.addEventListener('click', () => {
+        const visibleRows = rows.filter(r => r.style.display !== 'none');
+        const lines = [['Fecha/Hora','Nivel','Mensaje'].join(';')];
+        visibleRows.forEach(r => {
+          const cells = Array.from(r.querySelectorAll('td')).map(td =>
+            '"' + td.textContent.trim().replace(/"/g, '""') + '"'
+          );
+          lines.push(cells.join(';'));
+        });
+        const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'security_events.csv';
+        a.click();
+      });
+    })();
+    </script>
   </body>
 </html>
