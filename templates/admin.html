@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Administración</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='images/ausarta-drawio-32.png') }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='images/ausarta-drawio-180.png') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+      .admin-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+      }
+      .admin-stat-card {
+        background: var(--panel-bg, #fff);
+        border: 1px solid var(--border, #e2e8f0);
+        border-radius: 0.75rem;
+        padding: 1rem 1.25rem;
+      }
+      .admin-stat-card strong {
+        display: block;
+        font-size: 2rem;
+        line-height: 1.2;
+        margin-top: 0.25rem;
+      }
+      .admin-stat-card span {
+        color: var(--muted, #64748b);
+        font-size: 0.9rem;
+      }
+    </style>
+  </head>
+  <body>
+    {% include "_app_header.html" %}
+    <main class="page">
+      <section class="panel">
+        <header class="panel-header">
+          <h1>Administración</h1>
+          <p>Resumen de actividad de diagramas publicados.</p>
+        </header>
+
+        <section class="form-section full">
+          <div class="admin-stats">
+            <div class="admin-stat-card">
+              <span>Hoy</span>
+              <strong>{{ total_today }}</strong>
+            </div>
+            <div class="admin-stat-card">
+              <span>Esta semana</span>
+              <strong>{{ total_week }}</strong>
+            </div>
+            <div class="admin-stat-card">
+              <span>Total histórico</span>
+              <strong>{{ total_all }}</strong>
+            </div>
+          </div>
+
+          <h2>Top técnicos (7 días)</h2>
+          {% if top_technicians %}
+          <div class="diagram-table-wrap">
+            <table class="diagram-table">
+              <thead>
+                <tr><th>Técnico</th><th>Diagramas</th></tr>
+              </thead>
+              <tbody>
+                {% for name, count in top_technicians %}
+                <tr>
+                  <td>{{ name }}</td>
+                  <td>{{ count }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="message">
+            <strong>No hay actividad registrada esta semana.</strong>
+          </div>
+          {% endif %}
+
+          <p style="margin-top: 1.5rem;">
+            <a class="button" href="{{ url_for('index') }}">Volver al inicio</a>
+          </p>
+        </section>
+      </section>
+    </main>
+  </body>
+</html>

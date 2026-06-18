@@ -161,6 +161,14 @@ Reglas actuales del parser:
 - En `Equipos` detecta cantidad, modelo y extensiones.
 - Si no se indica plantilla, intenta inferir `oficina_simple`, `con_switch`, `rack` o `multisede`.
 
+## Librería de dispositivos
+
+El fichero XML de la librería no se incluye en el repositorio. Cópialo manualmente a la carpeta `library/` antes de arrancar:
+
+```bash
+cp libreria_Ausarta_JUN_2026.xml library/
+```
+
 ## Tests
 
 Los tests usan una fixture minima en `tests/fixtures/test_library.xml`.

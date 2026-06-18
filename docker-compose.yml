@@ -13,7 +13,7 @@ services:
       GLPI_WEB_URL: "${GLPI_WEB_URL}"
       GLPI_APP_TOKEN: "${GLPI_APP_TOKEN}"
       GLPI_USER_TOKEN: "${GLPI_USER_TOKEN}"
-      DRAWIO_LIBRARY_PATH: "/app/libreria_Ausarta_JUN_2026.xml"
+      DRAWIO_LIBRARY_PATH: "/app/library/${DRAWIO_LIBRARY_VERSION:-libreria_Ausarta_JUN_2026}.xml"
       DRAWIO_DOWNLOAD_DB: "/app/data/downloads.sqlite3"
       DRAWIO_SITE_DB: "/app/data/sites.sqlite3"
       DRAWIO_CATALOG_DB: "/app/data/catalog.sqlite3"
@@ -31,10 +31,17 @@ services:
       DRAWIO_RATELIMIT_STORAGE: "redis://redis:6379"
     volumes:
       - drawio_data:/app/data
+      - ./library:/app/library:ro
     networks:
       - internal_network
     depends_on:
       - redis
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     # Security: Run with limited capabilities
     cap_drop:
       - ALL
@@ -68,6 +75,12 @@ services:
       - external_network
     depends_on:
       - drawio-generator
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     # Security: Run with limited capabilities
     cap_drop:
       - ALL
@@ -116,12 +129,36 @@ services:
       - nginx
     restart: unless-stopped
 
+  backup:
+    image: alpine:3.19
+    container_name: ausarta-drawio-backup
+    restart: unless-stopped
+    volumes:
+      - drawio_data:/app/data:ro
+      - drawio_backup:/backup
+    entrypoint: >
+      /bin/sh -c "apk add --no-cache sqlite && trap exit TERM;
+      while :; do
+        DATE=$$(date +%F);
+        for db in downloads sites catalog activity; do
+          sqlite3 /app/data/$${db}.sqlite3 \".backup '/backup/$${db}-$${DATE}.sqlite3'\";
+        done;
+        find /backup -name '*.sqlite3' -mtime +7 -delete;
+        sleep 24h & wait $${!};
+      done"
+    networks:
+      - internal_network
+    depends_on:
+      - drawio-generator
+
 volumes:
   drawio_data:
     driver: local
   redis_data:
     driver: local
   nginx_logs:
+    driver: local
+  drawio_backup:
     driver: local
 
 networks:

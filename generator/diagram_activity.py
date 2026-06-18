@@ -90,3 +90,12 @@ class DiagramActivity:
                 (str(username).strip(), max(1, int(limit))),
             ).fetchall()
         return [dict(row) for row in rows]
+
+    def list_all(self) -> list[dict]:
+        with closing(self._connect()) as connection:
+            rows = connection.execute(
+                """
+                SELECT * FROM diagram_activity ORDER BY created_at DESC LIMIT 1000
+                """
+            ).fetchall()
+        return [dict(r) for r in rows]

@@ -8,7 +8,6 @@ import uuid
 from datetime import datetime, timedelta
 from functools import wraps
 from pathlib import Path
-from urllib.parse import urlparse
 
 from defusedxml import ElementTree as DefusedET
 from defusedxml.common import DefusedXmlException
@@ -29,6 +28,7 @@ from generator.glpi_client import GlpiClient, GlpiError, build_customer_catalog
 from generator.knowledge_base import learn_from_drawio
 from generator.site_directory import SiteDirectory, apply_saved_addresses
 from generator.device_catalog import build_device_catalog
+from generator.utils import is_safe_redirect, positive_integer
 from generator.web_adapter import build_drawio_from_data, form_to_data, form_to_structured_data
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -64,13 +64,6 @@ if not security_logger.handlers:
     handler = logging.StreamHandler()
     handler.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)s [SECURITY] %(message)s"))
     security_logger.addHandler(handler)
-
-
-def _positive_integer(value: object, field_name: str) -> int:
-    text = str(value or "").strip()
-    if not text.isdigit() or int(text) <= 0:
-        raise ValueError(f"El campo '{field_name}' debe ser un ID entero positivo.")
-    return int(text)
 
 
 def create_app() -> Flask:
@@ -168,13 +161,6 @@ def create_app() -> Flask:
             security_logger.warning(f"GLPI catalog load failed: {exc} (IP: {get_remote_address()})")
             return [], public_error_message(str(exc), context="carga del catalogo GLPI")
 
-    def _is_safe_redirect(url: str) -> bool:
-        """Solo permite rutas internas relativas (sin dominio ni esquema)."""
-        if not url:
-            return False
-        parsed = urlparse(url)
-        return not parsed.netloc and not parsed.scheme and url.startswith("/")
-
     @app.route("/login", methods=["GET", "POST"])
     @limiter.limit("10 per minute")
     def login() -> str:
@@ -198,11 +184,15 @@ def create_app() -> Flask:
                     session.permanent = True
                     security_logger.info(f"Login successful: user={username}, IP={client_ip}")
                     next_url = request.args.get("next", "")
-                    return redirect(next_url if _is_safe_redirect(next_url) else url_for("index"))
+                    return redirect(next_url if is_safe_redirect(next_url) else url_for("index"))
                 except GlpiError:
                     error = "Usuario o clave incorrectos."
                     security_logger.warning(f"Login attempt failed: invalid credentials for user={username}, IP={client_ip}")
         return render_template("login.html", error=error)
+
+    @app.get("/logout")
+    def logout_get() -> Response:
+        return redirect(url_for("login"))
 
     @app.post("/logout")
     def logout() -> Response:
@@ -252,7 +242,7 @@ def create_app() -> Flask:
         diagram_rows: list[dict] = []
         if selected_entity:
             try:
-                entity_id = _positive_integer(selected_entity, "entity_id")
+                entity_id = positive_integer(selected_entity, "entity_id")
                 client = GlpiClient.from_environment()
                 if not client:
                     raise GlpiError("GLPI no esta configurado.")
@@ -297,6 +287,27 @@ def create_app() -> Flask:
             technician=technician,
         )
 
+    @app.get("/admin")
+    @login_required
+    def admin_dashboard() -> str:
+        from collections import Counter
+
+        now = datetime.utcnow()
+        all_rows = ACTIVITY.list_all() if hasattr(ACTIVITY, "list_all") else []
+        today = [r for r in all_rows if datetime.utcfromtimestamp(r["created_at"]).date() == now.date()]
+        week = [r for r in all_rows if datetime.utcfromtimestamp(r["created_at"]) >= now - timedelta(days=7)]
+        top_technicians = Counter(
+            r.get("technician_name") or r.get("technician", {}).get("name", "?") for r in week
+        ).most_common(5)
+        return render_template(
+            "admin.html",
+            total_today=len(today),
+            total_week=len(week),
+            total_all=len(all_rows),
+            top_technicians=top_technicians,
+            technician=current_technician(),
+        )
+
     @app.route("/upload-draw", methods=["GET", "POST"])
     @login_required
     @limiter.limit("20 per hour")
@@ -322,7 +333,7 @@ def create_app() -> Flask:
             else:
                 raw = uploaded_file.read()
                 try:
-                    validated_entity_id = _positive_integer(entity_id, "glpi_entity_id")
+                    validated_entity_id = positive_integer(entity_id, "glpi_entity_id")
                     xml = raw.decode("utf-8-sig")
                     root = DefusedET.fromstring(xml)
                     if root.tag != "mxfile":
@@ -408,7 +419,7 @@ def create_app() -> Flask:
         glpi_entity_id = form_data.get("glpi_entity_id", "").strip()
         if glpi_entity_id:
             try:
-                glpi_entity_id = _positive_integer(glpi_entity_id, "glpi_entity_id")
+                glpi_entity_id = positive_integer(glpi_entity_id, "glpi_entity_id")
             except ValueError as exc:
                 return render_template(
                     "index.html",
@@ -509,6 +520,12 @@ def create_app() -> Flask:
     @login_required
     @limiter.limit("30 per hour")
     def import_work_order() -> Response:
+        if request.content_length and request.content_length > 64 * 1024:
+            return Response(
+                json.dumps({"error": "El payload es demasiado grande (máx. 64 KB)."}, ensure_ascii=False),
+                status=413,
+                mimetype="application/json; charset=utf-8",
+            )
         payload = request.get_json(silent=True) or {}
         pasted_text = str(
             payload.get("pasted_text")
@@ -603,7 +620,7 @@ def create_app() -> Flask:
         if not client:
             return Response("GLPI no esta configurado.", status=503, mimetype="text/plain; charset=utf-8")
         try:
-            entity_id = _positive_integer(payload.get("entity_id"), "entity_id")
+            entity_id = positive_integer(payload.get("entity_id"), "entity_id")
             existing = client.list_network_diagrams(entity_id)
             allow_duplicate = request.form.get("allow_duplicate") == "1"
             if existing and not allow_duplicate:
