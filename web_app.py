@@ -66,6 +66,33 @@ SECLOG = SecurityLog(
 )
 DEFAULT_HOST = os.environ.get("DRAWIO_HOST", "0.0.0.0")
 DEFAULT_PORT = int(os.environ.get("DRAWIO_PORT", os.environ.get("PORT", "8000")))
+PLACEHOLDER_SECRET_KEYS = {
+    "",
+    "CAMBIAR_POR_UNA_CADENA_ALEATORIA_LARGA_GENERADA_CON_EL_COMANDO_ANTERIOR",
+}
+
+
+def _production_requires_secret_key() -> bool:
+    return (
+        os.environ.get("DRAWIO_AUTH_REQUIRED", "0") == "1"
+        or os.environ.get("DRAWIO_COOKIE_SECURE", "0") == "1"
+    )
+
+
+def resolve_secret_key() -> str:
+    secret_key = os.environ.get("DRAWIO_SECRET_KEY", "").strip()
+    production_mode = _production_requires_secret_key()
+    if secret_key in PLACEHOLDER_SECRET_KEYS:
+        if production_mode:
+            raise RuntimeError(
+                "DRAWIO_SECRET_KEY no esta configurada o usa el valor placeholder de .env.example. "
+                'Genera una clave con: python -c "import secrets; print(secrets.token_hex(32))"'
+            )
+        security_logger.warning(
+            "DRAWIO_SECRET_KEY no esta configurado. Generando clave temporal (las sesiones se perderan al reiniciar)."
+        )
+        return secrets.token_hex(32)
+    return secret_key
 
 
 class _SQLiteHandler(logging.Handler):
@@ -285,13 +312,8 @@ def create_app() -> Flask:
         str(PROJECT_ROOT / "library" / "libreria_Ausarta_JUN_2026.xml"),
     )
     app.config["MAX_CONTENT_LENGTH"] = int(os.environ.get("DRAWIO_MAX_UPLOAD_BYTES", str(15 * 1024 * 1024)))
-    
-    # Security: Generate strong SECRET_KEY if not provided
-    secret_key = os.environ.get("DRAWIO_SECRET_KEY", "").strip()
-    if not secret_key:
-        security_logger.warning("DRAWIO_SECRET_KEY no esta configurado. Generando clave temporal (las sesiones se perderan al reiniciar).")
-        secret_key = secrets.token_hex(32)
-    app.config["SECRET_KEY"] = secret_key
+
+    app.config["SECRET_KEY"] = resolve_secret_key()
     
     app.config["AUTH_REQUIRED"] = os.environ.get("DRAWIO_AUTH_REQUIRED", "0") == "1"
     

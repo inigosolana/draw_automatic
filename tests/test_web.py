@@ -555,6 +555,38 @@ class WebAppTests(unittest.TestCase):
     def tearDown(self) -> None:
         self._env_patch.stop()
 
+    def test_create_app_fails_without_secret_key_in_production(self) -> None:
+        env = {
+            "DRAWIO_AUTH_REQUIRED": "1",
+            "DRAWIO_SECRET_KEY": "",
+            "DRAWIO_RATELIMIT_STORAGE": "memory://",
+        }
+        with patch.dict(os.environ, env, clear=False):
+            with self.assertRaises(RuntimeError):
+                create_app()
+
+    def test_create_app_fails_with_placeholder_secret_key_when_cookie_secure(self) -> None:
+        env = {
+            "DRAWIO_AUTH_REQUIRED": "0",
+            "DRAWIO_COOKIE_SECURE": "1",
+            "DRAWIO_SECRET_KEY": "CAMBIAR_POR_UNA_CADENA_ALEATORIA_LARGA_GENERADA_CON_EL_COMANDO_ANTERIOR",
+            "DRAWIO_RATELIMIT_STORAGE": "memory://",
+        }
+        with patch.dict(os.environ, env, clear=False):
+            with self.assertRaises(RuntimeError):
+                create_app()
+
+    def test_create_app_allows_ephemeral_secret_in_local_dev(self) -> None:
+        env = {
+            "DRAWIO_AUTH_REQUIRED": "0",
+            "DRAWIO_COOKIE_SECURE": "0",
+            "DRAWIO_SECRET_KEY": "",
+            "DRAWIO_RATELIMIT_STORAGE": "memory://",
+        }
+        with patch.dict(os.environ, env, clear=False):
+            app = create_app()
+        self.assertTrue(app.config["SECRET_KEY"])
+
     def test_post_generates_downloadable_drawio(self) -> None:
         response = self.client.post(
             "/generate",
