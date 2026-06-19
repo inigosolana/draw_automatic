@@ -451,7 +451,8 @@ class BasicTests(unittest.TestCase):
             if edge.source != "switch" or not edge.target.startswith("team_"):
                 continue
             self.assertFalse(edge.label)
-            self.assertIsNone(edge.waypoints)
+            self.assertIsNotNone(edge.waypoints)
+            self.assertGreaterEqual(len(edge.waypoints), 1)
         row_center = devices[1].x + devices[1].width / 2
         switch_center = switch.x + switch.width / 2
         self.assertAlmostEqual(row_center, switch_center, delta=80)
@@ -544,7 +545,7 @@ class BasicTests(unittest.TestCase):
             target = next(node for node in nodes if node.key == edge.target)
             self.assertAlmostEqual(edge.exit_x, _anchor_exit_x(switch, target), places=2)
             self.assertFalse(edge.label)
-            self.assertIsNone(edge.waypoints)
+            self.assertIsNotNone(edge.waypoints)
 
 
 if __name__ == "__main__":

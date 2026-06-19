@@ -30,6 +30,8 @@ DECT_ROW_EXTRA = 110
 SWITCH_FALLBACK_ICON = "TP-Link 8P"
 ROUTER_BACKUP_GAP = 70
 ROUTER_SWITCH_GAP = 90
+CABLE_CLEARANCE_ABOVE_DEVICE = 24
+CABLE_GAP_BELOW_ANCHOR = 32
 
 
 def _count_device_slots(equipos: list) -> int:
@@ -75,6 +77,44 @@ def _anchor_exit_x(anchor: NodeSpec, target: NodeSpec) -> float:
     target_center = target.x + target.width / 2
     ratio = (target_center - anchor.x) / anchor.width
     return max(0.06, min(0.94, ratio))
+
+
+def _anchor_exit_point(anchor: NodeSpec, exit_x: float) -> tuple[int, int]:
+    return int(anchor.x + exit_x * anchor.width), int(anchor.y + anchor.height)
+
+
+def _target_entry_point(target: NodeSpec) -> tuple[int, int]:
+    return int(target.x + target.width / 2), int(target.y)
+
+
+def _bus_waypoints(
+    anchor: NodeSpec,
+    target: NodeSpec,
+    *,
+    exit_x: float,
+    bus_y: int,
+) -> tuple[tuple[int, int], ...]:
+    exit_x_abs, _ = _anchor_exit_point(anchor, exit_x)
+    target_center, _ = _target_entry_point(target)
+    if abs(exit_x_abs - target_center) <= 6:
+        return ((target_center, bus_y),)
+    return ((exit_x_abs, bus_y), (target_center, bus_y))
+
+
+def _device_bus_y(anchor: NodeSpec, target: NodeSpec, row_top_y: int | None = None) -> int:
+    if row_top_y is not None:
+        return row_top_y - CABLE_CLEARANCE_ABOVE_DEVICE
+    midpoint = (anchor.y + anchor.height + target.y) // 2
+    return max(anchor.y + anchor.height + CABLE_GAP_BELOW_ANCHOR, midpoint)
+
+
+def _router_switch_waypoints(router: NodeSpec, switch: NodeSpec) -> tuple[tuple[int, int], ...] | None:
+    router_center = int(router.x + router.width / 2)
+    switch_center = int(switch.x + switch.width / 2)
+    if abs(router_center - switch_center) <= 8:
+        return None
+    joint_y = router.y + router.height + max(14, ROUTER_SWITCH_GAP // 2)
+    return ((router_center, joint_y), (switch_center, joint_y))
 
 
 @dataclass
@@ -389,6 +429,7 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
                 icon_model=SWITCH_FALLBACK_ICON,
             )
         )
+        switch_node = nodes[-1]
         edges.append(
             EdgeSpec(
                 "router",
@@ -398,8 +439,9 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
                 exit_y=1.0,
                 entry_x=0.5,
                 entry_y=0.0,
-                label_offset_x=18,
-                label_offset_y=-36,
+                waypoints=_router_switch_waypoints(router_node, switch_node),
+                label_offset_x=22,
+                label_offset_y=-(ROUTER_SWITCH_GAP // 2 + 6),
             )
         )
         current_anchor = "switch"
@@ -425,7 +467,7 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
     switch_port_index = 1
     dect_base_keys: list[str] = []
 
-    def next_position() -> tuple[int, int]:
+    def next_position() -> tuple[int, int, int]:
         nonlocal slot_index
         row_num = slot_index // max_per_row
         col = slot_index % max_per_row
@@ -434,7 +476,7 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
         x = start_x + col * spacing
         y = equipo_y + row_num * row_step
         slot_index += 1
-        return x, y
+        return x, y, y
 
     def next_port_labels() -> tuple[str, str]:
         nonlocal router_port_index, switch_port_index
@@ -447,21 +489,16 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
         router_port_index += 1
         return cable_label, port
 
-    def place_edge(anchor_key: str, target_key: str, label: str) -> None:
+    def place_edge(anchor_key: str, target_key: str, label: str, row_top_y: int | None = None) -> None:
         anchor = next(node for node in nodes if node.key == anchor_key)
         target = next(node for node in nodes if node.key == target_key)
         exit_x = _anchor_exit_x(anchor, target) if anchor_key in {"switch", "router"} else 0.5
-        waypoints: tuple[tuple[int, int], ...] | None = None
+        bus_y = _device_bus_y(anchor, target, row_top_y)
+        waypoints = _bus_waypoints(anchor, target, exit_x=exit_x, bus_y=bus_y)
         label_offset_x = 0
-        label_offset_y = -14
-        if anchor_key == "switch":
-            waypoints = None
-        elif anchor_key == "router" and label and label.endswith("-LAN"):
-            target_center = target.x + target.width // 2
-            bus_y = target.y - 90
-            waypoints = ((target_center, bus_y),)
-            label_offset_x = 16
-            label_offset_y = -((target.y - bus_y) // 2 + 8)
+        label_offset_y = -max(12, (target.y - bus_y) // 2 + 6)
+        if label and label.endswith("-LAN"):
+            label_offset_x = 14
         edges.append(
             EdgeSpec(
                 anchor_key,
@@ -492,7 +529,7 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
                 if idx >= len(dect_base_keys):
                     base_key = f"team_{team_index}"
                     base_model_name = _resolve_dect_base(team, normalized_model)
-                    base_x, base_y = next_position()
+                    base_x, base_y, row_top_y = next_position()
                     cable_label, port_label = next_port_labels()
                     nodes.append(
                         NodeSpec(
@@ -510,7 +547,7 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
                             meta={"tipo": "base_dect", "dect_role": "base", "propiedad": _ownership(team)},
                         )
                     )
-                    place_edge(current_anchor, base_key, cable_label)
+                    place_edge(current_anchor, base_key, cable_label, row_top_y)
                     dect_base_keys.append(base_key)
                     team_index += 1
                 base_index = min(idx, len(dect_base_keys) - 1)
@@ -548,7 +585,7 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
                 team_index += 1
                 continue
             key = f"team_{team_index}"
-            node_x, node_y = next_position()
+            node_x, node_y, row_top_y = next_position()
             cable_label, port_label = next_port_labels()
             nodes.append(
                 NodeSpec(
@@ -569,7 +606,7 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
             )
             if is_dect_base:
                 dect_base_keys.append(key)
-            place_edge(current_anchor, key, cable_label)
+            place_edge(current_anchor, key, cable_label, row_top_y)
             team_index += 1
 
     nodes.append(

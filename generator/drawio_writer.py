@@ -17,7 +17,7 @@ TEXT_STYLE = "text;html=1;resizable=0;autosize=1;align=center;verticalAlign=midd
 HEADER_STYLE = "text;html=1;resizable=0;autosize=1;align=right;verticalAlign=middle;points=[];fillColor=none;strokeColor=none;rounded=0;"
 EDGE_STYLE = (
     "edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;"
-    "html=1;strokeWidth=2;endArrow=none;endFill=0;"
+    "html=1;strokeWidth=2;strokeColor=#5b7c99;endArrow=none;endFill=0;"
 )
 TABLE_STYLE = "text;html=1;strokeColor=#c0c0c0;fillColor=#ffffff;overflow=fill;rounded=0;strokeWidth=3;"
 CLOUD_STYLE = "ellipse;shape=cloud;whiteSpace=wrap;html=1;dashed=1;dashPattern=1 1;labelBorderColor=#FF0080;strokeColor=#82b366;fillColor=#d5e8d4;"
@@ -89,6 +89,10 @@ def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryI
     ET.SubElement(root, "mxCell", {"id": "0"})
     ET.SubElement(root, "mxCell", {"id": "1", "parent": "0"})
 
+    deferred_edges: list[ET.Element] = []
+    deferred_vertices: list[ET.Element] = []
+    deferred_labels: list[ET.Element] = []
+
     for node in nodes:
         cell_id = ids.next()
         node_ids[node.key] = cell_id
@@ -120,8 +124,9 @@ def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryI
         else:
             style = GENERIC_DEVICE_STYLE
             warnings.append(f"No se ha encontrado icono para: {node.model}")
-        cell = ET.SubElement(root, "mxCell", {"id": cell_id, "value": "", "style": style, "parent": "1", "vertex": "1"})
+        cell = ET.Element("mxCell", {"id": cell_id, "value": "", "style": style, "parent": "1", "vertex": "1"})
         _geom(cell, node.x, node.y, node.width, node.height)
+        deferred_vertices.append(cell)
 
         label_id = ids.next()
         label_style = TEXT_STYLE
@@ -130,16 +135,15 @@ def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryI
             label_style += f"fontColor={color};fontStyle=1;"
         label_lines = max(1, node.label.count("<br>") + 1)
         label_height = max(42, label_lines * 18 + 10)
-        _text_cell(
-            root,
-            label_id,
-            node.label,
-            label_style,
-            node.x - 12,
-            node.y + node.height + 12,
-            node.width + 24,
-            label_height,
-        )
+        label_cell = ET.Element("mxCell", {
+            "id": label_id,
+            "value": node.label,
+            "style": label_style,
+            "parent": "1",
+            "vertex": "1",
+        })
+        _geom(label_cell, node.x - 12, node.y + node.height + 12, node.width + 24, label_height)
+        deferred_labels.append(label_cell)
 
     for edge_spec in edges:
         edge_id = ids.next()
@@ -150,8 +154,7 @@ def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryI
             f"exitX={edge_spec.exit_x};exitY={edge_spec.exit_y};exitDx=0;exitDy=0;exitPerimeter=1;"
             f"entryX={edge_spec.entry_x};entryY={edge_spec.entry_y};entryDx=0;entryDy=0;entryPerimeter=1;"
         )
-        edge = ET.SubElement(
-            root,
+        edge = ET.Element(
             "mxCell",
             {
                 "id": edge_id,
@@ -178,6 +181,14 @@ def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryI
                     "as": "offset",
                 },
             )
+        deferred_edges.append(edge)
+
+    for cell in deferred_edges:
+        root.append(cell)
+    for cell in deferred_vertices:
+        root.append(cell)
+    for cell in deferred_labels:
+        root.append(cell)
 
     xml = ET.tostring(mxfile, encoding="unicode")
     return BuildResult(xml=xml, warnings=warnings)
