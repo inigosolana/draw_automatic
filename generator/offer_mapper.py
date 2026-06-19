@@ -31,6 +31,8 @@ SIP_TERMINAL_PATTERN = re.compile(r"\b(?:sip[-\s]?t(\d{2})g?|t[-\s]?(\d{2}))\b",
 FANVIL_PATTERN = re.compile(r"\bfanvil\s*(v\d{2})?\b", re.IGNORECASE)
 
 FIBER_PROVIDERS = {
+    "fibra pro max velocidad": "AIRE",
+    "fibra pro max": "AIRE",
     "movistar(aire)": "AIRE",
     "movistar aire": "AIRE",
     "aire": "AIRE",
@@ -294,6 +296,8 @@ def _detect_device_category(name: str) -> tuple[str, str, str] | None:
 
 def _normalize_provider(text: str) -> str:
     lowered = (text or "").lower()
+    if "fibra pro max" in lowered:
+        return "AIRE"
     for key, value in sorted(FIBER_PROVIDERS.items(), key=lambda item: len(item[0]), reverse=True):
         if key in lowered:
             return value
@@ -322,15 +326,18 @@ def _is_masmovil_fiber_backup_tunnel(
 ) -> bool:
     """MásMóvil fibra + Router Backup Especial 4G: túnel dedicado, mismo diagrama que hAP + WAP LTE."""
     lowered = (text or "").lower()
+    if "fibra pro max" in lowered:
+        return False
     if "router backup especial" in lowered or "backup especial 4g" in lowered:
         return True
-    if has_backup_device and any(
-        token in lowered for token in ("mas movil", "masmovil", "fibra profesional", "fibra pro")
+    if has_backup_device and any(token in lowered for token in ("mas movil", "masmovil", "fibra profesional mas movil")):
+        return True
+    if (
+        has_backup_device
+        and router_model in {"MikroTik hAP ac2", "MikroTik hAP ac3"}
+        and any(token in lowered for token in ("mas movil", "masmovil"))
     ):
         return True
-    if has_backup_device and router_model in {"MikroTik hAP ac2", "MikroTik hAP ac3"}:
-        if any(token in lowered for token in ("mas movil", "masmovil", "fibra")):
-            return True
     return False
 
 
@@ -341,7 +348,12 @@ def _infer_internet_type(text: str, has_backup_device: bool, router_model: str =
         has_backup_device=has_backup_device,
         router_model=router_model,
     )
-    if ("4g monitorizado" in lowered or "solo 4g" in lowered) and not masmovil_tunnel:
+    has_fiber_context = any(
+        token in lowered for token in ("fibra", "ftth", "gpon", "fibra pro max", "ont")
+    )
+    if "solo 4g" in lowered and not masmovil_tunnel:
+        return "SOLO 4G MONITORIZADO"
+    if "4g monitorizado" in lowered and not masmovil_tunnel and not has_fiber_context:
         return "SOLO 4G MONITORIZADO"
     if (
         masmovil_tunnel

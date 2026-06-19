@@ -136,6 +136,39 @@ Producto: GPON ONT
         with self.assertRaises(ValueError):
             parse_work_order_paste("   ")
 
+    def test_parses_embalajes_echeberria_fibra_pro_max_with_voip_extensions(self) -> None:
+        ot_text = """
+CIF
+B75560581
+Nombre del cliente
+EMBALAJES ECHEBERRIA SOLUCIONES DE EMBALAJE S.L.U.
+Número OT
+OT00007885
+Dirección de Instalación (Sede 1 - PRINCIPAL)
+Calle Portal De Zurbano, 19. Vitoria-gasteiz 01013, Alava
+Direcciones de fibra:
+Fibra PRO Max Velocidad
+Servicio: Fibra PRO Max Velocidad  Producto: GPON ONT
+Servicio: Fibra PRO Max Velocidad  Producto: hAP ac2 - RBD52G-5HacD2HnD-TC
+Servicio: Router Backup 4G Monitorizado - 345901031235831  Producto: Mikrotik wAPR-2Nd&EC200A-EU- Nuevo wAP LTE Kit CPU
+Servicio: Puestos VoIP - 3001  Producto: SIP-T33G
+Servicio: Puestos VoIP - 3002  Producto: SIP-T33G
+Servicio: Puestos VoIP - 3003  Producto: SIP-T33G
+Servicio: Puestos VoIP - 3004  Producto: SIP-T33G
+"""
+        result = parse_work_order_paste(ot_text)
+
+        self.assertEqual(result.cif, "B75560581")
+        self.assertEqual(result.work_order_id, "7885")
+        self.assertEqual(result.internet_proveedor, "AIRE")
+        self.assertEqual(result.internet_velocidad, "1 GB")
+        self.assertEqual(result.internet_tipo, "FIBRA + BACK UP")
+        self.assertEqual(result.router_modelo, "MikroTik hAP ac2")
+        self.assertEqual(result.backup_modelo, "WAP LTE")
+        self.assertEqual(len(result.terminals), 4)
+        self.assertEqual([terminal["extension"] for terminal in result.terminals], ["3001", "3002", "3003", "3004"])
+        self.assertFalse(any("MásMóvil" in warning for warning in result.warnings))
+
 
 if __name__ == "__main__":
     unittest.main()

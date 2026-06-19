@@ -322,24 +322,6 @@ def _build_coverage_data(
     }
 
 
-def _flatten_blueprint_endpoints(app: Flask) -> None:
-    renames: dict[str, str] = {}
-    for endpoint in list(app.view_functions):
-        if "." not in endpoint:
-            continue
-        short_name = endpoint.split(".", 1)[1]
-        if short_name in app.view_functions:
-            continue
-        renames[endpoint] = short_name
-    for old_name, new_name in renames.items():
-        app.view_functions[new_name] = app.view_functions.pop(old_name)
-        rules = app.url_map._rules_by_endpoint.pop(old_name)
-        for rule in rules:
-            rule.endpoint = new_name
-        app.url_map._rules_by_endpoint[new_name] = rules
-    app.url_map.update()
-
-
 def current_technician() -> dict:
     return session.get("technician") or {"username": "local", "name": "Tecnico local"}
 
@@ -350,7 +332,7 @@ def login_required(view):
         from flask import current_app
 
         if current_app.config["AUTH_REQUIRED"] and not session.get("technician"):
-            return redirect(url_for("login", next=request.path))
+            return redirect(url_for("auth.login", next=request.path))
         return view(*args, **kwargs)
 
     return wrapped
@@ -393,7 +375,7 @@ def index_context(**extra):
         "page_config": {
             "glpiCustomers": glpi_customers or [],
             "deviceCatalog": device_catalog,
-            "importWorkOrderUrl": url_for("import_work_order"),
+            "importWorkOrderUrl": url_for("glpi_import.import_work_order"),
         },
     }
     context.update(extra)
@@ -410,6 +392,10 @@ def create_app(stores: DrawioStores | None = None) -> Flask:
         "DRAWIO_LIBRARY_PATH",
         str(PROJECT_ROOT / "library" / "libreria_Ausarta_JUN_2026.xml"),
     )
+    from generator.library_loader import validate_library_file
+
+    for warning in validate_library_file(app.config["DEFAULT_LIBRARY"]):
+        app.logger.warning(warning)
     app.config["MAX_CONTENT_LENGTH"] = int(os.environ.get("DRAWIO_MAX_UPLOAD_BYTES", str(15 * 1024 * 1024)))
 
     app.config["SECRET_KEY"] = resolve_secret_key()
@@ -437,7 +423,7 @@ def create_app(stores: DrawioStores | None = None) -> Flask:
         strategy="fixed-window",
     )
     
-    static_asset_version = os.environ.get("DRAWIO_STATIC_VERSION", "20260618f")
+    static_asset_version = os.environ.get("DRAWIO_STATIC_VERSION", "20260619a")
 
     @app.after_request
     def adjust_response_headers(response: Response) -> Response:
@@ -501,7 +487,6 @@ def create_app(stores: DrawioStores | None = None) -> Flask:
     app.register_blueprint(create_diagrams_blueprint(limiter, csrf))
     app.register_blueprint(create_admin_blueprint())
     app.register_blueprint(create_glpi_import_blueprint(limiter))
-    _flatten_blueprint_endpoints(app)
 
     return app
 

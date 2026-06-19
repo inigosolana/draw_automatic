@@ -8,7 +8,7 @@ from .aliases import resolve_alias
 from .device_catalog import devices_json_to_equipos
 from .drawio_writer import BuildResult, build_drawio
 from .layout_engine import build_layout, validate_input_data
-from .library_loader import load_library
+from .library_loader import load_library, validate_library_file
 from .layout_engine import _parse_switch_telefonia
 from .parser import infer_template, parse_equipment_line, parse_natural_text
 
@@ -334,6 +334,7 @@ def build_drawio_from_data(data: dict, library_path: str | Path) -> WebGeneratio
 
     library = load_library(resolved_library)
     warnings = validate_input_data(data)
+    warnings.extend(validate_library_file(resolved_library))
     nodes, edges = build_layout(data)
     result = build_drawio(nodes, edges, library, warnings=warnings)
     total_equipment = sum(int(team.get("cantidad", 1)) for team in data.get("equipos", []))

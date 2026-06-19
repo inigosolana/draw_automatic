@@ -52,17 +52,7 @@
         </section>
       </section>
     </main>
-    <script>
-      const diagramFilter = document.getElementById("diagram-filter");
-      if (diagramFilter) {
-        diagramFilter.addEventListener("input", function () {
-          const query = diagramFilter.value.toLocaleLowerCase("es").trim();
-          document.querySelectorAll(".diagram-row").forEach(function (row) {
-            row.hidden = query && !row.textContent.toLocaleLowerCase("es").includes(query);
-          });
-        });
-      }
-    </script>
+    <script src="{{ url_for('static', filename='js/my-diagrams-filter.js') }}?v={{ static_v }}"></script>
     {% include "_app_footer.html" %}
   </body>
 </html>

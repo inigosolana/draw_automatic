@@ -94,79 +94,9 @@
       </section>
     </main>
     {% if glpi_customers %}
-    <script>
-      const catalog = {{ glpi_customers | tojson }};
-      function createSearchSelect(element, onSelect) {
-        let items = [];
-        let selected = null;
-        element.innerHTML = `<button type="button" class="search-select-trigger"><span>${element.dataset.placeholder}</span><span class="search-select-arrow">▾</span></button><div class="search-select-menu"><input type="search" class="search-select-filter" placeholder="Buscar..."><div class="search-select-options"></div></div>`;
-        const trigger = element.querySelector(".search-select-trigger");
-        const text = trigger.querySelector("span");
-        const filter = element.querySelector(".search-select-filter");
-        const options = element.querySelector(".search-select-options");
-        function render(query = "") {
-          const normalized = query.toLocaleLowerCase("es");
-          options.innerHTML = "";
-          items.filter(item => item.nombre.toLocaleLowerCase("es").includes(normalized)).forEach(item => {
-            const button = document.createElement("button");
-            button.type = "button";
-            button.className = "search-select-option";
-            button.textContent = item.nombre;
-            button.onclick = () => {
-              selected = item;
-              text.textContent = item.nombre;
-              element.classList.remove("open");
-              filter.value = "";
-              onSelect(item);
-            };
-            options.appendChild(button);
-          });
-          if (!options.children.length) options.innerHTML = '<div class="search-select-empty">Sin resultados</div>';
-        }
-        trigger.onclick = () => {
-          if (element.classList.contains("disabled")) return;
-          document.querySelectorAll(".search-select.open").forEach(other => {
-            if (other !== element) other.classList.remove("open");
-          });
-          element.classList.toggle("open");
-          if (element.classList.contains("open")) {
-            render();
-            filter.focus();
-          }
-        };
-        filter.oninput = () => render(filter.value);
-        return {
-          setItems(newItems, placeholder) {
-            items = newItems;
-            selected = null;
-            text.textContent = placeholder;
-            element.classList.toggle("disabled", !newItems.length);
-            render();
-          }
-        };
-      }
-      let customerControl;
-      let siteControl;
-      siteControl = createSearchSelect(document.getElementById("upload-site"), site => {
-        document.getElementById("upload-entity-id").value = site.id;
-        document.getElementById("upload-site-name").value = site.nombre;
-      });
-      customerControl = createSearchSelect(document.getElementById("upload-customer"), customer => {
-        document.getElementById("upload-client-name").value = customer.nombre;
-        document.getElementById("upload-entity-id").value = "";
-        siteControl.setItems(customer.sedes, "Selecciona una sede");
-      });
-      const provinceControl = createSearchSelect(document.getElementById("upload-province"), province => {
-        customerControl.setItems(province.clientes, "Selecciona un cliente");
-        siteControl.setItems([], "Selecciona primero un cliente");
-      });
-      provinceControl.setItems(catalog, "Selecciona una provincia");
-      document.addEventListener("click", event => {
-        if (!event.target.closest(".search-select")) {
-          document.querySelectorAll(".search-select.open").forEach(element => element.classList.remove("open"));
-        }
-      });
-    </script>
+    <script type="application/json" id="upload-glpi-config"{% if csp_nonce is defined %} nonce="{{ csp_nonce() }}"{% endif %}>{{ {"catalog": glpi_customers} | tojson }}</script>
+    <script src="{{ url_for('static', filename='js/search-select.js') }}?v={{ static_v }}"></script>
+    <script src="{{ url_for('static', filename='js/upload-glpi-form.js') }}?v={{ static_v }}"></script>
     {% endif %}
     {% include "_app_footer.html" %}
   </body>

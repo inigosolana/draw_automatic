@@ -154,7 +154,7 @@
         </div>
         {% endif %}
 
-        <form method="post" action="{{ url_for('generate') }}" class="creation-form">
+        <form method="post" action="{{ url_for('glpi_import.generate') }}" class="creation-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" id="glpi-entity-id" name="glpi_entity_id" value="{{ form_data.get('glpi_entity_id', '') }}">
 

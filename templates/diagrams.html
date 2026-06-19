@@ -78,37 +78,8 @@
       </section>
     </main>
     {% if glpi_customers %}
-    <script>
-      const catalog = {{ glpi_customers | tojson }};
-      const province = document.getElementById("diagram-province");
-      const customer = document.getElementById("diagram-customer");
-      const site = document.getElementById("diagram-site");
-      const entityId = document.getElementById("diagram-entity-id");
-
-      function fill(select, items, placeholder) {
-        select.innerHTML = "";
-        select.append(new Option(placeholder, ""));
-        items.forEach(item => select.append(new Option(item.nombre, String(item.id))));
-        select.disabled = !items.length;
-      }
-
-      fill(province, catalog, "Selecciona una provincia");
-      province.addEventListener("change", () => {
-        const item = catalog.find(value => String(value.id) === province.value);
-        fill(customer, item ? item.clientes : [], "Selecciona un cliente");
-        fill(site, [], "Selecciona primero un cliente");
-        entityId.value = "";
-      });
-      customer.addEventListener("change", () => {
-        const provinceItem = catalog.find(value => String(value.id) === province.value);
-        const item = provinceItem?.clientes.find(value => String(value.id) === customer.value);
-        fill(site, item ? item.sedes : [], "Selecciona una sede");
-        entityId.value = "";
-      });
-      site.addEventListener("change", () => {
-        entityId.value = site.value;
-      });
-    </script>
+    <script type="application/json" id="diagram-glpi-config"{% if csp_nonce is defined %} nonce="{{ csp_nonce() }}"{% endif %}>{{ {"catalog": glpi_customers} | tojson }}</script>
+    <script src="{{ url_for('static', filename='js/diagram-glpi-cascade.js') }}?v={{ static_v }}"></script>
     {% endif %}
     {% include "_app_footer.html" %}
   </body>

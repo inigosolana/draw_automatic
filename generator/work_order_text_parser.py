@@ -21,6 +21,14 @@ INSTALLATION_ADDRESS_PATTERN = re.compile(
 )
 PRODUCT_LINE_PATTERN = re.compile(r"producto\s*:\s*(.+)$", re.IGNORECASE)
 SERVICE_LINE_PATTERN = re.compile(r"servicio\s*:\s*(.+)$", re.IGNORECASE)
+SERVICIO_PRODUCT_LINE_PATTERN = re.compile(
+    r"Servicio:\s*(?P<servicio>.+?)\s+Producto:\s*(?P<producto>.+)$",
+    re.IGNORECASE,
+)
+VOIP_SERVICE_EXTENSION_PATTERN = re.compile(
+    r"puestos?\s*voip\s*-\s*(\d{2,6})",
+    re.IGNORECASE,
+)
 FIBER_PRODUCT_PATTERN = re.compile(r"fibra\s+pro\s+max", re.IGNORECASE)
 
 
@@ -168,35 +176,89 @@ def _extract_servicio_lines(lines: list[str]) -> list[str]:
     return services
 
 
-def _extract_products(lines: list[str]) -> list[OfferProduct]:
-    product_indices = [index for index, line in enumerate(lines) if PRODUCT_LINE_PATTERN.search(line)]
-    products: list[OfferProduct] = []
-    for position, start in enumerate(product_indices):
-        end = product_indices[position + 1] if position + 1 < len(product_indices) else len(lines)
-        match = PRODUCT_LINE_PATTERN.search(lines[start])
-        if not match:
+def _extensions_from_servicio(servicio: str) -> list[str]:
+    extensions: list[str] = []
+    for match in VOIP_SERVICE_EXTENSION_PATTERN.finditer(servicio or ""):
+        extensions.append(match.group(1))
+    extensions.extend(parse_extension_tokens(servicio))
+    deduped: list[str] = []
+    for value in extensions:
+        if value not in deduped:
+            deduped.append(value)
+    return deduped
+
+
+def _product_block_extensions(block: list[str]) -> list[str]:
+    extensions: list[str] = []
+    in_config = False
+    for line in block:
+        lowered = line.lower()
+        if lowered.startswith("configuraci"):
+            in_config = True
             continue
-        name = match.group(1).strip()
+        found = parse_extension_tokens(line)
+        if found:
+            extensions.extend(found)
+            continue
+        if in_config and re.fullmatch(r"\d{2,6}", line.strip()):
+            extensions.append(line.strip())
+    deduped: list[str] = []
+    for value in extensions:
+        if value not in deduped:
+            deduped.append(value)
+    return deduped
+
+
+def _extract_products(lines: list[str]) -> list[OfferProduct]:
+    products: list[OfferProduct] = []
+    pending_servicio = ""
+
+    for index, line in enumerate(lines):
+        combined = SERVICIO_PRODUCT_LINE_PATTERN.search(line)
+        if combined:
+            pending_servicio = ""
+            servicio = combined.group("servicio").strip()
+            name = combined.group("producto").strip()
+            name, inline_extensions = strip_inline_extensions(name)
+            extensions = _extensions_from_servicio(servicio) or list(inline_extensions)
+            products.append(OfferProduct(name=name, quantity=1, extensions=extensions))
+            continue
+
+        servicio_match = SERVICE_LINE_PATTERN.search(line)
+        if servicio_match and "producto:" not in line.lower():
+            pending_servicio = servicio_match.group(1).strip()
+            continue
+
+        product_match = PRODUCT_LINE_PATTERN.search(line)
+        if not product_match:
+            continue
+
+        end = len(lines)
+        for next_index in range(index + 1, len(lines)):
+            if (
+                PRODUCT_LINE_PATTERN.search(lines[next_index])
+                or SERVICIO_PRODUCT_LINE_PATTERN.search(lines[next_index])
+                or (
+                    SERVICE_LINE_PATTERN.search(lines[next_index])
+                    and "producto:" not in lines[next_index].lower()
+                )
+            ):
+                end = next_index
+                break
+
+        name = product_match.group(1).strip()
         name, inline_extensions = strip_inline_extensions(name)
         extensions = list(inline_extensions)
-        block = lines[start + 1 : end]
-        in_config = False
-        for line in block:
-            lowered = line.lower()
-            if lowered.startswith("configuraci"):
-                in_config = True
-                continue
-            found = parse_extension_tokens(line)
-            if found:
-                extensions.extend(found)
-                continue
-            if in_config and re.fullmatch(r"\d{2,6}", line.strip()):
-                extensions.append(line.strip())
+        if pending_servicio:
+            extensions = _extensions_from_servicio(pending_servicio) or extensions
+            pending_servicio = ""
+        extensions.extend(_product_block_extensions(lines[index + 1 : end]))
         deduped: list[str] = []
         for value in extensions:
             if value not in deduped:
                 deduped.append(value)
         products.append(OfferProduct(name=name, quantity=1, extensions=deduped))
+
     return products
 
 

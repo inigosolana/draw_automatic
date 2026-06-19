@@ -103,7 +103,7 @@ def create_diagrams_blueprint(limiter: Limiter, csrf: CSRFProtect) -> Blueprint:
             "preview.html",
             token=token,
             filename=payload["filename"],
-            xml_json=json.dumps(payload["xml"]),
+            xml=payload["xml"],
             preview_base_url=current_app.config["PREVIEW_URL"],
         )
 

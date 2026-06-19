@@ -1,6 +1,7 @@
 from pathlib import Path
 from io import BytesIO
 import os
+import re
 import tempfile
 import time
 import unittest
@@ -719,6 +720,108 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Previsualizaci", response.data)
         self.assertIn(b"embed.diagrams.net", response.data)
+        self.assertIn(b"preview-drawio.js", response.data)
+        self.assertIn(b"drawio-preview-config", response.data)
+        self.assertNotIn(b"window.addEventListener", response.data)
+
+    def test_preview_page_uses_csp_nonce_when_security_headers_enabled(self) -> None:
+        env = {
+            "DRAWIO_RATELIMIT_STORAGE": "memory://",
+            "DRAWIO_COOKIE_SECURE": "1",
+            "DRAWIO_ENABLE_SECURITY_HEADERS": "1",
+            "DRAWIO_SECRET_KEY": "test-secret-key-for-csp-preview-page",
+        }
+        with patch.dict(os.environ, env, clear=False):
+            app = create_app(self.stores)
+            app.config["TESTING"] = True
+            app.config["WTF_CSRF_ENABLED"] = False
+            app.config["AUTH_REQUIRED"] = False
+            client = app.test_client()
+            self.stores.downloads["preview-token"] = {
+                "filename": "demo.drawio",
+                "xml": "<mxfile />",
+                "entity_id": "",
+                "cliente": "Demo",
+                "sede": "Central",
+                "uploaded": False,
+            }
+            response = client.get("/preview/preview-token")
+        self.assertEqual(response.status_code, 200)
+        csp = response.headers.get("Content-Security-Policy", "")
+        self.assertIn("nonce-", csp)
+        self.assertRegex(response.data.decode("utf-8"), r'id="drawio-preview-config"\s+nonce="[^"]+"')
+
+    def test_html_pages_do_not_use_executable_inline_scripts_under_csp(self) -> None:
+        inline_script = re.compile(
+            r'<script(?![^>]*\bsrc=)(?![^>]*type="application/json")[^>]*>',
+            re.IGNORECASE,
+        )
+        env = {
+            "DRAWIO_RATELIMIT_STORAGE": "memory://",
+            "DRAWIO_COOKIE_SECURE": "1",
+            "DRAWIO_ENABLE_SECURITY_HEADERS": "1",
+            "DRAWIO_SECRET_KEY": "test-secret-key-for-csp-html-pages",
+            "DRAWIO_ADMIN_USERS": "admin.user",
+        }
+        self.stores.downloads["preview-token"] = {
+            "filename": "demo.drawio",
+            "xml": "<mxfile />",
+            "entity_id": "",
+            "cliente": "Demo",
+            "sede": "Central",
+            "uploaded": False,
+        }
+        sample_catalog = [
+            {
+                "id": 1,
+                "nombre": "Bizkaia",
+                "clientes": [
+                    {
+                        "id": 10,
+                        "nombre": "Cliente Demo",
+                        "sedes": [{"id": 100, "nombre": "Sede 1"}],
+                    }
+                ],
+            }
+        ]
+
+        with patch.dict(os.environ, env, clear=False):
+            app = create_app(self.stores)
+            app.config["TESTING"] = True
+            app.config["WTF_CSRF_ENABLED"] = False
+            app.config["AUTH_REQUIRED"] = False
+            client = app.test_client()
+            with patch("web_app.load_glpi_catalog", return_value=(sample_catalog, "")):
+                with patch("web_app.GlpiClient.from_environment", return_value=None):
+                    pages = [
+                        client.get("/"),
+                        client.get("/diagrams"),
+                        client.get("/my-diagrams"),
+                        client.get("/upload-draw"),
+                        client.get("/preview/preview-token"),
+                    ]
+            with client.session_transaction() as browser_session:
+                browser_session["technician"] = {
+                    "username": "admin.user",
+                    "name": "Admin User",
+                }
+            with patch("web_app.load_glpi_catalog", return_value=([], "")):
+                with patch("web_app.GlpiClient.from_environment", return_value=None):
+                    with patch("web.blueprints.admin.ADMIN_USERS", {"admin.user"}):
+                        pages.append(client.get("/admin"))
+
+        for response in pages:
+            self.assertEqual(response.status_code, 200, response.request.path)
+            html = response.data.decode("utf-8")
+            self.assertIsNone(
+                inline_script.search(html),
+                f"Executable inline script found in {response.request.path}",
+            )
+            csp = response.headers.get("Content-Security-Policy", "")
+            if "nonce-" not in csp:
+                continue
+            for tag in re.findall(r'<script type="application/json"[^>]*>', html):
+                self.assertIn('nonce="', tag, msg=f"Missing nonce in JSON config on {response.request.path}")
 
     def test_confirm_blocks_duplicate_diagram_without_override(self) -> None:
         self.stores.downloads["duplicate-token"] = {

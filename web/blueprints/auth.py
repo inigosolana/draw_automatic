@@ -35,7 +35,7 @@ def create_auth_blueprint(limiter: Limiter) -> Blueprint:
                     session.permanent = True
                     security_logger.info(f"Login successful: user={username}, IP={client_ip}")
                     next_url = request.args.get("next", "")
-                    return redirect(next_url if is_safe_redirect(next_url) else url_for("index"))
+                    return redirect(next_url if is_safe_redirect(next_url) else url_for("glpi_import.index"))
                 except web_app.GlpiError:
                     error = "Usuario o clave incorrectos."
                     security_logger.warning(
@@ -45,7 +45,7 @@ def create_auth_blueprint(limiter: Limiter) -> Blueprint:
 
     @bp.get("/logout")
     def logout_get() -> Response:
-        return redirect(url_for("login"))
+        return redirect(url_for("auth.login"))
 
     @bp.post("/logout")
     def logout() -> Response:
@@ -53,6 +53,6 @@ def create_auth_blueprint(limiter: Limiter) -> Blueprint:
         client_ip = get_remote_address()
         session.clear()
         security_logger.info(f"Logout: user={username}, IP={client_ip}")
-        return redirect(url_for("login"))
+        return redirect(url_for("auth.login"))
 
     return bp

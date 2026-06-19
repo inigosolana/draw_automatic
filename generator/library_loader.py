@@ -41,6 +41,41 @@ def _load_local_icon(title: str, image_path: Path, width: int = 120, height: int
     return LibraryItem(title=title, data=f"data:image/png;base64,{encoded}", width=width, height=height)
 
 
+def _looks_like_test_stub(entries: list[dict]) -> bool:
+    if len(entries) < 10:
+        return True
+    for entry in entries[:5]:
+        data = str(entry.get("data", ""))
+        if len(data) < 200 or re.search(r"base64,[A-Z]{3}\"?", data):
+            return True
+    return False
+
+
+def validate_library_file(path: str | Path) -> list[str]:
+    library_path = Path(path)
+    if not library_path.is_file():
+        return [f"No se ha encontrado la libreria en {library_path}."]
+    text = library_path.read_text(encoding="utf-8", errors="ignore")
+    match = re.search(r"<mxlibrary>(.*)</mxlibrary>", text, re.DOTALL)
+    if not match:
+        return ["La libreria no contiene un bloque <mxlibrary> valido."]
+    try:
+        entries = json.loads(match.group(1))
+    except json.JSONDecodeError:
+        return ["La libreria no contiene JSON valido."]
+    warnings: list[str] = []
+    if _looks_like_test_stub(entries):
+        warnings.append(
+            "La libreria parece ser la fixture de tests (iconos falsos). "
+            "Copia la libreria real a library/libreria_Ausarta_JUN_2026.xml."
+        )
+    titles = {entry.get("title", "") for entry in entries}
+    for required in ("ONT ZTE", "Microtik_hAPc", "T-31"):
+        if required not in titles:
+            warnings.append(f"Falta el icono obligatorio '{required}' en la libreria.")
+    return warnings
+
+
 def load_library(path: str | Path) -> LibraryIndex:
     library_path = Path(path)
     text = library_path.read_text(encoding="utf-8", errors="ignore")
