@@ -922,6 +922,13 @@ def create_app() -> Flask:
             entity_id = positive_integer(payload.get("entity_id"), "entity_id")
             technician = payload.get("technician") or current_technician()
             existing = client.list_network_diagrams(entity_id)
+            allow_duplicate = request.form.get("allow_duplicate") == "1"
+            if existing and not allow_duplicate:
+                return Response(
+                    "Esta sede ya tiene un diagrama en GLPI. Confirma de nuevo para publicar otro.",
+                    status=409,
+                    mimetype="text/plain; charset=utf-8",
+                )
             diagram_name = unique_diagram_name(
                 f"{payload['cliente']} - {payload['sede']}",
                 existing,

@@ -21,6 +21,16 @@ ROOT = Path(__file__).resolve().parents[1]
 LIBRARY = str(ROOT / "tests" / "fixtures" / "test_library.xml")
 
 
+def fake_glpi_client(**overrides):
+    client = GlpiClient("http://glpi.test/apirest.php", "app-token", "user-token")
+    client.list_network_diagrams = lambda entity_id: []
+    client.create_network_diagram = lambda **kwargs: 42
+    client.diagram_url = lambda diagram_id: f"http://glpi.test/diagram/{diagram_id}"
+    for key, value in overrides.items():
+        setattr(client, key, value)
+    return client
+
+
 class WebAdapterTests(unittest.TestCase):
     def test_glpi_entities_are_loaded_in_pages(self) -> None:
         client = GlpiClient("http://glpi.test/apirest.php", "app", "user")
@@ -410,7 +420,8 @@ class WebAdapterTests(unittest.TestCase):
         self.assertTrue(otros.get("custom"))
 
     def test_index_page_renders_device_picker(self) -> None:
-        app = create_app()
+        with patch.dict(os.environ, {"DRAWIO_RATELIMIT_STORAGE": "memory://"}, clear=False):
+            app = create_app()
         app.config["AUTH_REQUIRED"] = False
         client = app.test_client()
         response = client.get("/")
@@ -533,11 +544,16 @@ class WebAdapterTests(unittest.TestCase):
 class WebAppTests(unittest.TestCase):
     def setUp(self) -> None:
         DOWNLOADS.clear()
+        self._env_patch = patch.dict(os.environ, {"DRAWIO_RATELIMIT_STORAGE": "memory://"}, clear=False)
+        self._env_patch.start()
         self.app = create_app()
         self.app.config["TESTING"] = True
         self.app.config["WTF_CSRF_ENABLED"] = False
         self.app.config["AUTH_REQUIRED"] = False
         self.client = self.app.test_client()
+
+    def tearDown(self) -> None:
+        self._env_patch.stop()
 
     def test_post_generates_downloadable_drawio(self) -> None:
         response = self.client.post(
@@ -679,8 +695,9 @@ class WebAppTests(unittest.TestCase):
             "uploaded": False,
             "technician": {"username": "tech", "name": "Tecnico Uno"},
         }
-        configured_client = GlpiClient("http://glpi", "a", "u")
-        configured_client.list_network_diagrams = lambda entity_id: [{"id": 99, "entities_id": entity_id}]
+        configured_client = fake_glpi_client(
+            list_network_diagrams=lambda entity_id: [{"id": 99, "entities_id": entity_id}],
+        )
         with patch("web_app.GlpiClient.from_environment", return_value=configured_client):
             response = self.client.post("/confirm-glpi/duplicate-token")
         self.assertEqual(response.status_code, 409)
@@ -709,16 +726,17 @@ class WebAppTests(unittest.TestCase):
         self.assertIn(b"No se ha encontrado la libreria", response.data)
 
     def test_upload_draw_rejects_invalid_xml(self) -> None:
-        response = self.client.post(
-            "/upload-draw",
-            data={
-                "glpi_entity_id": "7",
-                "glpi_cliente": "Cliente",
-                "glpi_sede": "Sede",
-                "drawio_file": (BytesIO(b"not xml"), "antiguo.drawio"),
-            },
-            content_type="multipart/form-data",
-        )
+        with patch("web_app.GlpiClient.from_environment", return_value=fake_glpi_client()):
+            response = self.client.post(
+                "/upload-draw",
+                data={
+                    "glpi_entity_id": "7",
+                    "glpi_cliente": "Cliente",
+                    "glpi_sede": "Sede",
+                    "drawio_file": (BytesIO(b"not xml"), "antiguo.drawio"),
+                },
+                content_type="multipart/form-data",
+            )
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"No se ha podido completar la subida del diagrama", response.data)
 
@@ -733,16 +751,17 @@ class WebAppTests(unittest.TestCase):
             b'<!DOCTYPE mxfile [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>'
             b"<mxfile><diagram>&xxe;</diagram></mxfile>"
         )
-        response = self.client.post(
-            "/upload-draw",
-            data={
-                "glpi_entity_id": "7",
-                "glpi_cliente": "Cliente",
-                "glpi_sede": "Sede",
-                "drawio_file": (BytesIO(dangerous_xml), "peligroso.drawio"),
-            },
-            content_type="multipart/form-data",
-        )
+        with patch("web_app.GlpiClient.from_environment", return_value=fake_glpi_client()):
+            response = self.client.post(
+                "/upload-draw",
+                data={
+                    "glpi_entity_id": "7",
+                    "glpi_cliente": "Cliente",
+                    "glpi_sede": "Sede",
+                    "drawio_file": (BytesIO(dangerous_xml), "peligroso.drawio"),
+                },
+                content_type="multipart/form-data",
+            )
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"No se ha podido completar la subida del diagrama", response.data)
 
