@@ -357,7 +357,7 @@ def create_app() -> Flask:
     force_https = os.environ.get("DRAWIO_FORCE_HTTPS", "0") == "1"
     csp = {
         'default-src': "'self'",
-        'script-src': ["'self'", "'unsafe-inline'", "embed.diagrams.net"],
+        'script-src': ["'self'", "embed.diagrams.net"],
         'style-src': ["'self'", "'unsafe-inline'"],
         'img-src': ["'self'", "data:", "embed.diagrams.net"],
         'frame-src': ["'self'", "embed.diagrams.net"],
@@ -375,6 +375,7 @@ def create_app() -> Flask:
             force_https=force_https,
             strict_transport_security=force_https,
             content_security_policy=csp,
+            content_security_policy_nonce_in=["script-src"],
             frame_options=None,
             referrer_policy='strict-origin-when-cross-origin',
         )
@@ -465,12 +466,18 @@ def create_app() -> Flask:
 
     def index_context(**extra):
         glpi_customers, glpi_error = load_glpi_catalog()
+        device_catalog = build_device_catalog(app.config["DEFAULT_LIBRARY"])
         context = {
-            "device_catalog": build_device_catalog(app.config["DEFAULT_LIBRARY"]),
+            "device_catalog": device_catalog,
             "glpi_customers": glpi_customers,
             "glpi_error": glpi_error,
             "comms_configured": comms_configured(),
             "technician": current_technician(),
+            "page_config": {
+                "glpiCustomers": glpi_customers or [],
+                "deviceCatalog": device_catalog,
+                "importWorkOrderUrl": url_for("import_work_order"),
+            },
         }
         context.update(extra)
         return context
