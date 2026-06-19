@@ -14,7 +14,7 @@ from generator.glpi_client import GlpiClient, GlpiError, build_customer_catalog
 from generator.knowledge_base import learn_from_drawio, load_learned_items
 from generator.site_directory import SiteDirectory, apply_saved_addresses
 from generator.web_adapter import build_drawio_from_data, form_to_data, form_to_structured_data, resolve_library_path
-from web_app import DOWNLOADS, create_app
+from web_app import build_drawio_stores, create_app
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -543,17 +543,20 @@ class WebAdapterTests(unittest.TestCase):
 
 class WebAppTests(unittest.TestCase):
     def setUp(self) -> None:
-        DOWNLOADS.clear()
         self._env_patch = patch.dict(os.environ, {"DRAWIO_RATELIMIT_STORAGE": "memory://"}, clear=False)
         self._env_patch.start()
-        self.app = create_app()
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.stores = build_drawio_stores(Path(self.temp_dir.name))
+        self.app = create_app(self.stores)
         self.app.config["TESTING"] = True
         self.app.config["WTF_CSRF_ENABLED"] = False
         self.app.config["AUTH_REQUIRED"] = False
         self.client = self.app.test_client()
+        self.stores.downloads.clear()
 
     def tearDown(self) -> None:
         self._env_patch.stop()
+        self.temp_dir.cleanup()
 
     def test_create_app_fails_without_secret_key_in_production(self) -> None:
         env = {
@@ -602,8 +605,8 @@ class WebAppTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Generacion completada", response.data)
-        self.assertEqual(len(DOWNLOADS), 1)
-        token = next(iter(DOWNLOADS))
+        self.assertEqual(len(self.stores.downloads), 1)
+        token = next(iter(self.stores.downloads))
         download = self.client.get(f"/download/{token}")
         self.assertEqual(download.status_code, 200)
         self.assertIn(b"<mxfile", download.data)
@@ -663,7 +666,7 @@ class WebAppTests(unittest.TestCase):
                 "created_at": time.time(),
             }
         ]
-        with patch("web_app.ACTIVITY.list_for_technician", return_value=rows) as list_activity:
+        with patch.object(self.stores.activity, "list_for_technician", return_value=rows) as list_activity:
             with patch("web_app.GlpiClient.from_environment", return_value=None):
                 response = self.client.get("/my-diagrams")
 
@@ -704,7 +707,7 @@ class WebAppTests(unittest.TestCase):
         self.assertIn(b'autocomplete="current-password"', response.data)
 
     def test_preview_page_loads_pending_diagram(self) -> None:
-        DOWNLOADS["preview-token"] = {
+        self.stores.downloads["preview-token"] = {
             "filename": "demo.drawio",
             "xml": "<mxfile />",
             "entity_id": "",
@@ -718,7 +721,7 @@ class WebAppTests(unittest.TestCase):
         self.assertIn(b"embed.diagrams.net", response.data)
 
     def test_confirm_blocks_duplicate_diagram_without_override(self) -> None:
-        DOWNLOADS["duplicate-token"] = {
+        self.stores.downloads["duplicate-token"] = {
             "filename": "demo.drawio",
             "xml": "<mxfile />",
             "entity_id": 7,
@@ -814,7 +817,7 @@ class WebAppTests(unittest.TestCase):
         self.assertIn(b"ID entero positivo", response.data)
 
     def test_confirm_rejects_invalid_persisted_entity_id(self) -> None:
-        DOWNLOADS["invalid-id"] = {
+        self.stores.downloads["invalid-id"] = {
             "filename": "demo.drawio",
             "xml": "<mxfile />",
             "entity_id": "not-an-id",

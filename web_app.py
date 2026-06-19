@@ -5,6 +5,7 @@ import logging
 import os
 import secrets
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from functools import wraps
 from pathlib import Path
@@ -40,32 +41,45 @@ from generator.web_adapter import build_drawio_from_data, form_to_data, form_to_
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 
-try:
-    from dotenv import load_dotenv
 
-    load_dotenv(PROJECT_ROOT / ".env")
-except ImportError:
-    pass
+@dataclass
+class DrawioStores:
+    downloads: DownloadStore
+    sites: SiteDirectory
+    catalog: CatalogCache
+    activity: DiagramActivity
+    seclog: SecurityLog
 
-DOWNLOADS = DownloadStore(
-    os.environ.get("DRAWIO_DOWNLOAD_DB", PROJECT_ROOT / "data" / "downloads.sqlite3"),
-    ttl_seconds=int(os.environ.get("DRAWIO_DOWNLOAD_TTL", "86400")),
-)
-SITES = SiteDirectory(
-    os.environ.get("DRAWIO_SITE_DB", PROJECT_ROOT / "data" / "sites.sqlite3")
-)
-CATALOG = CatalogCache(
-    os.environ.get("DRAWIO_CATALOG_DB", PROJECT_ROOT / "data" / "catalog.sqlite3"),
-    ttl_seconds=int(os.environ.get("DRAWIO_CATALOG_TTL", "300")),
-)
-ACTIVITY = DiagramActivity(
-    os.environ.get("DRAWIO_ACTIVITY_DB", PROJECT_ROOT / "data" / "activity.sqlite3")
-)
-SECLOG = SecurityLog(
-    os.environ.get("DRAWIO_SECLOG_DB", PROJECT_ROOT / "data" / "security.sqlite3")
-)
-DEFAULT_HOST = os.environ.get("DRAWIO_HOST", "0.0.0.0")
-DEFAULT_PORT = int(os.environ.get("DRAWIO_PORT", os.environ.get("PORT", "8000")))
+
+def build_drawio_stores(project_root: Path | None = None) -> DrawioStores:
+    root = project_root or PROJECT_ROOT
+    return DrawioStores(
+        downloads=DownloadStore(
+            os.environ.get("DRAWIO_DOWNLOAD_DB", root / "data" / "downloads.sqlite3"),
+            ttl_seconds=int(os.environ.get("DRAWIO_DOWNLOAD_TTL", "86400")),
+        ),
+        sites=SiteDirectory(
+            os.environ.get("DRAWIO_SITE_DB", root / "data" / "sites.sqlite3")
+        ),
+        catalog=CatalogCache(
+            os.environ.get("DRAWIO_CATALOG_DB", root / "data" / "catalog.sqlite3"),
+            ttl_seconds=int(os.environ.get("DRAWIO_CATALOG_TTL", "300")),
+        ),
+        activity=DiagramActivity(
+            os.environ.get("DRAWIO_ACTIVITY_DB", root / "data" / "activity.sqlite3")
+        ),
+        seclog=SecurityLog(
+            os.environ.get("DRAWIO_SECLOG_DB", root / "data" / "security.sqlite3")
+        ),
+    )
+
+
+def get_drawio_stores() -> DrawioStores:
+    from flask import current_app
+
+    return current_app.extensions["drawio_stores"]
+
+
 PLACEHOLDER_SECRET_KEYS = {
     "",
     "CAMBIAR_POR_UNA_CADENA_ALEATORIA_LARGA_GENERADA_CON_EL_COMANDO_ANTERIOR",
@@ -96,23 +110,31 @@ def resolve_secret_key() -> str:
 
 
 class _SQLiteHandler(logging.Handler):
+    def __init__(self, seclog: SecurityLog) -> None:
+        super().__init__()
+        self._seclog = seclog
+
     def emit(self, record: logging.LogRecord) -> None:
         try:
-            SECLOG.write(record.levelname, self.format(record))
+            self._seclog.write(record.levelname, self.format(record))
         except Exception:
             pass
 
 
-# Configure security logging
+def configure_security_logger(seclog: SecurityLog) -> logging.Logger:
+    logger = logging.getLogger("security")
+    logger.setLevel(logging.INFO)
+    if not logger.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)s [SECURITY] %(message)s"))
+        logger.addHandler(handler)
+        sqlite_handler = _SQLiteHandler(seclog)
+        sqlite_handler.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)s [SECURITY] %(message)s"))
+        logger.addHandler(sqlite_handler)
+    return logger
+
+
 security_logger = logging.getLogger("security")
-security_logger.setLevel(logging.INFO)
-if not security_logger.handlers:
-    handler = logging.StreamHandler()
-    handler.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)s [SECURITY] %(message)s"))
-    security_logger.addHandler(handler)
-    sqlite_handler = _SQLiteHandler()
-    sqlite_handler.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)s [SECURITY] %(message)s"))
-    security_logger.addHandler(sqlite_handler)
 
 def _load_admin_users() -> set[str]:
     raw = os.environ.get("DRAWIO_ADMIN_USERS", "")
@@ -130,6 +152,16 @@ def _load_admin_users() -> set[str]:
 
 ADMIN_USERS = _load_admin_users()
 
+DEFAULT_HOST = os.environ.get("DRAWIO_HOST", "0.0.0.0")
+DEFAULT_PORT = int(os.environ.get("DRAWIO_PORT", os.environ.get("PORT", "8000")))
+
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(PROJECT_ROOT / ".env")
+except ImportError:
+    pass
+
 _MONTHS_ES = (
     "ene", "feb", "mar", "abr", "may", "jun",
     "jul", "ago", "sep", "oct", "nov", "dic",
@@ -140,8 +172,8 @@ def _activity_technician_name(row: dict) -> str:
     return row.get("technician_name") or row.get("technician", {}).get("name", "?")
 
 
-def _glpi_diagram_rows(client: GlpiClient, entity_id: int) -> list[dict]:
-    activity_map = ACTIVITY.map_for_entity(entity_id)
+def _glpi_diagram_rows(client: GlpiClient, entity_id: int, activity: DiagramActivity) -> list[dict]:
+    activity_map = activity.map_for_entity(entity_id)
     rows: list[dict] = []
     for diagram in client.list_network_diagrams(entity_id):
         diagram_id = diagram.get("id")
@@ -304,9 +336,12 @@ def _build_coverage_data(
     }
 
 
-def create_app() -> Flask:
+def create_app(stores: DrawioStores | None = None) -> Flask:
     app = Flask(__name__, template_folder=str(PROJECT_ROOT / "templates"), static_folder=str(PROJECT_ROOT / "static"))
-    SECLOG.purge_old(days=30)
+    drawio_stores = stores or build_drawio_stores()
+    app.extensions["drawio_stores"] = drawio_stores
+    configure_security_logger(drawio_stores.seclog)
+    drawio_stores.seclog.purge_old(days=30)
     app.config["DEFAULT_LIBRARY"] = os.environ.get(
         "DRAWIO_LIBRARY_PATH",
         str(PROJECT_ROOT / "library" / "libreria_Ausarta_JUN_2026.xml"),
@@ -406,16 +441,16 @@ def create_app() -> Flask:
         return wrapped
 
     def load_glpi_catalog() -> tuple[list[dict], str]:
-        cached = CATALOG.get("glpi_customer_catalog")
+        cached = drawio_stores.catalog.get("glpi_customer_catalog")
         if cached is not None:
-            return apply_saved_addresses(cached, SITES.all()), ""
+            return apply_saved_addresses(cached, drawio_stores.sites.all()), ""
         client = GlpiClient.from_environment()
         if not client:
             return [], "GLPI no esta configurado."
         try:
             catalog = build_customer_catalog(client.list_entities())
-            CATALOG.set("glpi_customer_catalog", catalog)
-            return apply_saved_addresses(catalog, SITES.all()), ""
+            drawio_stores.catalog.set("glpi_customer_catalog", catalog)
+            return apply_saved_addresses(catalog, drawio_stores.sites.all()), ""
         except GlpiError as exc:
             security_logger.warning(f"GLPI catalog load failed: {exc} (IP: {get_remote_address()})")
             return [], public_error_message(str(exc), context="carga del catalogo GLPI")
@@ -511,7 +546,7 @@ def create_app() -> Flask:
                 client = GlpiClient.from_environment()
                 if not client:
                     raise GlpiError("GLPI no esta configurado.")
-                diagram_rows = _glpi_diagram_rows(client, entity_id)
+                diagram_rows = _glpi_diagram_rows(client, entity_id, drawio_stores.activity)
             except (ValueError, GlpiError) as exc:
                 glpi_error = public_error_message(str(exc), context="consulta de diagramas GLPI")
         return render_template(
@@ -530,7 +565,7 @@ def create_app() -> Flask:
         username = technician.get("username") or technician.get("name") or "local"
         client = GlpiClient.from_environment()
         rows = []
-        for item in ACTIVITY.list_for_technician(username):
+        for item in drawio_stores.activity.list_for_technician(username):
             item["created_label"] = format_activity_timestamp(item["created_at"])
             item["technician"] = item.get("technician_name") or username
             item["url"] = client.diagram_url(item["diagram_id"]) if client else ""
@@ -557,7 +592,7 @@ def create_app() -> Flask:
         from collections import Counter
 
         now = datetime.utcnow()
-        all_rows = ACTIVITY.list_all() if hasattr(ACTIVITY, "list_all") else []
+        all_rows = drawio_stores.activity.list_all() if hasattr(drawio_stores.activity, "list_all") else []
         today = [r for r in all_rows if datetime.utcfromtimestamp(r["created_at"]).date() == now.date()]
         week = [r for r in all_rows if datetime.utcfromtimestamp(r["created_at"]) >= now - timedelta(days=7)]
         month = [r for r in all_rows if datetime.utcfromtimestamp(r["created_at"]) >= now - timedelta(days=30)]
@@ -570,17 +605,17 @@ def create_app() -> Flask:
             if glpi_client:
                 catalog_for_coverage, _ = load_glpi_catalog()
                 if catalog_for_coverage:
-                    cached = CATALOG.get("admin_coverage")
+                    cached = drawio_stores.catalog.get("admin_coverage")
                     if cached is not None:
                         coverage_data = cached
                     else:
                         coverage_data = _build_coverage_data(catalog_for_coverage, glpi_client, all_rows)
-                        CATALOG.set("admin_coverage", coverage_data)
+                        drawio_stores.catalog.set("admin_coverage", coverage_data)
         except Exception:
             pass
 
         import re as _re
-        recent_events = SECLOG.recent(limit=200)
+        recent_events = drawio_stores.seclog.recent(limit=200)
         warn_count = 0
         for ev in recent_events:
             ev["ts_label"] = datetime.fromtimestamp(ev["ts"]).strftime("%d/%m/%Y %H:%M:%S")
@@ -671,7 +706,7 @@ def create_app() -> Flask:
                                 ),
                                 graph_xml=xml,
                             )
-                            ACTIVITY.add(
+                            drawio_stores.activity.add(
                                 diagram_id=diagram_id,
                                 entity_id=validated_entity_id,
                                 diagram_name=diagram_name,
@@ -761,7 +796,7 @@ def create_app() -> Flask:
                     **index_context(form_data=form_data, errors=[str(exc)], preview=None),
                 ), 400
             technician = current_technician()
-            SITES.set(
+            drawio_stores.sites.set(
                 glpi_entity_id,
                 generated.data.get("direccion", ""),
                 technician.get("name") or technician.get("username") or "desconocido",
@@ -771,11 +806,11 @@ def create_app() -> Flask:
         glpi_client = GlpiClient.from_environment()
         if glpi_entity_id and glpi_client:
             try:
-                existing_diagrams = _glpi_diagram_rows(glpi_client, glpi_entity_id)
+                existing_diagrams = _glpi_diagram_rows(glpi_client, glpi_entity_id, drawio_stores.activity)
             except GlpiError:
                 existing_diagrams = []
         technician = current_technician()
-        DOWNLOADS[token] = {
+        drawio_stores.downloads[token] = {
             "filename": generated.filename,
             "xml": generated.result.xml,
             "entity_id": glpi_entity_id,
@@ -813,7 +848,7 @@ def create_app() -> Flask:
     @app.get("/download/<token>")
     @login_required
     def download(token: str) -> Response:
-        payload = DOWNLOADS.get(token)
+        payload = drawio_stores.downloads.get(token)
         if not payload:
             return Response("Archivo no encontrado.", status=404, mimetype="text/plain; charset=utf-8")
         if payload.get("uploaded"):
@@ -831,7 +866,7 @@ def create_app() -> Flask:
     @app.get("/preview/<token>")
     @login_required
     def preview_drawio(token: str) -> str:
-        payload = DOWNLOADS.get(token)
+        payload = drawio_stores.downloads.get(token)
         if not payload:
             return Response("Diagrama pendiente no encontrado.", status=404)
         return render_template(
@@ -939,7 +974,7 @@ def create_app() -> Flask:
     @app.post("/confirm-glpi/<token>")
     @login_required
     def confirm_glpi(token: str) -> str:
-        payload = DOWNLOADS.get(token)
+        payload = drawio_stores.downloads.get(token)
         if not payload:
             return Response("Diagrama pendiente no encontrado.", status=404, mimetype="text/plain; charset=utf-8")
         if payload["uploaded"]:
@@ -974,7 +1009,7 @@ def create_app() -> Flask:
                 ),
                 graph_xml=payload["xml"],
             )
-            ACTIVITY.add(
+            drawio_stores.activity.add(
                 diagram_id=diagram_id,
                 entity_id=entity_id,
                 diagram_name=diagram_name,
@@ -988,7 +1023,7 @@ def create_app() -> Flask:
         except GlpiError as exc:
             security_logger.warning(f"GLPI confirm failed: {exc} (IP: {get_remote_address()})")
             return Response(public_error_message(str(exc), context="publicacion en GLPI"), status=502, mimetype="text/plain; charset=utf-8")
-        DOWNLOADS.update_payload(token, uploaded=True)
+        drawio_stores.downloads.update_payload(token, uploaded=True)
         return Response(
             json.dumps({"id": diagram_id, "url": client.diagram_url(diagram_id)}),
             mimetype="application/json",
