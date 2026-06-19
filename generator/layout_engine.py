@@ -15,7 +15,7 @@ DECT_HANDSET_BASE = {
     "w73h": "YEALINK W90DM",
 }
 SUMMARY_X = 900
-SUMMARY_WIDTH = 260
+SUMMARY_WIDTH = 380
 SUMMARY_TITLE_Y = 75
 SUMMARY_Y = 105
 SUMMARY_HEIGHT = 165
@@ -208,6 +208,7 @@ def validate_input_data(data: dict) -> list[str]:
 def summarize_equipment(data: dict) -> str:
     voip_lines: list[str] = []
     router_lines: list[str] = []
+    network_lines: list[str] = []
 
     router_model = _display_model(_safe(data.get("router", {}).get("modelo", "")))
     ont_model = _display_model(_safe(data.get("ont", {}).get("modelo", "")))
@@ -222,18 +223,21 @@ def summarize_equipment(data: dict) -> str:
         tipo = _safe(team.get("tipo", "")).lower()
         if tipo in {"telefono", "ata"}:
             voip_lines.append(f"x{qty} {model}")
-        elif tipo in {"switch", "wifi", "otro"} and model in {"CHATEAU", "ONT ZTE", "Microtik_hAPc", "MikroTik hAP ac3", "Router ZTE"}:
-            router_lines.append(model)
+        elif tipo in {"switch", "wifi", "otro"}:
+            network_lines.append(f"x{qty} {model}")
 
     voip_html = "<br>".join(voip_lines) if voip_lines else "&nbsp;"
     router_html = "<br>".join(router_lines) if router_lines else "&nbsp;"
+    network_html = "<br>".join(network_lines) if network_lines else "&nbsp;"
+    empty_cell = "<td>&nbsp;</td>"
     summary = [
         "<table style='width:100%;height:100%;border-collapse:collapse;' width='100%' height='100%' cellpadding='4' border='1'>",
         "<tbody>",
-        "<tr style='background-color:#A7C942;color:#ffffff;border:1px solid #98bf21;'><th align='left'>Puestos Voip</th><th align='left'>Routers/ONT</th></tr>",
-        f"<tr style='border:1px solid #98bf21;'><td>{voip_html}</td><td>{router_html}</td></tr>",
-        "<tr style='border:1px solid #98bf21;'><td>&nbsp;</td><td>&nbsp;</td></tr>",
-        "<tr style='border:1px solid #98bf21;'><td>&nbsp;</td><td>&nbsp;</td></tr>",
+        "<tr style='background-color:#A7C942;color:#ffffff;border:1px solid #98bf21;'>"
+        "<th align='left'>Puestos Voip</th><th align='left'>Routers/ONT</th><th align='left'>Switches/Otros</th></tr>",
+        f"<tr style='border:1px solid #98bf21;'><td>{voip_html}</td><td>{router_html}</td><td>{network_html}</td></tr>",
+        f"<tr style='border:1px solid #98bf21;'>{empty_cell}{empty_cell}{empty_cell}</tr>",
+        f"<tr style='border:1px solid #98bf21;'>{empty_cell}{empty_cell}{empty_cell}</tr>",
         "</tbody></table>",
     ]
     return "".join(summary)
@@ -575,7 +579,7 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
             label="Resumen Equipos",
             x=SUMMARY_X + 17,
             y=summary_title_y,
-            width=120,
+            width=160,
             height=30,
         )
     )

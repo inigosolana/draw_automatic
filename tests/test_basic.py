@@ -299,7 +299,28 @@ class BasicTests(unittest.TestCase):
         summary = summarize_equipment(data)
         self.assertIn("Puestos Voip", summary)
         self.assertIn("Routers/ONT", summary)
+        self.assertIn("Switches/Otros", summary)
         self.assertIn("x1 W70B<br>x1 T-31<br>x1 W71H", summary)
+        self.assertIn("CHATEAU<br>ONT ZTE", summary)
+
+    def test_summary_includes_switch_and_other_devices(self) -> None:
+        data = {
+            "cliente": "Demo",
+            "sede": "Central",
+            "direccion": "Bilbao",
+            "internet": {"tipo": "FIBRA + BACK UP", "velocidad": "1 GB"},
+            "ont": {"modelo": "ONT ZTE"},
+            "router": {"modelo": "CHATEAU"},
+            "equipos": [
+                {"tipo": "switch", "modelo": "TP-Link 8P", "cantidad": 1},
+                {"tipo": "wifi", "modelo": "Grandstream AP", "cantidad": 1},
+                {"tipo": "telefono", "modelo": "T-33", "cantidad": 4},
+            ],
+        }
+        summary = summarize_equipment(data)
+        self.assertIn("x1 TP-Link 8P", summary)
+        self.assertIn("x1 Grandstream AP", summary)
+        self.assertIn("x4 T-33", summary)
         self.assertIn("CHATEAU<br>ONT ZTE", summary)
 
     def test_chateau_label_is_short_and_shows_lan(self) -> None:

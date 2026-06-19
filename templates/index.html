@@ -63,13 +63,36 @@
           {% endif %}
           {% if preview.existing_diagrams %}
           <div class="message warning">
-            <h3>Esta sede ya tiene diagramas</h3>
-            <p>Revisa los existentes para evitar duplicados:</p>
-            <ul>
-              {% for diagram in preview.existing_diagrams %}
-              <li><a href="{{ diagram.url }}" target="_blank" rel="noopener">#{{ diagram.id }} - {{ diagram.name }}</a></li>
-              {% endfor %}
-            </ul>
+            <h3>Esta sede ya tiene {{ preview.existing_diagrams | length }} diagrama(s) en GLPI</h3>
+            <p>Puedes publicar otro igualmente. Cada subida queda registrada con fecha y tecnico.</p>
+            <div class="diagram-table-wrap is-cards">
+              <table class="diagram-table is-cards compact-diagram-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Nombre</th>
+                    <th>Fecha</th>
+                    <th>Tecnico</th>
+                    <th>Origen</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for diagram in preview.existing_diagrams %}
+                  <tr>
+                    <td data-label="ID">#{{ diagram.id }}</td>
+                    <td data-label="Nombre">{{ diagram.name }}</td>
+                    <td data-label="Fecha">{{ diagram.created_label or '—' }}</td>
+                    <td data-label="Tecnico">{{ diagram.technician or '—' }}</td>
+                    <td data-label="Origen">{{ diagram.source or '—' }}</td>
+                    <td data-label="">
+                      <a href="{{ diagram.url }}" target="_blank" rel="noopener">Abrir</a>
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
           </div>
           {% endif %}
           {% if preview.warnings %}
@@ -113,9 +136,9 @@
               class="button glpi"
               id="confirm-glpi"
               data-confirm-url="{{ preview.confirm_url }}"
-              data-allow-duplicate="{{ '1' if preview.existing_diagrams else '0' }}"
+              data-allow-duplicate="1"
             >
-              {% if preview.existing_diagrams %}Publicar otro igualmente{% else %}Confirmar y subir a GLPI{% endif %}
+              {% if preview.existing_diagrams %}Publicar otro en GLPI{% else %}Confirmar y subir a GLPI{% endif %}
             </button>
             {% endif %}
           </div>

@@ -22,7 +22,7 @@
           <div class="diagram-table-wrap is-cards">
             <table class="diagram-table is-cards">
               <thead>
-                <tr><th>Fecha</th><th>ID</th><th>Cliente</th><th>Sede</th><th>Nombre</th><th>Origen</th><th></th></tr>
+                <tr><th>Fecha</th><th>ID</th><th>Cliente</th><th>Sede</th><th>Nombre</th><th>Tecnico</th><th>Origen</th><th></th></tr>
               </thead>
               <tbody>
                 {% for diagram in diagrams %}
@@ -32,6 +32,7 @@
                   <td data-label="Cliente">{{ diagram.client_name }}</td>
                   <td data-label="Sede">{{ diagram.site_name }}</td>
                   <td data-label="Nombre">{{ diagram.diagram_name }}</td>
+                  <td data-label="Tecnico">{{ diagram.technician or diagram.technician_name }}</td>
                   <td data-label="Origen">{{ diagram.source }}</td>
                   <td data-label="">
                     {% if diagram.url %}

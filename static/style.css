@@ -1375,8 +1375,17 @@ textarea {
   margin: 12px 0;
 }
 
-.warnings {
-  margin-top: 12px;
+.compact-diagram-table {
+  margin-top: 0.75rem;
+}
+
+.compact-diagram-table td,
+.compact-diagram-table th {
+  font-size: 0.88rem;
+}
+
+.message.warning .diagram-table-wrap {
+  margin-top: 0.5rem;
 }
 
 .helper-text {

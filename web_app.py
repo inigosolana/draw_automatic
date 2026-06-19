@@ -19,6 +19,12 @@ from flask_wtf.csrf import CSRFProtect
 
 from generator.catalog_cache import CatalogCache
 from generator.diagram_activity import DiagramActivity
+from generator.diagram_metadata import (
+    build_diagram_description,
+    enrich_diagram_row,
+    format_activity_timestamp,
+    unique_diagram_name,
+)
 from generator.download_store import DownloadStore
 from generator.comms_client import CommsClient, CommsError, import_products_text
 from generator.work_order_text_parser import parse_work_order_paste
@@ -105,6 +111,28 @@ _MONTHS_ES = (
 
 def _activity_technician_name(row: dict) -> str:
     return row.get("technician_name") or row.get("technician", {}).get("name", "?")
+
+
+def _glpi_diagram_rows(client: GlpiClient, entity_id: int) -> list[dict]:
+    activity_map = ACTIVITY.map_for_entity(entity_id)
+    rows: list[dict] = []
+    for diagram in client.list_network_diagrams(entity_id):
+        diagram_id = diagram.get("id")
+        if not str(diagram_id or "").isdigit():
+            continue
+        row = {
+            "id": int(diagram_id),
+            "name": diagram.get("name") or f"Diagrama #{diagram_id}",
+            "description": diagram.get("shortdescription", ""),
+            "state": diagram.get("plugin_archimap_graphstates_id", ""),
+            "url": client.diagram_url(int(diagram_id)),
+        }
+        rows.append(enrich_diagram_row(row, activity_map))
+    rows.sort(
+        key=lambda item: activity_map.get(item["id"], {}).get("created_at", 0),
+        reverse=True,
+    )
+    return rows
 
 
 def _build_admin_chart_periods(all_rows: list[dict], now: datetime) -> dict:
@@ -454,19 +482,7 @@ def create_app() -> Flask:
                 client = GlpiClient.from_environment()
                 if not client:
                     raise GlpiError("GLPI no esta configurado.")
-                for diagram in client.list_network_diagrams(entity_id):
-                    diagram_id = diagram.get("id")
-                    if not str(diagram_id or "").isdigit():
-                        continue
-                    diagram_rows.append(
-                        {
-                            "id": int(diagram_id),
-                            "name": diagram.get("name") or f"Diagrama #{diagram_id}",
-                            "description": diagram.get("shortdescription", ""),
-                            "state": diagram.get("plugin_archimap_graphstates_id", ""),
-                            "url": client.diagram_url(int(diagram_id)),
-                        }
-                    )
+                diagram_rows = _glpi_diagram_rows(client, entity_id)
             except (ValueError, GlpiError) as exc:
                 glpi_error = public_error_message(str(exc), context="consulta de diagramas GLPI")
         return render_template(
@@ -486,7 +502,8 @@ def create_app() -> Flask:
         client = GlpiClient.from_environment()
         rows = []
         for item in ACTIVITY.list_for_technician(username):
-            item["created_label"] = datetime.fromtimestamp(item["created_at"]).strftime("%d/%m/%Y %H:%M")
+            item["created_label"] = format_activity_timestamp(item["created_at"])
+            item["technician"] = item.get("technician_name") or username
             item["url"] = client.diagram_url(item["diagram_id"]) if client else ""
             rows.append(item)
         return render_template(
@@ -566,71 +583,107 @@ def create_app() -> Flask:
     def upload_draw() -> str:
         glpi_customers, glpi_error = load_glpi_catalog()
         upload_error = ""
-        upload_result = None
+        upload_results: list[dict] = []
+        upload_errors: list[str] = []
         if request.method == "POST":
             entity_id = request.form.get("glpi_entity_id", "").strip()
             client_name = request.form.get("glpi_cliente", "").strip()
             site_name = request.form.get("glpi_sede", "").strip()
-            uploaded_file = request.files.get("drawio_file")
+            uploaded_files = request.files.getlist("drawio_files")
+            if not uploaded_files or not uploaded_files[0].filename:
+                legacy_file = request.files.get("drawio_file")
+                uploaded_files = [legacy_file] if legacy_file and legacy_file.filename else []
             client_ip = get_remote_address()
             technician_name = current_technician().get("name", "unknown")
-            
+
             if not entity_id:
                 upload_error = "Selecciona una sede de GLPI."
-            elif not uploaded_file or not uploaded_file.filename:
-                upload_error = "Selecciona un archivo .drawio."
-            elif not uploaded_file.filename.lower().endswith((".drawio", ".xml")):
-                upload_error = "El archivo debe tener extension .drawio o .xml."
-                security_logger.warning(f"Upload attempt with invalid file type: {uploaded_file.filename}, user={technician_name}, IP={client_ip}")
+            elif not uploaded_files:
+                upload_error = "Selecciona uno o varios archivos .drawio."
             else:
-                raw = uploaded_file.read()
                 try:
                     validated_entity_id = positive_integer(entity_id, "glpi_entity_id")
-                    xml = raw.decode("utf-8-sig")
-                    root = DefusedET.fromstring(xml)
-                    if root.tag != "mxfile":
-                        raise ValueError("El documento no contiene un mxfile de Draw.io.")
                     client = GlpiClient.from_environment()
                     if not client:
                         raise GlpiError("GLPI no esta configurado.")
                     existing_diagrams = client.list_network_diagrams(validated_entity_id)
-                    if existing_diagrams and request.form.get("allow_duplicate") != "1":
-                        existing_ids = ", ".join(
-                            f"#{item['id']}" for item in existing_diagrams if str(item.get("id", "")).isdigit()
+                    technician = current_technician()
+                    for uploaded_file in uploaded_files:
+                        if not uploaded_file or not uploaded_file.filename:
+                            continue
+                        if not uploaded_file.filename.lower().endswith((".drawio", ".xml")):
+                            upload_errors.append(
+                                f"{uploaded_file.filename}: extension no valida (.drawio o .xml)."
+                            )
+                            security_logger.warning(
+                                f"Upload attempt with invalid file type: {uploaded_file.filename}, "
+                                f"user={technician_name}, IP={client_ip}"
+                            )
+                            continue
+                        try:
+                            raw = uploaded_file.read()
+                            xml = raw.decode("utf-8-sig")
+                            root = DefusedET.fromstring(xml)
+                            if root.tag != "mxfile":
+                                raise ValueError("El documento no contiene un mxfile de Draw.io.")
+                            diagram_name = unique_diagram_name(
+                                Path(uploaded_file.filename).stem,
+                                existing_diagrams,
+                            )
+                            diagram_id = client.create_network_diagram(
+                                entity_id=validated_entity_id,
+                                name=diagram_name,
+                                description=build_diagram_description(
+                                    client_name=client_name,
+                                    site_name=site_name,
+                                    technician=technician,
+                                    source="Archivo antiguo",
+                                    filename=uploaded_file.filename,
+                                ),
+                                graph_xml=xml,
+                            )
+                            ACTIVITY.add(
+                                diagram_id=diagram_id,
+                                entity_id=validated_entity_id,
+                                diagram_name=diagram_name,
+                                client_name=client_name,
+                                site_name=site_name,
+                                technician=technician,
+                                source="Archivo antiguo",
+                            )
+                            learned_models = learn_from_drawio(xml, uploaded_file.filename)
+                            created = {
+                                "id": diagram_id,
+                                "url": client.diagram_url(diagram_id),
+                                "filename": uploaded_file.filename,
+                                "name": diagram_name,
+                                "cliente": client_name,
+                                "sede": site_name,
+                                "technician": technician.get("name") or technician.get("username") or "",
+                                "created_label": format_activity_timestamp(datetime.now().timestamp()),
+                                "learned_models": learned_models,
+                            }
+                            upload_results.append(created)
+                            existing_diagrams.append({"id": diagram_id, "name": diagram_name})
+                            security_logger.info(
+                                f"File uploaded successfully: diagram_id={diagram_id}, "
+                                f"file={uploaded_file.filename}, user={technician_name}, IP={client_ip}"
+                            )
+                        except (UnicodeDecodeError, DefusedET.ParseError, DefusedXmlException, ValueError, GlpiError) as exc:
+                            upload_errors.append(
+                                f"{uploaded_file.filename}: {public_error_message(str(exc), context='subida del diagrama')}"
+                            )
+                            security_logger.warning(
+                                f"Upload failed: {exc}, file={uploaded_file.filename}, "
+                                f"user={technician_name}, IP={client_ip}"
+                            )
+                    if not upload_results and not upload_error:
+                        upload_error = (
+                            upload_errors[0]
+                            if len(upload_errors) == 1
+                            else "No se ha podido subir ningun archivo."
                         )
-                        raise ValueError(
-                            f"Esta sede ya tiene diagramas ({existing_ids or 'existentes'}). "
-                            "Revísalos o marca la confirmación para subir otro."
-                        )
-                    diagram_id = client.create_network_diagram(
-                        entity_id=validated_entity_id,
-                        name=Path(uploaded_file.filename).stem,
-                        description=(
-                            f"Diagrama historico de {client_name} - {site_name}. "
-                            f"Subido por {current_technician()['name']}"
-                        ),
-                        graph_xml=xml,
-                    )
-                    ACTIVITY.add(
-                        diagram_id=diagram_id,
-                        entity_id=validated_entity_id,
-                        diagram_name=Path(uploaded_file.filename).stem,
-                        client_name=client_name,
-                        site_name=site_name,
-                        technician=current_technician(),
-                        source="Archivo antiguo",
-                    )
-                    learned_models = learn_from_drawio(xml, uploaded_file.filename)
-                    upload_result = {
-                        "id": diagram_id,
-                        "url": client.diagram_url(diagram_id),
-                        "filename": uploaded_file.filename,
-                        "cliente": client_name,
-                        "sede": site_name,
-                        "learned_models": learned_models,
-                    }
-                    security_logger.info(f"File uploaded successfully: diagram_id={diagram_id}, file={uploaded_file.filename}, user={technician_name}, IP={client_ip}")
-                except (UnicodeDecodeError, DefusedET.ParseError, DefusedXmlException, ValueError, GlpiError) as exc:
+                except (ValueError, GlpiError) as exc:
                     upload_error = public_error_message(str(exc), context="subida del diagrama")
                     security_logger.warning(f"Upload failed: {exc}, user={technician_name}, IP={client_ip}")
         return render_template(
@@ -638,7 +691,8 @@ def create_app() -> Flask:
             glpi_customers=glpi_customers,
             glpi_error=glpi_error,
             upload_error=upload_error,
-            upload_result=upload_result,
+            upload_errors=upload_errors,
+            upload_results=upload_results,
             technician=current_technician(),
         )
 
@@ -685,13 +739,12 @@ def create_app() -> Flask:
             )
         token = uuid.uuid4().hex
         existing_diagrams: list[dict] = []
-        if glpi_entity_id:
-            client = GlpiClient.from_environment()
-            if client:
-                try:
-                    existing_diagrams = client.list_network_diagrams(glpi_entity_id)
-                except GlpiError:
-                    existing_diagrams = []
+        glpi_client = GlpiClient.from_environment()
+        if glpi_entity_id and glpi_client:
+            try:
+                existing_diagrams = _glpi_diagram_rows(glpi_client, glpi_entity_id)
+            except GlpiError:
+                existing_diagrams = []
         technician = current_technician()
         DOWNLOADS[token] = {
             "filename": generated.filename,
@@ -721,15 +774,7 @@ def create_app() -> Flask:
             "confirm_url": url_for("confirm_glpi", token=token) if glpi_entity_id else "",
             "preview_url": url_for("preview_drawio", token=token),
             "technician": technician,
-            "existing_diagrams": [
-                {
-                    "id": int(item["id"]),
-                    "name": item.get("name") or f"Diagrama #{item['id']}",
-                    "url": client.diagram_url(int(item["id"])) if client else "",
-                }
-                for item in existing_diagrams
-                if str(item.get("id", "")).isdigit()
-            ],
+            "existing_diagrams": existing_diagrams,
         }
         return render_template(
             "index.html",
@@ -875,28 +920,28 @@ def create_app() -> Flask:
             return Response("GLPI no esta configurado.", status=503, mimetype="text/plain; charset=utf-8")
         try:
             entity_id = positive_integer(payload.get("entity_id"), "entity_id")
-            existing = client.list_network_diagrams(entity_id)
-            allow_duplicate = request.form.get("allow_duplicate") == "1"
-            if existing and not allow_duplicate:
-                return Response(
-                    "Esta sede ya tiene un diagrama. Revisa el existente antes de publicar otro.",
-                    status=409,
-                    mimetype="text/plain; charset=utf-8",
-                )
             technician = payload.get("technician") or current_technician()
+            existing = client.list_network_diagrams(entity_id)
+            diagram_name = unique_diagram_name(
+                f"{payload['cliente']} - {payload['sede']}",
+                existing,
+            )
             diagram_id = client.create_network_diagram(
                 entity_id=entity_id,
-                name=f"{payload['cliente']} - {payload['sede']}",
-                description=(
-                    f"Diagrama de red generado para {payload['cliente']}. "
-                    f"Subido por {technician.get('name') or technician.get('username')}"
+                name=diagram_name,
+                description=build_diagram_description(
+                    client_name=payload["cliente"],
+                    site_name=payload["sede"],
+                    technician=technician,
+                    source="Generado",
+                    filename=payload.get("filename", ""),
                 ),
                 graph_xml=payload["xml"],
             )
             ACTIVITY.add(
                 diagram_id=diagram_id,
                 entity_id=entity_id,
-                diagram_name=f"{payload['cliente']} - {payload['sede']}",
+                diagram_name=diagram_name,
                 client_name=payload["cliente"],
                 site_name=payload["sede"],
                 technician=technician,

@@ -34,6 +34,12 @@ class DiagramActivity:
                     ON diagram_activity (technician_username, created_at DESC)
                     """
                 )
+                connection.execute(
+                    """
+                    CREATE INDEX IF NOT EXISTS idx_diagram_activity_entity
+                    ON diagram_activity (entity_id, created_at DESC)
+                    """
+                )
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=10)
@@ -75,6 +81,24 @@ class DiagramActivity:
                         time.time(),
                     ),
                 )
+
+    def list_for_entity(self, entity_id: int, limit: int = 250) -> list[dict]:
+        with closing(self._connect()) as connection:
+            rows = connection.execute(
+                """
+                SELECT diagram_id, entity_id, diagram_name, client_name, site_name,
+                       technician_username, technician_name, source, created_at
+                FROM diagram_activity
+                WHERE entity_id = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (int(entity_id), max(1, int(limit))),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def map_for_entity(self, entity_id: int) -> dict[int, dict]:
+        return {row["diagram_id"]: row for row in self.list_for_entity(entity_id)}
 
     def list_for_technician(self, username: str, limit: int = 250) -> list[dict]:
         with closing(self._connect()) as connection:

@@ -20,16 +20,39 @@
         {% if upload_error %}
         <div class="message error"><strong>{{ upload_error }}</strong></div>
         {% endif %}
-        {% if upload_result %}
+        {% if upload_errors %}
+        <div class="message warning">
+          <h3>Algunos archivos no se han podido subir</h3>
+          <ul>
+            {% for item in upload_errors %}
+            <li>{{ item }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+        {% if upload_results %}
         <div class="message success">
-          <h2>Diagrama subido</h2>
-          <p><strong>{{ upload_result.filename }}</strong> se ha asociado a {{ upload_result.cliente }} / {{ upload_result.sede }}.</p>
-          {% if upload_result.learned_models %}
-          <p><strong>Base de conocimiento:</strong> se han aprendido {{ upload_result.learned_models | length }} modelo(s): {{ upload_result.learned_models | join(', ') }}.</p>
-          {% else %}
-          <p class="helper-text">No se encontraron iconos nuevos con una etiqueta suficientemente clara para aprenderlos.</p>
-          {% endif %}
-          <a class="button glpi" href="{{ upload_result.url }}" target="_blank" rel="noopener">Abrir diagrama #{{ upload_result.id }} en GLPI</a>
+          <h2>{{ upload_results | length }} diagrama(s) subido(s)</h2>
+          <div class="diagram-table-wrap is-cards">
+            <table class="diagram-table is-cards compact-diagram-table">
+              <thead>
+                <tr><th>Archivo</th><th>ID</th><th>Fecha</th><th>Tecnico</th><th></th></tr>
+              </thead>
+              <tbody>
+                {% for result in upload_results %}
+                <tr>
+                  <td data-label="Archivo">{{ result.filename }}</td>
+                  <td data-label="ID">#{{ result.id }}</td>
+                  <td data-label="Fecha">{{ result.created_label }}</td>
+                  <td data-label="Tecnico">{{ result.technician }}</td>
+                  <td data-label="">
+                    <a class="button glpi" href="{{ result.url }}" target="_blank" rel="noopener">Abrir</a>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
         </div>
         {% endif %}
 
@@ -56,15 +79,12 @@
           </section>
 
           <section class="form-section">
-            <h2>Archivo existente</h2>
-            <label>Archivo .drawio
-              <input type="file" name="drawio_file" accept=".drawio,.xml,application/xml,text/xml" required>
+            <h2>Archivos existentes</h2>
+            <label>Archivo(s) .drawio
+              <input type="file" name="drawio_files" accept=".drawio,.xml,application/xml,text/xml" multiple required>
             </label>
-            <p class="helper-text">El archivo se valida antes de subirlo y se conserva sin modificar.</p>
-            <label class="checkbox-label">
-              <input type="checkbox" name="allow_duplicate" value="1">
-              Permitir otro diagrama aunque la sede ya tenga uno
-            </label>
+            <p class="helper-text">Puedes seleccionar varios archivos a la vez. Cada uno se valida y se publica en GLPI con fecha y tecnico.</p>
+            <p class="info-callout"><span aria-hidden="true">ⓘ</span> Una sede puede tener varios diagramas. Consulta los existentes en <strong>Diagramas</strong>.</p>
           </section>
 
           <div class="actions">

@@ -14,7 +14,7 @@
       <section class="panel">
         <header class="panel-header">
           <h1>Consultar diagramas publicados</h1>
-          <p>Comprueba si una sede ya tiene diagramas en GLPI antes de crear o subir otro.</p>
+          <p>Consulta todos los diagramas de una sede en GLPI, con fecha, tecnico y origen cuando se subieron desde esta app.</p>
         </header>
 
         {% if glpi_error %}
@@ -52,14 +52,16 @@
           {% if diagrams %}
           <div class="diagram-table-wrap is-cards">
             <table class="diagram-table is-cards">
-              <thead><tr><th>ID</th><th>Nombre</th><th>Descripcion</th><th>Estado</th><th></th></tr></thead>
+              <thead><tr><th>ID</th><th>Nombre</th><th>Fecha</th><th>Tecnico</th><th>Origen</th><th>Descripcion</th><th></th></tr></thead>
               <tbody>
                 {% for diagram in diagrams %}
                 <tr>
                   <td data-label="ID">#{{ diagram.id }}</td>
                   <td data-label="Nombre">{{ diagram.name }}</td>
+                  <td data-label="Fecha">{{ diagram.created_label or '—' }}</td>
+                  <td data-label="Tecnico">{{ diagram.technician or '—' }}</td>
+                  <td data-label="Origen">{{ diagram.source or '—' }}</td>
                   <td data-label="Descripcion">{{ diagram.description }}</td>
-                  <td data-label="Estado">{{ diagram.state }}</td>
                   <td data-label=""><a class="button glpi" href="{{ diagram.url }}" target="_blank" rel="noopener">Abrir</a></td>
                 </tr>
                 {% endfor %}
