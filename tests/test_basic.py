@@ -263,6 +263,59 @@ class BasicTests(unittest.TestCase):
         self.assertEqual(base_node.model, "W70B")
         self.assertIn("SW1", base_node.label)
 
+    def test_multiple_dect_handsets_share_one_base(self) -> None:
+        data = {
+            "cliente": "Demo",
+            "sede": "Central",
+            "direccion": "Bilbao",
+            "template": "con_switch",
+            "internet": {"tipo": "SOLO FIBRA", "velocidad": "600 MB"},
+            "ont": {"modelo": "ONT ZTE"},
+            "router": {"modelo": "CHATEAU"},
+            "equipos": [
+                {"tipo": "switch", "modelo": "TP-Link 8P", "cantidad": 1},
+                {"tipo": "telefono", "modelo": "W71H", "cantidad": 1, "extension": "3001", "dect_base": "W70B"},
+                {"tipo": "telefono", "modelo": "W71H", "cantidad": 1, "extension": "3002", "dect_base": "W70B"},
+                {"tipo": "telefono", "modelo": "W73H", "cantidad": 1, "extension": "3003", "dect_base": "W70B"},
+            ],
+        }
+        nodes, edges = build_layout(data)
+        bases = [node for node in nodes if node.meta and node.meta.get("dect_role") == "base"]
+        handsets = sorted(
+            (node for node in nodes if node.meta and node.meta.get("dect_role") == "handset"),
+            key=lambda node: node.y,
+        )
+        self.assertEqual(len(bases), 1)
+        self.assertEqual(bases[0].model, "W70B")
+        self.assertEqual(len(handsets), 3)
+        self.assertTrue(all(handset.x == bases[0].x for handset in handsets))
+        self.assertEqual([handset.y for handset in handsets], sorted(handset.y for handset in handsets))
+        self.assertGreater(handsets[1].y, handsets[0].y)
+        self.assertGreater(handsets[2].y, handsets[1].y)
+        self.assertEqual(len([edge for edge in edges if edge.label == "DECT"]), 3)
+        self.assertEqual(len([edge for edge in edges if edge.target == bases[0].key and edge.source == "switch"]), 1)
+
+    def test_w70b_equipment_before_handsets_reuses_same_base(self) -> None:
+        data = {
+            "cliente": "Demo",
+            "sede": "Central",
+            "direccion": "Bilbao",
+            "internet": {"tipo": "SOLO FIBRA", "velocidad": "600 MB"},
+            "ont": {"modelo": "ONT ZTE"},
+            "router": {"modelo": "MikroTik hAP ac2"},
+            "equipos": [
+                {"tipo": "telefono", "modelo": "W70B", "cantidad": 1},
+                {"tipo": "telefono", "modelo": "W53H", "cantidad": 1, "extension": "3010", "dect_base": "W70B"},
+                {"tipo": "telefono", "modelo": "W53H", "cantidad": 1, "extension": "3011", "dect_base": "W70B"},
+            ],
+        }
+        nodes, edges = build_layout(data)
+        bases = [node for node in nodes if node.meta and node.meta.get("dect_role") == "base"]
+        handsets = [node for node in nodes if node.meta and node.meta.get("dect_role") == "handset"]
+        self.assertEqual(len(bases), 1)
+        self.assertEqual(len(handsets), 2)
+        self.assertFalse(any(edge.target == handsets[0].key and edge.label and edge.label.endswith("-LAN") for edge in edges))
+
     def test_switch_port_is_shown_on_device_label(self) -> None:
         data = {
             "cliente": "Demo",
@@ -456,6 +509,33 @@ class BasicTests(unittest.TestCase):
         row_center = devices[1].x + devices[1].width / 2
         switch_center = switch.x + switch.width / 2
         self.assertAlmostEqual(row_center, switch_center, delta=80)
+
+    def test_phones_bypass_switch_when_switch_telefonia_disabled(self) -> None:
+        data = {
+            "cliente": "Demo",
+            "sede": "Central",
+            "direccion": "Bilbao",
+            "template": "con_switch",
+            "switch_telefonia": False,
+            "internet": {"tipo": "SOLO FIBRA", "velocidad": "600 MB"},
+            "ont": {"modelo": "ONT ZTE"},
+            "router": {"modelo": "MikroTik hAP ac2"},
+            "equipos": [
+                {"tipo": "switch", "modelo": "TP-Link 16P", "cantidad": 1},
+                {"tipo": "telefono", "modelo": "T-31", "cantidad": 1, "extensiones": ["2001"]},
+                {"tipo": "pc", "modelo": "PC Oficina", "cantidad": 1},
+            ],
+        }
+        nodes, edges = build_layout(data)
+        phone = next(node for node in nodes if node.key.startswith("team_") and "T-31" in node.label)
+        pc = next(node for node in nodes if node.key.startswith("team_") and "PC Oficina" in node.label)
+        phone_edge = next(edge for edge in edges if edge.target == phone.key)
+        pc_edge = next(edge for edge in edges if edge.target == pc.key)
+        self.assertEqual(phone_edge.source, "router")
+        self.assertIn("ETH4", phone.label)
+        self.assertEqual(phone_edge.label, "ETH4-LAN")
+        self.assertEqual(pc_edge.source, "switch")
+        self.assertIn("SW1", pc.label)
 
     def test_switch_uses_eth3_and_phones_use_switch_ports(self) -> None:
         data = {

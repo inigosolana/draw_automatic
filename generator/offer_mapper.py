@@ -4,6 +4,18 @@ import re
 from dataclasses import dataclass, field
 
 
+from .parser import parse_equipment_line
+
+
+EXTENSION_LABEL_PATTERN = re.compile(
+    r"(?:extensi[oó]n(?:\s+sip)?|ext\.?)\s*[:=]?\s*(\d{2,6})",
+    re.IGNORECASE,
+)
+EXTENSION_INLINE_PATTERN = re.compile(
+    r"[,(\s]+(?:ext|extensi[oó]n)\.?\s*(\d{2,6})",
+    re.IGNORECASE,
+)
+
 ACCESSORY_PATTERN = re.compile(
     r"\b("
     r"cargador|psu|power\s*supply|fuente(?:\s+de\s+alimentaci[oó]n)?|"
@@ -37,6 +49,7 @@ SPEED_PATTERN = re.compile(r"\b(300\s*mb|600\s*mb|1\s*gb)\b", re.IGNORECASE)
 class OfferProduct:
     name: str
     quantity: int = 1
+    extensions: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -75,19 +88,92 @@ def is_accessory(name: str) -> bool:
     return bool(ACCESSORY_PATTERN.search(name or ""))
 
 
+def is_accessory(name: str) -> bool:
+    return bool(ACCESSORY_PATTERN.search(name or ""))
+
+
+def parse_extension_tokens(text: str) -> list[str]:
+    if not text:
+        return []
+    labeled = EXTENSION_LABEL_PATTERN.findall(text)
+    if labeled:
+        return labeled
+    ext_match = re.search(r"extensi\S*nes?\s+(.+)$|extensi\S*n\s+(.+)$", text, re.IGNORECASE)
+    if ext_match:
+        ext_text = next(group for group in ext_match.groups() if group)
+        return re.findall(r"\d{2,6}", ext_text)
+    return []
+
+
+def strip_inline_extensions(name: str) -> tuple[str, list[str]]:
+    extensions = EXTENSION_INLINE_PATTERN.findall(name or "")
+    cleaned = EXTENSION_INLINE_PATTERN.sub("", name or "")
+    cleaned = re.sub(r"\s{2,}", " ", cleaned).strip(" ,(")
+    return cleaned, extensions
+
+
+def _extensions_from_item_fields(item: dict) -> list[str]:
+    extensions: list[str] = []
+    raw_extensions = item.get("extensions")
+    if isinstance(raw_extensions, list):
+        extensions.extend(str(value).strip() for value in raw_extensions if str(value).strip())
+    for key in ("extension", "extension_sip", "sip_extension", "ext"):
+        value = item.get(key)
+        if value is not None and str(value).strip():
+            extensions.append(str(value).strip())
+    for key in ("configuration", "configuracion", "config"):
+        value = item.get(key)
+        if isinstance(value, str):
+            extensions.extend(parse_extension_tokens(value))
+        elif isinstance(value, dict):
+            for cfg_key in ("extension", "extension_sip", "sip_extension", "ext", "value"):
+                cfg_value = value.get(cfg_key)
+                if cfg_value is not None and str(cfg_value).strip():
+                    extensions.append(str(cfg_value).strip())
+            for cfg_value in value.values():
+                if isinstance(cfg_value, str):
+                    extensions.extend(parse_extension_tokens(cfg_value))
+    deduped: list[str] = []
+    for value in extensions:
+        if value not in deduped:
+            deduped.append(value)
+    return deduped
+
+
+def _offer_product_from_text_line(line: str) -> OfferProduct | None:
+    text = (line or "").strip()
+    if not text:
+        return None
+    quantity = 1
+    qty_match = re.match(r"^(\d+)\s*[x×]\s*(.+)$", text, re.IGNORECASE)
+    if qty_match:
+        quantity = max(1, int(qty_match.group(1)))
+        text = qty_match.group(2).strip()
+    name, inline_extensions = strip_inline_extensions(text)
+    equipment = parse_equipment_line(text if re.match(r"^\d+\s", text) else f"1 {text}")
+    if equipment:
+        model_name = str(equipment.get("modelo", "")).strip() or name or text
+        if not model_name and equipment.get("dect_base"):
+            model_name = f"Base DECT {equipment['dect_base']}"
+        quantity = max(1, int(equipment.get("cantidad", quantity)))
+        extensions = list(equipment.get("extensiones") or [])
+        for value in inline_extensions:
+            if value not in extensions:
+                extensions.append(value)
+        return OfferProduct(name=model_name, quantity=quantity, extensions=extensions)
+    return OfferProduct(name=name or text, quantity=quantity, extensions=inline_extensions)
+
+
 def normalize_products(raw_products: list[object]) -> list[OfferProduct]:
     products: list[OfferProduct] = []
     for item in raw_products:
+        if isinstance(item, OfferProduct):
+            products.append(item)
+            continue
         if isinstance(item, str):
-            name = item.strip()
-            quantity = 1
-            if not name:
-                continue
-            qty_match = re.match(r"^(\d+)\s*[x×]\s*(.+)$", name, re.IGNORECASE)
-            if qty_match:
-                quantity = max(1, int(qty_match.group(1)))
-                name = qty_match.group(2).strip()
-            products.append(OfferProduct(name=name, quantity=quantity))
+            product = _offer_product_from_text_line(item)
+            if product:
+                products.append(product)
             continue
         if not isinstance(item, dict):
             continue
@@ -106,7 +192,13 @@ def normalize_products(raw_products: list[object]) -> list[OfferProduct]:
             quantity = max(1, int(quantity))
         except (TypeError, ValueError):
             quantity = 1
-        products.append(OfferProduct(name=name, quantity=quantity))
+        name, inline_extensions = strip_inline_extensions(name)
+        extensions = inline_extensions + _extensions_from_item_fields(item)
+        deduped: list[str] = []
+        for value in extensions:
+            if value not in deduped:
+                deduped.append(value)
+        products.append(OfferProduct(name=name, quantity=quantity, extensions=deduped))
     return products
 
 
@@ -282,7 +374,7 @@ def map_offer_to_form(
         sede=sede.strip(),
         direccion=direccion.strip(),
     )
-    dect_bases: list[str] = []
+    active_dect_base = ""
     pending_devices: list[dict] = []
     connectivity_blob = connectivity_text or ""
     active_products: list[OfferProduct] = []
@@ -296,14 +388,15 @@ def map_offer_to_form(
             continue
         active_products.append(product)
 
+    offer_dect_bases: list[str] = []
     for product in active_products:
         name = product.name.strip()
         dect_base = _normalize_dect_base(name)
         if dect_base and (
             re.search(r"\bbase\b", name, re.IGNORECASE) or not _normalize_terminal_model(name)
         ):
-            for _ in range(max(1, product.quantity)):
-                dect_bases.append(dect_base)
+            offer_dect_bases.append(dect_base)
+    single_offer_base = offer_dect_bases[0] if len(offer_dect_bases) == 1 else ""
 
     for product in active_products:
         name = product.name.strip()
@@ -314,27 +407,33 @@ def map_offer_to_form(
         if dect_base and (
             re.search(r"\bbase\b", name, re.IGNORECASE) or not _normalize_terminal_model(name)
         ):
+            active_dect_base = dect_base
             continue
 
         terminal_model = _normalize_terminal_model(name)
         if terminal_model:
             is_dect_handset = terminal_model in {"W71H", "W72H", "W53H", "W73H"}
-            for _ in range(quantity):
+            product_extensions = list(product.extensions or [])
+            for index in range(quantity):
                 assigned_base = ""
                 if is_dect_handset:
-                    assigned_base = dect_bases.pop(0) if dect_bases else ""
-                    if not assigned_base:
-                        assigned_base = {
-                            "W71H": "W60B",
-                            "W72H": "W60B",
-                            "W53H": "W60B",
-                            "W73H": "W60B",
-                        }.get(terminal_model, "W60B")
+                    assigned_base = active_dect_base or single_offer_base or {
+                        "W71H": "W60B",
+                        "W72H": "W60B",
+                        "W53H": "W80B",
+                        "W73H": "YEALINK W90DM",
+                    }.get(terminal_model, "W60B")
+                extension = ""
+                if product_extensions:
+                    if index < len(product_extensions):
+                        extension = product_extensions[index]
+                    elif len(product_extensions) == 1:
+                        extension = product_extensions[0]
                 result.terminals.append(
                     {
                         "model": terminal_model,
                         "dect_base": assigned_base,
-                        "extension": "",
+                        "extension": extension,
                         "serial": "",
                         "mac": "",
                         "ip": "",

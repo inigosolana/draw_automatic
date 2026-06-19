@@ -2,7 +2,15 @@ from __future__ import annotations
 
 import re
 
-from .offer_mapper import ImportResult, extract_work_order_id, map_offer_to_form, parse_product_lines
+from .offer_mapper import (
+    ImportResult,
+    OfferProduct,
+    extract_work_order_id,
+    map_offer_to_form,
+    parse_extension_tokens,
+    parse_product_lines,
+    strip_inline_extensions,
+)
 
 
 OT_NUMBER_PATTERN = re.compile(r"\bOT0*(\d+)\b", re.IGNORECASE)
@@ -160,14 +168,35 @@ def _extract_servicio_lines(lines: list[str]) -> list[str]:
     return services
 
 
-def _extract_products(lines: list[str]) -> list[str]:
-    products: list[str] = []
-    for line in lines:
-        match = PRODUCT_LINE_PATTERN.search(line)
-        if match:
-            name = match.group(1).strip()
-            if name:
-                products.append(name)
+def _extract_products(lines: list[str]) -> list[OfferProduct]:
+    product_indices = [index for index, line in enumerate(lines) if PRODUCT_LINE_PATTERN.search(line)]
+    products: list[OfferProduct] = []
+    for position, start in enumerate(product_indices):
+        end = product_indices[position + 1] if position + 1 < len(product_indices) else len(lines)
+        match = PRODUCT_LINE_PATTERN.search(lines[start])
+        if not match:
+            continue
+        name = match.group(1).strip()
+        name, inline_extensions = strip_inline_extensions(name)
+        extensions = list(inline_extensions)
+        block = lines[start + 1 : end]
+        in_config = False
+        for line in block:
+            lowered = line.lower()
+            if lowered.startswith("configuraci"):
+                in_config = True
+                continue
+            found = parse_extension_tokens(line)
+            if found:
+                extensions.extend(found)
+                continue
+            if in_config and re.fullmatch(r"\d{2,6}", line.strip()):
+                extensions.append(line.strip())
+        deduped: list[str] = []
+        for value in extensions:
+            if value not in deduped:
+                deduped.append(value)
+        products.append(OfferProduct(name=name, quantity=1, extensions=deduped))
     return products
 
 
@@ -212,20 +241,20 @@ def parse_work_order_paste(text: str) -> ImportResult:
     cliente = _extract_client_name(lines)
     work_order_id = _extract_work_order_number(lines, full_text) or extract_work_order_id(raw)
     sede, direccion = _extract_installation(lines)
-    product_names = _extract_products(lines)
     servicio_lines = _extract_servicio_lines(lines)
     connectivity_text = _extract_connectivity_text(lines, full_text)
     if servicio_lines:
         connectivity_text = f"{connectivity_text} {' '.join(servicio_lines)}"
-
-    if not product_names:
-        product_names = [
+    product_entries = _extract_products(lines)
+    if product_entries:
+        products = product_entries
+    else:
+        fallback_names = [
             line
             for line in lines
             if line and not _looks_like_label(line) and len(line) < 120 and not CIF_PATTERN.fullmatch(line)
         ]
-
-    products = parse_product_lines("\n".join(product_names)) if product_names else []
+        products = parse_product_lines("\n".join(fallback_names)) if fallback_names else []
     result = map_offer_to_form(
         products,
         cliente=cliente,

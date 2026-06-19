@@ -94,6 +94,28 @@ class OfferImportTests(unittest.TestCase):
         self.assertEqual(result.internet_velocidad, "600 MB")
         self.assertEqual(result.terminals[0]["dect_base"], "W70B")
 
+    def test_maps_terminal_extensions_from_product_text(self) -> None:
+        products = parse_product_lines("SIP-T31G, extension 2001\nW71H, ext 2002")
+        result = map_offer_to_form(products)
+        self.assertEqual(len(result.terminals), 2)
+        self.assertEqual(result.terminals[0]["extension"], "2001")
+        self.assertEqual(result.terminals[1]["extension"], "2002")
+
+    def test_maps_terminal_extensions_from_json_product(self) -> None:
+        payload = normalize_work_order_payload(
+            {
+                "customer": {"name": "Cliente JSON", "tax_id": "A11111111"},
+                "site": {"name": "Sede Norte", "address": "Calle 1"},
+                "products": [
+                    {"name": "SIP-T31G", "quantity": 1, "configuration": "Extensión SIP: 3010"},
+                    {"name": "W71H", "quantity": 1, "extension": "3011"},
+                ],
+            }
+        )
+        result = map_offer_to_form(normalize_products(payload["products"]))
+        self.assertEqual(result.terminals[0]["extension"], "3010")
+        self.assertEqual(result.terminals[1]["extension"], "3011")
+
     def test_masmovil_fiber_backup_tunnel_maps_like_hap_and_wap_lte(self) -> None:
         products = parse_product_lines(
             "\n".join(

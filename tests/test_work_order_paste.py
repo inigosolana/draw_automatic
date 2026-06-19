@@ -109,6 +109,29 @@ class WorkOrderPasteTests(unittest.TestCase):
         self.assertEqual(len(result.terminals), 2)
         self.assertEqual(result.router_modelo, "CHATEAU")
 
+    def test_parses_terminal_extensions_from_configuration_block(self) -> None:
+        ot_text = """
+CIF
+B39357124
+Nombre del cliente
+Cliente Demo
+Producto: SIP-T31G
+Nombre del producto
+SIP-T31G
+Configuración
+Extensión SIP: 2001
+Producto: W71H
+Configuración
+2002
+Producto: GPON ONT
+"""
+        result = parse_work_order_paste(ot_text)
+        self.assertEqual(len(result.terminals), 2)
+        self.assertEqual(result.terminals[0]["model"], "T-31")
+        self.assertEqual(result.terminals[0]["extension"], "2001")
+        self.assertEqual(result.terminals[1]["model"], "W71H")
+        self.assertEqual(result.terminals[1]["extension"], "2002")
+
     def test_requires_text(self) -> None:
         with self.assertRaises(ValueError):
             parse_work_order_paste("   ")

@@ -9,6 +9,7 @@ from .device_catalog import devices_json_to_equipos
 from .drawio_writer import BuildResult, build_drawio
 from .layout_engine import build_layout, validate_input_data
 from .library_loader import load_library
+from .layout_engine import _parse_switch_telefonia
 from .parser import infer_template, parse_equipment_line, parse_natural_text
 
 
@@ -158,6 +159,7 @@ def form_to_structured_data(form: dict) -> dict:
         "sedes": [
             {
                 "nombre": legacy.get("sede") or "Sede Principal",
+                "switch_telefonia": legacy.get("switch_telefonia", True),
                 "conectividad": {
                     key: value
                     for key, value in {
@@ -205,6 +207,7 @@ def structured_to_generator_data(data: dict) -> dict:
         "ont": {"modelo": connectivity.get("ont", "")},
         "router": {"modelo": router.get("modelo", ""), "ip": router.get("ip", "")},
         "equipos": legacy_equipment,
+        "switch_telefonia": site.get("switch_telefonia", True),
     }
     infer_template(legacy)
     return legacy
@@ -226,6 +229,7 @@ def _form_to_legacy_data(form: dict) -> dict:
     data["cif"] = _clean_text(form.get("cif")) or data.get("cif", "")
     data["sede"] = _clean_text(form.get("sede")) or data.get("sede", "")
     data["direccion"] = _clean_text(form.get("direccion")) or data.get("direccion", "")
+    data["switch_telefonia"] = _parse_switch_telefonia(form.get("switch_telefonia"), default=True)
 
     internet = data.setdefault("internet", {})
     ont = data.setdefault("ont", {})
