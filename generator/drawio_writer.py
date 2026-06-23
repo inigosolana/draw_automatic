@@ -3,7 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from urllib.parse import quote
 from uuid import uuid4
-import xml.etree.ElementTree as ET
+
+from lxml import etree
 
 from .library_loader import LibraryIndex
 from .layout_engine import EdgeSpec, NodeSpec
@@ -34,12 +35,20 @@ class IdFactory:
         return f"id-{uuid4().hex[:12]}"
 
 
-def _geom(parent: ET.Element, x: int, y: int, width: int, height: int) -> None:
-    ET.SubElement(parent, "mxGeometry", {"x": str(x), "y": str(y), "width": str(width), "height": str(height), "as": "geometry"})
+def _serialize_mxfile(mxfile: etree._Element) -> str:
+    return etree.tostring(mxfile, encoding="unicode", pretty_print=False)
 
 
-def _text_cell(root: ET.Element, cell_id: str, value: str, style: str, x: int, y: int, width: int, height: int) -> None:
-    cell = ET.SubElement(root, "mxCell", {"id": cell_id, "value": value, "style": style, "parent": "1", "vertex": "1"})
+def _geom(parent: etree._Element, x: int, y: int, width: int, height: int) -> None:
+    etree.SubElement(
+        parent,
+        "mxGeometry",
+        {"x": str(x), "y": str(y), "width": str(width), "height": str(height), "as": "geometry"},
+    )
+
+
+def _text_cell(root: etree._Element, cell_id: str, value: str, style: str, x: int, y: int, width: int, height: int) -> None:
+    cell = etree.SubElement(root, "mxCell", {"id": cell_id, "value": value, "style": style, "parent": "1", "vertex": "1"})
     _geom(cell, x, y, width, height)
 
 
@@ -53,7 +62,7 @@ def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryI
     node_ids: dict[str, str] = {}
     page_height = max(827, max((node.y + node.height for node in nodes), default=0) + 120)
 
-    mxfile = ET.Element(
+    mxfile = etree.Element(
         "mxfile",
         {
             "host": "app.diagrams.net",
@@ -63,8 +72,8 @@ def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryI
             "type": "device",
         },
     )
-    diagram = ET.SubElement(mxfile, "diagram", {"id": "ausarta-diagram", "name": "Pagina-1"})
-    model = ET.SubElement(
+    diagram = etree.SubElement(mxfile, "diagram", {"id": "ausarta-diagram", "name": "Pagina-1"})
+    model = etree.SubElement(
         diagram,
         "mxGraphModel",
         {
@@ -85,13 +94,13 @@ def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryI
             "shadow": "0",
         },
     )
-    root = ET.SubElement(model, "root")
-    ET.SubElement(root, "mxCell", {"id": "0"})
-    ET.SubElement(root, "mxCell", {"id": "1", "parent": "0"})
+    root = etree.SubElement(model, "root")
+    etree.SubElement(root, "mxCell", {"id": "0"})
+    etree.SubElement(root, "mxCell", {"id": "1", "parent": "0"})
 
-    deferred_edges: list[ET.Element] = []
-    deferred_vertices: list[ET.Element] = []
-    deferred_labels: list[ET.Element] = []
+    deferred_edges: list[etree._Element] = []
+    deferred_vertices: list[etree._Element] = []
+    deferred_labels: list[etree._Element] = []
 
     for node in nodes:
         cell_id = ids.next()
@@ -106,7 +115,7 @@ def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryI
             _text_cell(root, cell_id, node.label, TABLE_STYLE, node.x, node.y, node.width, node.height)
             continue
         if node.kind == "cloud":
-            cell = ET.SubElement(root, "mxCell", {"id": cell_id, "value": "", "style": CLOUD_STYLE, "parent": "1", "vertex": "1"})
+            cell = etree.SubElement(root, "mxCell", {"id": cell_id, "value": "", "style": CLOUD_STYLE, "parent": "1", "vertex": "1"})
             _geom(cell, node.x, node.y, node.width, node.height)
             label_id = ids.next()
             _text_cell(root, label_id, f"<font><b>{node.label}</b></font>", TEXT_STYLE, node.x + 25, node.y + 25, 70, 25)
@@ -124,7 +133,7 @@ def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryI
         else:
             style = GENERIC_DEVICE_STYLE
             warnings.append(f"No se ha encontrado icono para: {node.model}")
-        cell = ET.Element("mxCell", {"id": cell_id, "value": "", "style": style, "parent": "1", "vertex": "1"})
+        cell = etree.Element("mxCell", {"id": cell_id, "value": "", "style": style, "parent": "1", "vertex": "1"})
         _geom(cell, node.x, node.y, node.width, node.height)
         deferred_vertices.append(cell)
 
@@ -135,7 +144,7 @@ def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryI
             label_style += f"fontColor={color};fontStyle=1;"
         label_lines = max(1, node.label.count("<br>") + 1)
         label_height = max(42, label_lines * 18 + 10)
-        label_cell = ET.Element("mxCell", {
+        label_cell = etree.Element("mxCell", {
             "id": label_id,
             "value": node.label,
             "style": label_style,
@@ -159,7 +168,7 @@ def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryI
             f"exitX={edge_spec.exit_x};exitY={edge_spec.exit_y};exitDx=0;exitDy=0;exitPerimeter=1;"
             f"entryX={edge_spec.entry_x};entryY={edge_spec.entry_y};entryDx=0;entryDy=0;entryPerimeter=1;"
         )
-        edge = ET.Element(
+        edge = etree.Element(
             "mxCell",
             {
                 "id": edge_id,
@@ -171,13 +180,13 @@ def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryI
                 "value": edge_spec.label or "",
             },
         )
-        geometry = ET.SubElement(edge, "mxGeometry", {"relative": "1", "as": "geometry"})
+        geometry = etree.SubElement(edge, "mxGeometry", {"relative": "1", "as": "geometry"})
         if edge_spec.waypoints:
-            points = ET.SubElement(geometry, "Array", {"as": "points"})
+            points = etree.SubElement(geometry, "Array", {"as": "points"})
             for waypoint_x, waypoint_y in edge_spec.waypoints:
-                ET.SubElement(points, "mxPoint", {"x": str(waypoint_x), "y": str(waypoint_y)})
+                etree.SubElement(points, "mxPoint", {"x": str(waypoint_x), "y": str(waypoint_y)})
         if edge_spec.label:
-            ET.SubElement(
+            etree.SubElement(
                 geometry,
                 "mxPoint",
                 {
@@ -195,5 +204,5 @@ def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryI
     for cell in deferred_labels:
         root.append(cell)
 
-    xml = ET.tostring(mxfile, encoding="unicode")
+    xml = _serialize_mxfile(mxfile)
     return BuildResult(xml=xml, warnings=warnings)

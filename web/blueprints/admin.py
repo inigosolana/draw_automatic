@@ -7,10 +7,9 @@ from flask import Blueprint, Response, render_template
 from flask_limiter.util import get_remote_address
 
 import web_app
+from web.services.stats import build_admin_chart_periods, build_coverage_data
 from web_app import (
     ADMIN_USERS,
-    _build_admin_chart_periods,
-    _build_coverage_data,
     current_technician,
     get_drawio_stores,
     load_glpi_catalog,
@@ -42,7 +41,7 @@ def create_admin_blueprint() -> Blueprint:
         today = [r for r in all_rows if datetime.utcfromtimestamp(r["created_at"]).date() == now.date()]
         week = [r for r in all_rows if datetime.utcfromtimestamp(r["created_at"]) >= now - timedelta(days=7)]
         month = [r for r in all_rows if datetime.utcfromtimestamp(r["created_at"]) >= now - timedelta(days=30)]
-        chart_periods = _build_admin_chart_periods(all_rows, now)
+        chart_periods = build_admin_chart_periods(all_rows, now)
 
         coverage_data = None
         try:
@@ -54,7 +53,7 @@ def create_admin_blueprint() -> Blueprint:
                     if cached is not None:
                         coverage_data = cached
                     else:
-                        coverage_data = _build_coverage_data(catalog_for_coverage, glpi_client, all_rows)
+                        coverage_data = build_coverage_data(catalog_for_coverage, glpi_client, all_rows)
                         drawio_stores.catalog.set("admin_coverage", coverage_data)
         except Exception:
             pass

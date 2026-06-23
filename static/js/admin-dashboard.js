@@ -82,10 +82,10 @@
 
     list.innerHTML = "";
     if (!data.top.length) {
-      empty.style.display = "";
+      empty.classList.add("is-visible");
       return;
     }
-    empty.style.display = "none";
+    empty.classList.remove("is-visible");
 
     var maxCount = Math.max(1, ...data.top.map(function (row) {
       return row.count;
@@ -102,8 +102,8 @@
       var barWrap = document.createElement("span");
       barWrap.className = "top-tech-bar-wrap";
       var bar = document.createElement("span");
-      bar.className = "top-tech-bar";
-      bar.style.width = Math.round((row.count / maxCount) * 100) + "%";
+      var bucket = Math.max(1, Math.min(10, Math.ceil((row.count / maxCount) * 10)));
+      bar.className = "top-tech-bar bar-w-" + bucket;
       barWrap.appendChild(bar);
 
       var count = document.createElement("span");
@@ -157,13 +157,13 @@
       var text = row.textContent.toLowerCase();
       var matchLevel = activeLevel === "ALL" || level === activeLevel;
       var matchSearch = !searchTerm || text.includes(searchTerm);
-      row.style.display = matchLevel && matchSearch ? "" : "none";
+      row.classList.toggle("is-hidden", !(matchLevel && matchSearch));
       if (matchLevel && matchSearch) {
         visible += 1;
       }
     });
     if (emptyMsg) {
-      emptyMsg.style.display = visible === 0 ? "" : "none";
+      emptyMsg.classList.toggle("is-visible", visible === 0);
     }
   }
 
@@ -190,7 +190,7 @@
   if (exportButton) {
     exportButton.addEventListener("click", function () {
       var visibleRows = rows.filter(function (row) {
-        return row.style.display !== "none";
+        return !row.classList.contains("is-hidden");
       });
       var lines = [["Fecha/Hora", "Nivel", "Mensaje"].join(";")];
       visibleRows.forEach(function (row) {

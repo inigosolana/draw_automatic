@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import ssl
 from base64 import b64encode
 from contextlib import contextmanager
 from urllib.error import HTTPError, URLError
@@ -14,12 +15,59 @@ class GlpiError(RuntimeError):
     pass
 
 
+class GlpiEndpoints:
+    """Centralized GLPI REST and Archimap web paths."""
+
+    INIT_SESSION = "initSession"
+    KILL_SESSION = "killSession"
+    GET_FULL_SESSION = "getFullSession"
+    ENTITY = "Entity"
+    PLUGIN_ARCHIMAP_GRAPH = "PluginArchimapGraph"
+    PLUGIN_ARCHIMAP_GRAPH_ITEM = "PluginArchimapGraph_Item"
+    ARCHIMAP_GRAPH_FORM = "/marketplace/archimap/front/graph.form.php"
+
+    @classmethod
+    def entity_page(cls, start: int, page_size: int) -> str:
+        end = start + page_size - 1
+        return f"{cls.ENTITY}?range={start}-{end}&with_inheritance=true"
+
+    @classmethod
+    def archimap_graph_page(cls, start: int, page_size: int) -> str:
+        end = start + page_size - 1
+        return f"{cls.PLUGIN_ARCHIMAP_GRAPH}?range={start}-{end}"
+
+
+def _env_bool(name: str, *, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _unverified_ssl_context() -> ssl.SSLContext:
+    context = ssl.create_default_context()
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+    return context
+
+
 class GlpiClient:
-    def __init__(self, url: str, app_token: str, user_token: str, timeout: int = 15) -> None:
+    def __init__(
+        self,
+        url: str,
+        app_token: str,
+        user_token: str,
+        timeout: int = 15,
+        *,
+        verify_ssl: bool = True,
+        ssl_context: ssl.SSLContext | None = None,
+    ) -> None:
         self.url = url.rstrip("/")
         self.app_token = app_token
         self.user_token = user_token
         self.timeout = timeout
+        self.verify_ssl = verify_ssl
+        self._ssl_context = ssl_context
 
     @classmethod
     def from_environment(cls) -> GlpiClient | None:
@@ -28,7 +76,15 @@ class GlpiClient:
         user_token = os.environ.get("GLPI_USER_TOKEN", "").strip()
         if not all((url, app_token, user_token)):
             return None
-        return cls(url, app_token, user_token)
+        verify_ssl = _env_bool("GLPI_VERIFY_SSL", default=True)
+        return cls(url, app_token, user_token, verify_ssl=verify_ssl)
+
+    def _urlopen_context(self) -> ssl.SSLContext | None:
+        if self._ssl_context is not None:
+            return self._ssl_context
+        if not self.verify_ssl:
+            return _unverified_ssl_context()
+        return None
 
     def _request(
         self,
@@ -49,7 +105,7 @@ class GlpiClient:
             method=method,
         )
         try:
-            with urlopen(request, timeout=self.timeout) as response:
+            with urlopen(request, timeout=self.timeout, context=self._urlopen_context()) as response:
                 return json.loads(response.read().decode("utf-8"))
         except HTTPError as exc:
             raise GlpiError(f"GLPI ha rechazado la operacion (codigo {exc.code}).") from exc
@@ -64,13 +120,13 @@ class GlpiClient:
             "App-Token": self.app_token,
             "Authorization": f"Basic {credentials}",
         }
-        payload = self._request("initSession", auth_headers)
+        payload = self._request(GlpiEndpoints.INIT_SESSION, auth_headers)
         session_token = payload.get("session_token") if isinstance(payload, dict) else None
         if not session_token:
             raise GlpiError("No se ha podido iniciar sesion.")
         headers = {"App-Token": self.app_token, "Session-Token": session_token}
         try:
-            full_session = self._request("getFullSession", headers)
+            full_session = self._request(GlpiEndpoints.GET_FULL_SESSION, headers)
             session_data = full_session.get("session", full_session) if isinstance(full_session, dict) else {}
             return {
                 "id": session_data.get("glpiID"),
@@ -79,7 +135,7 @@ class GlpiClient:
             }
         finally:
             try:
-                self._request("killSession", headers)
+                self._request(GlpiEndpoints.KILL_SESSION, headers)
             except GlpiError:
                 pass
 
@@ -89,7 +145,7 @@ class GlpiClient:
             "App-Token": self.app_token,
             "Authorization": f"user_token {self.user_token}",
         }
-        payload = self._request("initSession", auth_headers)
+        payload = self._request(GlpiEndpoints.INIT_SESSION, auth_headers)
         session_token = payload.get("session_token") if isinstance(payload, dict) else None
         if not session_token:
             raise GlpiError("No se ha podido iniciar sesion de servicio.")
@@ -98,7 +154,7 @@ class GlpiClient:
             yield headers
         finally:
             try:
-                self._request("killSession", headers)
+                self._request(GlpiEndpoints.KILL_SESSION, headers)
             except GlpiError:
                 pass
 
@@ -108,10 +164,7 @@ class GlpiClient:
             page_size = 1000
             start = 0
             while True:
-                payload = self._request(
-                    f"Entity?range={start}-{start + page_size - 1}&with_inheritance=true",
-                    headers,
-                )
+                payload = self._request(GlpiEndpoints.entity_page(start, page_size), headers)
                 page = payload.get("value", []) if isinstance(payload, dict) else payload
                 if not isinstance(page, list):
                     break
@@ -127,10 +180,7 @@ class GlpiClient:
             page_size = 1000
             start = 0
             while True:
-                payload = self._request(
-                    f"PluginArchimapGraph?range={start}-{start + page_size - 1}",
-                    headers,
-                )
+                payload = self._request(GlpiEndpoints.archimap_graph_page(start, page_size), headers)
                 page = payload.get("value", []) if isinstance(payload, dict) else payload
                 if not isinstance(page, list):
                     break
@@ -166,7 +216,7 @@ class GlpiClient:
         }
         with self.session() as headers:
             response = self._request(
-                "PluginArchimapGraph",
+                GlpiEndpoints.PLUGIN_ARCHIMAP_GRAPH,
                 headers,
                 method="POST",
                 payload={"input": diagram},
@@ -193,7 +243,7 @@ class GlpiClient:
                 return self.link_diagram_to_entity(diagram_id, entity_id, headers=session_headers)
         else:
             response = self._request(
-                "PluginArchimapGraph_Item",
+                GlpiEndpoints.PLUGIN_ARCHIMAP_GRAPH_ITEM,
                 headers,
                 method="POST",
                 payload={"input": relation},
@@ -207,7 +257,7 @@ class GlpiClient:
         web_url = os.environ.get("GLPI_WEB_URL", "").strip().rstrip("/")
         if not web_url:
             web_url = self.url.removesuffix("/apirest.php")
-        return f"{web_url}/marketplace/archimap/front/graph.form.php?id={int(diagram_id)}"
+        return f"{web_url}{GlpiEndpoints.ARCHIMAP_GRAPH_FORM}?id={int(diagram_id)}"
 
 
 def format_address(entity: dict) -> str:

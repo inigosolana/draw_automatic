@@ -16,6 +16,7 @@ services:
       GLPI_WEB_URL: "${GLPI_WEB_URL}"
       GLPI_APP_TOKEN: "${GLPI_APP_TOKEN}"
       GLPI_USER_TOKEN: "${GLPI_USER_TOKEN}"
+      GLPI_VERIFY_SSL: "${GLPI_VERIFY_SSL:-1}"
       CRM_API_URL: "${CRM_API_URL:-}"
       CRM_API_TOKEN: "${CRM_API_TOKEN:-}"
       CRM_WORK_ORDER_PATH: "${CRM_WORK_ORDER_PATH:-/api/work-orders/{work_order_id}}"

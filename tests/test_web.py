@@ -773,6 +773,7 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         csp = response.headers.get("Content-Security-Policy", "")
         self.assertIn("nonce-", csp)
+        self.assertNotIn("unsafe-inline", csp)
         self.assertRegex(response.data.decode("utf-8"), r'id="drawio-preview-config"\s+nonce="[^"]+"')
 
     def test_html_pages_do_not_use_executable_inline_scripts_under_csp(self) -> None:

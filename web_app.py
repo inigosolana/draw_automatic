@@ -4,7 +4,7 @@ import logging
 import os
 import secrets
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import timedelta
 from functools import wraps
 from pathlib import Path
 
@@ -148,15 +148,6 @@ try:
 except ImportError:
     pass
 
-_MONTHS_ES = (
-    "ene", "feb", "mar", "abr", "may", "jun",
-    "jul", "ago", "sep", "oct", "nov", "dic",
-)
-
-
-def _activity_technician_name(row: dict) -> str:
-    return row.get("technician_name") or row.get("technician", {}).get("name", "?")
-
 
 def _glpi_diagram_rows(client: GlpiClient, entity_id: int, activity: DiagramActivity) -> list[dict]:
     activity_map = activity.map_for_entity(entity_id)
@@ -178,148 +169,6 @@ def _glpi_diagram_rows(client: GlpiClient, entity_id: int, activity: DiagramActi
         reverse=True,
     )
     return rows
-
-
-def _build_admin_chart_periods(all_rows: list[dict], now: datetime) -> dict:
-    from collections import Counter
-
-    def rows_since(days: int) -> list[dict]:
-        cutoff = now - timedelta(days=days)
-        return [r for r in all_rows if datetime.utcfromtimestamp(r["created_at"]) >= cutoff]
-
-    def daily_buckets(days: int) -> tuple[list[str], list[int]]:
-        labels: list[str] = []
-        values: list[int] = []
-        for i in range(days - 1, -1, -1):
-            day = (now - timedelta(days=i)).date()
-            labels.append(day.strftime("%d/%m"))
-            values.append(len([
-                r for r in all_rows
-                if datetime.utcfromtimestamp(r["created_at"]).date() == day
-            ]))
-        return labels, values
-
-    week_labels, week_values = daily_buckets(7)
-    month_labels, month_values = daily_buckets(30)
-
-    year_labels: list[str] = []
-    year_values: list[int] = []
-    for i in range(11, -1, -1):
-        month = now.month - i
-        year = now.year
-        while month <= 0:
-            month += 12
-            year -= 1
-        start = datetime(year, month, 1)
-        end = datetime(year + 1, 1, 1) if month == 12 else datetime(year, month + 1, 1)
-        year_labels.append(f"{_MONTHS_ES[month - 1]} {str(year)[2:]}")
-        year_values.append(len([
-            r for r in all_rows
-            if start <= datetime.utcfromtimestamp(r["created_at"]) < end
-        ]))
-
-    def period_payload(rows: list[dict], labels: list[str], values: list[int]) -> dict:
-        top = Counter(_activity_technician_name(r) for r in rows).most_common(5)
-        return {
-            "labels": labels,
-            "values": values,
-            "total": len(rows),
-            "top": [{"name": name, "count": count} for name, count in top],
-        }
-
-    return {
-        "week": period_payload(rows_since(7), week_labels, week_values),
-        "month": period_payload(rows_since(30), month_labels, month_values),
-        "year": period_payload(rows_since(365), year_labels, year_values),
-    }
-
-
-def _build_coverage_data(
-    catalog: list[dict],
-    client,
-    activity_rows: list[dict],
-) -> dict | None:
-    """Build coverage map: provinces with sites lacking a diagram.
-
-    Returns a dict with keys:
-        provinces: list of {name, technician, total_missing, clientes: [...]}
-        total_sites: int
-        covered_sites: int
-        missing_sites: int
-        error: str or None
-    Returns None if GLPI is not configured.
-    """
-    if not client:
-        return None
-
-    from collections import Counter
-
-    # Fetch all diagrams from GLPI (entity_ids that have diagrams)
-    try:
-        all_diagrams = client.list_network_diagrams()
-    except GlpiError as exc:
-        return {"provinces": [], "total_sites": 0, "covered_sites": 0,
-                "missing_sites": 0, "error": public_error_message(str(exc), context="consulta de diagramas GLPI")}
-
-    covered_entity_ids: set[int] = set()
-    for diag in all_diagrams:
-        eid = diag.get("entities_id")
-        if eid and str(eid).isdigit():
-            covered_entity_ids.add(int(eid))
-
-    # Build entity_id → province_name map from catalog for activity lookup
-    entity_to_province: dict[int, str] = {}
-    total_sites = 0
-    provinces_coverage: list[dict] = []
-
-    for province in catalog:
-        prov_name = province.get("nombre", "?")
-        prov_data: dict = {"name": prov_name, "technician": "", "total_missing": 0, "clientes": []}
-
-        for cliente in province.get("clientes", []):
-            cli_name = cliente.get("nombre", "?")
-            cli_data: dict = {"name": cli_name, "sedes": []}
-
-            for sede in cliente.get("sedes", []):
-                eid = sede.get("id")
-                if eid is None:
-                    continue
-                total_sites += 1
-                entity_to_province[eid] = prov_name
-                if int(eid) not in covered_entity_ids:
-                    cli_data["sedes"].append({
-                        "name": sede.get("nombre", "?"),
-                        "direccion": sede.get("direccion", ""),
-                        "entity_id": int(eid),
-                    })
-                    prov_data["total_missing"] += 1
-
-            if cli_data["sedes"]:
-                prov_data["clientes"].append(cli_data)
-
-        # Detect most common technician for this province from activity
-        prov_technicians: Counter = Counter()
-        for row in activity_rows:
-            row_eid = row.get("entity_id")
-            if row_eid and entity_to_province.get(row_eid) == prov_name:
-                tech = row.get("technician_name") or row.get("technician_username", "?")
-                if tech and tech != "?":
-                    prov_technicians[tech] += 1
-        if prov_technicians:
-            prov_data["technician"] = prov_technicians.most_common(1)[0][0]
-
-        if prov_data["clientes"]:
-            provinces_coverage.append(prov_data)
-
-    provinces_coverage.sort(key=lambda p: p["total_missing"], reverse=True)
-    covered = total_sites - sum(p["total_missing"] for p in provinces_coverage)
-    return {
-        "provinces": provinces_coverage,
-        "total_sites": total_sites,
-        "covered_sites": covered,
-        "missing_sites": sum(p["total_missing"] for p in provinces_coverage),
-        "error": None,
-    }
 
 
 def current_technician() -> dict:
@@ -451,7 +300,7 @@ def create_app(stores: DrawioStores | None = None) -> Flask:
     csp = {
         'default-src': "'self'",
         'script-src': ["'self'", "embed.diagrams.net"],
-        'style-src': ["'self'", "'unsafe-inline'"],
+        'style-src': ["'self'"],
         'img-src': ["'self'", "data:", "embed.diagrams.net"],
         'frame-src': ["'self'", "embed.diagrams.net"],
         'frame-ancestors': "'self'",
@@ -468,7 +317,7 @@ def create_app(stores: DrawioStores | None = None) -> Flask:
             force_https=force_https,
             strict_transport_security=force_https,
             content_security_policy=csp,
-            content_security_policy_nonce_in=["script-src"],
+            content_security_policy_nonce_in=["script-src", "style-src"],
             frame_options=None,
             referrer_policy='strict-origin-when-cross-origin',
         )

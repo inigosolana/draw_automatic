@@ -24,7 +24,6 @@
 
         <section class="form-section full">
 
-          <!-- Tarjetas métricas -->
           <div class="admin-stats">
             <div class="admin-stat-card stat-hoy">
               <span class="stat-icon" aria-hidden="true">
@@ -80,10 +79,9 @@
             {% endif %}
           </div>
 
-          <!-- Gráfico + Top técnicos en rejilla -->
           <div class="admin-grid">
             <div class="admin-card">
-              <div class="admin-toolbar" style="margin-top:0;">
+              <div class="admin-toolbar admin-toolbar--flush">
                 <h2 id="chartTitle">Diagramas últimos 7 días</h2>
                 <div class="toolbar-spacer filter-row">
                   <button class="period-filter active" data-period="week">Semana</button>
@@ -91,21 +89,20 @@
                   <button class="period-filter" data-period="year">Año</button>
                 </div>
               </div>
-              <div style="max-width:100%;">
+              <div class="admin-chart-wrap">
                 <canvas id="activityChart" height="140"></canvas>
               </div>
             </div>
 
             <div class="admin-card">
-              <h2 id="topTechTitle" style="margin-top:0;">Top técnicos (7 días)</h2>
+              <h2 id="topTechTitle" class="is-flush">Top técnicos (7 días)</h2>
               <ul class="top-tech-list" id="topTechBody"></ul>
-              <div class="message" id="topTechEmpty" style="display:none; margin-top:0.75rem; margin-bottom:0;">
+              <div class="message admin-empty-note" id="topTechEmpty">
                 <strong>No hay actividad registrada en este periodo.</strong>
               </div>
             </div>
           </div>
 
-          <!-- Eventos de seguridad -->
           <div class="admin-toolbar">
             <h2>Últimos eventos de seguridad</h2>
             <div class="filter-row">
@@ -123,7 +120,7 @@
             <table class="diagram-table is-cards" id="secTable">
               <thead>
                 <tr>
-                  <th style="white-space:nowrap;">Fecha / Hora</th>
+                  <th class="is-nowrap">Fecha / Hora</th>
                   <th>Nivel</th>
                   <th>Mensaje</th>
                 </tr>
@@ -132,17 +129,17 @@
                 {% for ev in recent_events %}
                 <tr class="sec-row {{ 'row-warn' if ev.level in ('WARNING','ERROR','CRITICAL') else 'row-info' }}"
                     data-level="{{ ev.level }}">
-                  <td data-label="Fecha / Hora" style="white-space:nowrap; font-size:0.85rem;">{{ ev.ts_label }}</td>
+                  <td class="is-nowrap is-compact" data-label="Fecha / Hora">{{ ev.ts_label }}</td>
                   <td data-label="Nivel">
                     <span class="sec-badge sec-badge-{{ ev.level | lower }}">{{ ev.level }}</span>
                   </td>
-                  <td data-label="Mensaje" style="font-size:0.85rem; word-break:break-word;">{{ ev.message_clean }}</td>
+                  <td class="is-message" data-label="Mensaje">{{ ev.message_clean }}</td>
                 </tr>
                 {% endfor %}
               </tbody>
             </table>
           </div>
-          <p id="secEmpty" style="display:none; color:var(--muted); font-size:0.9rem; margin-top:0.5rem;">
+          <p id="secEmpty" class="admin-filter-empty">
             No hay eventos que coincidan con el filtro.
           </p>
           {% else %}
@@ -151,15 +148,14 @@
           </div>
           {% endif %}
 
-          <!-- Cobertura de diagramas -->
-          <div class="admin-toolbar" style="margin-top:2rem;">
+          <div class="admin-toolbar admin-toolbar--spaced">
             <h2>Sedes sin diagrama</h2>
             {% if coverage_data and not coverage_data.error %}
-            <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
-              <span style="color:var(--stat-red); font-weight:700;">
+            <div class="coverage-summary">
+              <span class="coverage-missing-count">
                 {{ coverage_data.missing_sites }} sin diagrama
               </span>
-              <span style="color:var(--muted); font-size:0.85rem;">
+              <span class="coverage-total-count">
                 de {{ coverage_data.total_sites }} sedes
                 ({{ ((coverage_data.covered_sites / (coverage_data.total_sites or 1)) * 100) | int }}% cobertura)
               </span>
@@ -168,43 +164,43 @@
           </div>
 
           {% if not coverage_data %}
-          <div class="message" style="margin-bottom:1rem;">
+          <div class="message admin-message-block">
             <strong>No se ha podido cargar la cobertura.</strong> GLPI no está configurado o no hay datos de catálogo.
           </div>
 
           {% elif coverage_data.error %}
-          <div class="message warning" style="margin-bottom:1rem;">
+          <div class="message warning admin-message-block">
             <strong>Error al consultar GLPI:</strong> {{ coverage_data.error }}
           </div>
 
           {% elif not coverage_data.provinces %}
-          <div class="message success" style="margin-bottom:1rem;">
+          <div class="message success admin-message-block">
             <strong>¡Cobertura completa!</strong> Todas las sedes del catálogo tienen al menos un diagrama publicado.
           </div>
 
           {% else %}
           {% for prov in coverage_data.provinces %}
-          <details class="admin-card coverage-details" style="margin-bottom:0.75rem;">
-            <summary style="cursor:pointer; display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center;">
-              <strong style="font-size:0.95rem;">{{ prov.name }}</strong>
+          <details class="admin-card coverage-details is-spaced">
+            <summary class="is-interactive">
+              <strong class="coverage-province-name">{{ prov.name }}</strong>
               {% if prov.technician %}
-              <span style="color:var(--muted); font-size:0.82rem;">
+              <span class="coverage-province-tech">
                 Técnico: <strong>{{ prov.technician }}</strong>
               </span>
               {% endif %}
-              <span class="sec-badge sec-badge-warning" style="margin-left:auto;">
+              <span class="sec-badge sec-badge-warning coverage-province-badge">
                 {{ prov.total_missing }} sede{{ 's' if prov.total_missing != 1 else '' }}
               </span>
             </summary>
             {% for cli in prov.clientes %}
-            <div style="margin-top:0.6rem; padding-top:0.6rem; border-top:1px solid var(--border);">
-              <strong style="font-size:0.88rem; color:var(--ink);">{{ cli.name }}</strong>
-              <ul style="margin:0.4rem 0 0; padding-left:1.2rem; list-style:disc;">
+            <div class="coverage-client-block">
+              <strong class="coverage-client-name">{{ cli.name }}</strong>
+              <ul class="coverage-site-list">
                 {% for sede in cli.sedes %}
-                <li style="margin-bottom:0.3rem; font-size:0.85rem;">
+                <li>
                   <strong>{{ sede.name }}</strong>
                   {% if sede.direccion %}
-                  <br><span style="color:var(--muted);">{{ sede.direccion }}</span>
+                  <br><span class="coverage-site-address">{{ sede.direccion }}</span>
                   {% endif %}
                 </li>
                 {% endfor %}
@@ -215,14 +211,13 @@
           {% endfor %}
           {% endif %}
 
-          <p style="margin-top:1.5rem;">
+          <p class="admin-back-link">
             <a class="button" href="{{ url_for('glpi_import.index') }}">Volver al inicio</a>
           </p>
         </section>
       </section>
     </main>
 
-    <!-- Chart.js -->
     <script src="{{ url_for('static', filename='js/chart.umd.min.js') }}?v={{ static_v }}"></script>
     <script type="application/json" id="admin-dashboard-config"{% if csp_nonce is defined %} nonce="{{ csp_nonce() }}"{% endif %}>{{ {"chartPeriods": chart_periods} | tojson }}</script>
     <script src="{{ url_for('static', filename='js/admin-dashboard.js') }}?v={{ static_v }}"></script>

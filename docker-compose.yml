@@ -13,6 +13,7 @@ services:
       GLPI_WEB_URL: "${GLPI_WEB_URL}"
       GLPI_APP_TOKEN: "${GLPI_APP_TOKEN}"
       GLPI_USER_TOKEN: "${GLPI_USER_TOKEN}"
+      GLPI_VERIFY_SSL: "${GLPI_VERIFY_SSL:-1}"
       DRAWIO_LIBRARY_PATH: "/app/library/${DRAWIO_LIBRARY_VERSION:-libreria_Ausarta_JUN_2026}.xml"
       DRAWIO_DOWNLOAD_DB: "/app/data/downloads.sqlite3"
       DRAWIO_SITE_DB: "/app/data/sites.sqlite3"
@@ -132,22 +133,18 @@ services:
     restart: unless-stopped
 
   backup:
-    image: alpine:3.19
+    build:
+      context: ./docker/backup
+      dockerfile: Dockerfile
+    image: ausarta-drawio-backup:local
     container_name: ausarta-drawio-backup
     restart: unless-stopped
+    environment:
+      TZ: "${TZ:-UTC}"
+      DRAWIO_BACKUP_RETENTION_DAYS: "${DRAWIO_BACKUP_RETENTION_DAYS:-7}"
     volumes:
-      - drawio_data:/app/data
+      - drawio_data:/app/data:ro
       - drawio_backup:/backup
-    entrypoint: >
-      /bin/sh -c "apk add --no-cache sqlite && trap exit TERM;
-      while :; do
-        DATE=$$(date +%F);
-        for db in downloads sites catalog activity security; do
-          sqlite3 /app/data/$${db}.sqlite3 \".backup '/backup/$${db}-$${DATE}.sqlite3'\";
-        done;
-        find /backup -name '*.sqlite3' -mtime +7 -delete;
-        sleep 24h & wait $${!};
-      done"
     depends_on:
       - drawio-generator
 
