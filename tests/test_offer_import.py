@@ -42,6 +42,19 @@ class OfferImportTests(unittest.TestCase):
         self.assertTrue(any("Accesorio ignorado" in w for w in result.warnings))
         self.assertFalse(any("no clasificado" in w for w in result.warnings))
 
+    def test_speed_from_fibra_pro_service_names(self) -> None:
+        max_speed = map_offer_to_form(
+            normalize_products([{"name": "GPON ONT"}]),
+            connectivity_text="Fibra PRO Max Velocidad",
+        )
+        self.assertEqual(max_speed.internet_velocidad, "1 GB")
+
+        pro_speed = map_offer_to_form(
+            normalize_products([{"name": "GPON ONT"}]),
+            connectivity_text="Fibra Profesional MásMóvil",
+        )
+        self.assertEqual(pro_speed.internet_velocidad, "600 MB")
+
     def test_maps_sample_offer_products(self) -> None:
         products = parse_product_lines(
             "\n".join(

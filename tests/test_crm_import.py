@@ -278,6 +278,7 @@ class CrmImportTests(unittest.TestCase):
         )
         self.assertEqual(result.internet_proveedor, "AIRE")
         self.assertEqual(result.internet_tipo, "FIBRA + BACK UP")
+        self.assertEqual(result.internet_velocidad, "1 GB")
         self.assertEqual(result.ont_modelo, "ONT ZTE")
         self.assertEqual(result.router_modelo, "MikroTik hAP ac2")
         self.assertEqual(result.backup_modelo, "WAP LTE")

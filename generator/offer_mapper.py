@@ -318,6 +318,12 @@ def _normalize_provider(text: str) -> str:
 
 
 def _normalize_speed(text: str) -> str:
+    lowered = (text or "").lower()
+    if "fibra pro max" in lowered:
+        return "1 GB"
+    if "fibra profesional" in lowered or re.search(r"\bfibra\s+pro\b", lowered):
+        return "600 MB"
+
     match = SPEED_PATTERN.search(text or "")
     if not match:
         return ""
