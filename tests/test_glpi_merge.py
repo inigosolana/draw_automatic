@@ -63,6 +63,26 @@ class GlpiMergeTests(unittest.TestCase):
         self.assertTrue(any(item["field"] == "cliente" for item in merged["corrections"]))
         self.assertTrue(any(item["field"] == "sede" for item in merged["corrections"]))
 
+    def test_keeps_crm_address_when_glpi_differs(self) -> None:
+        merged = merge_import_with_glpi(
+            {
+                "cliente": "Nort Iberian Control S.L",
+                "cif": "B39357124",
+                "sede": "Oficina",
+                "direccion": "Calle Nueva, 5, Bajo. Fuensanta, Pinos Puente 18328, Granada",
+            },
+            CATALOG,
+        )
+        self.assertEqual(merged["glpi_entity_id"], "501")
+        self.assertIn("Calle Nueva", merged["direccion"])
+        self.assertTrue(
+            any(
+                item["field"] == "direccion" and item["source"] == "CRM"
+                for item in merged["corrections"]
+            )
+        )
+        self.assertIn("GLPI tenía otra distinta", merged["message"])
+
     def test_uses_glpi_when_offer_has_no_address(self) -> None:
         merged = merge_import_with_glpi(
             {

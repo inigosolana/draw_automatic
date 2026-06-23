@@ -299,7 +299,12 @@ def merge_import_with_glpi(imported: dict, catalog: list[dict]) -> dict:
         if best_site
         else ""
     )
-    merged_address, address_source = _pick_address(original["direccion"], glpi_direccion)
+    if original["direccion"]:
+        # La direccion del CRM/OT suele ser mas fiable que la de GLPI.
+        merged_address = original["direccion"]
+        address_source = "CRM"
+    else:
+        merged_address, address_source = _pick_address(original["direccion"], glpi_direccion)
 
     merged = {
         "cliente": glpi_cliente or original["cliente"],
@@ -317,12 +322,20 @@ def merge_import_with_glpi(imported: dict, catalog: list[dict]) -> dict:
         item = _maybe_correction(field, original[field], merged[field], source)
         if item:
             corrections.append(item)
-    address_correction = _maybe_correction(
-        "direccion",
-        original["direccion"] or glpi_direccion,
-        merged["direccion"],
-        address_source or "GLPI",
-    )
+    if original["direccion"] and glpi_direccion and _normalize(original["direccion"]) != _normalize(glpi_direccion):
+        address_correction = _maybe_correction(
+            "direccion",
+            glpi_direccion,
+            original["direccion"],
+            "CRM",
+        )
+    else:
+        address_correction = _maybe_correction(
+            "direccion",
+            original["direccion"] or glpi_direccion,
+            merged["direccion"],
+            address_source or "GLPI",
+        )
     if address_correction:
         corrections.append(address_correction)
 
@@ -347,6 +360,18 @@ def merge_import_with_glpi(imported: dict, catalog: list[dict]) -> dict:
         )
         return result
 
+    message = (
+        f"GLPI: {merged['cliente']} / {merged['sede']}"
+        if best_site
+        else f"GLPI: cliente {merged['cliente']} encontrado. Selecciona la sede manualmente."
+    )
+    if (
+        original["direccion"]
+        and glpi_direccion
+        and _normalize(original["direccion"]) != _normalize(glpi_direccion)
+    ):
+        message += " Dirección del CRM aplicada; GLPI tenía otra distinta."
+
     result.update(
         {
             "matched": True,
@@ -358,11 +383,7 @@ def merge_import_with_glpi(imported: dict, catalog: list[dict]) -> dict:
             "direccion": merged["direccion"],
             "corrections": corrections,
             "suggestions": [],
-            "message": (
-                f"GLPI: {merged['cliente']} / {merged['sede']}"
-                if best_site
-                else f"GLPI: cliente {merged['cliente']} encontrado. Selecciona la sede manualmente."
-            ),
+            "message": message,
         }
     )
     return result

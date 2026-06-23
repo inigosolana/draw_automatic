@@ -221,7 +221,36 @@ def _validate_crm_terminal_fields(terminal: dict, label: str) -> None:
         )
 
 
+def unwrap_work_order_api_response(payload: object) -> dict:
+    """Extract the work-order body from CRM envelopes such as ``{status, result}``."""
+    if not isinstance(payload, dict):
+        raise CommsError("La respuesta JSON no es un objeto valido.")
+
+    work_order_keys = (
+        "customer",
+        "cliente",
+        "client",
+        "equipments",
+        "equipment",
+        "products",
+        "terminals",
+        "sede",
+        "site",
+        "location",
+    )
+    if any(key in payload for key in work_order_keys):
+        return payload
+
+    for wrapper_key in ("result", "data", "payload", "body"):
+        inner = payload.get(wrapper_key)
+        if isinstance(inner, dict):
+            return inner
+
+    return payload
+
+
 def normalize_work_order_payload(payload: object) -> dict:
+    payload = unwrap_work_order_api_response(payload)
     if not isinstance(payload, dict):
         raise CommsError("La respuesta JSON no es un objeto valido.")
 
@@ -286,6 +315,7 @@ def normalize_work_order_payload(payload: object) -> dict:
 
     top_direccion = _clean(payload.get("direccion") or payload.get("address"))
     sede_name = _clean(site.get("name") or site.get("nombre"))
+    # CRM may send address_id, contact_id, matriz, contact, etc.; only name + address are used.
     sede_address = _clean(site.get("address") or site.get("direccion")) or top_direccion
     if isinstance(sede_raw, str):
         sede_text = _clean(sede_raw)
@@ -418,8 +448,24 @@ def apply_structured_connectivity(result: ImportResult, connectivity: dict[str, 
             result.internet_tipo = inferred
 
 
+def _validate_work_order_identity_fields(normalized: dict) -> None:
+    """Cliente, CIF, sede y direccion son obligatorios para importar una OT."""
+    missing: list[str] = []
+    if not normalized.get("cliente"):
+        missing.append("cliente (customer.fullname)")
+    if not normalized.get("cif"):
+        missing.append("CIF (customer.document)")
+    if not normalized.get("sede"):
+        missing.append("sede (sede.name)")
+    if not normalized.get("direccion"):
+        missing.append("direccion (sede.address)")
+    if missing:
+        raise CommsError("La OT no incluye campos obligatorios: " + ", ".join(missing))
+
+
 def import_result_from_json_payload(payload: dict, *, work_order_id: str = "") -> ImportResult:
     normalized = normalize_work_order_payload(payload)
+    _validate_work_order_identity_fields(normalized)
     resolved_work_order_id = (
         normalized.get("work_order_id")
         or extract_work_order_id(work_order_id)

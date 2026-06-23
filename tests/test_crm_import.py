@@ -49,14 +49,17 @@ SAMPLE_CRM_PAYLOAD = {
 
 
 RESTAURACION_ALBENZAIRE_CRM_PAYLOAD = {
-    "work_order_id": "9012",
     "customer": {
         "document": "B19532548",
         "fullname": "RESTAURACION ALBENZAIRE SL",
     },
     "sede": {
-        "name": "Local Fuensanta - Bajo",
+        "name": "Sede 1 - PRINCIPAL",
+        "address_id": 216792,
+        "contact_id": 40319,
+        "matriz": True,
         "address": "Calle Nueva, 5, Bajo. Fuensanta, Pinos Puente 18328, Granada",
+        "contact": "CONCEPCION DIAZ FERNANDEZ - administracion@albenzaire.com - 629272188",
     },
     "equipments": {
         "16425": {
@@ -124,6 +127,11 @@ RESTAURACION_ALBENZAIRE_CRM_PAYLOAD = {
             "service_ext": "3002",
         },
     },
+}
+
+RESTAURACION_ALBENZAIRE_CRM_API_RESPONSE = {
+    "status": "OK",
+    "result": RESTAURACION_ALBENZAIRE_CRM_PAYLOAD,
 }
 
 
@@ -206,6 +214,29 @@ class CrmImportTests(unittest.TestCase):
         with self.assertRaises(CommsError):
             import_result_from_json_payload({"customer": {"name": "Demo"}})
 
+    def test_import_result_requires_cliente_cif_sede_direccion(self) -> None:
+        payload = {
+            "customer": {"document": "B19532548"},
+            "sede": {"name": "Sede 1"},
+            "equipments": {
+                "1": {
+                    "productName": "Yealink - SIP-T33G",
+                    "S/N": "SN001",
+                    "MAC": "44DBD29AA96D",
+                    "service_ext": "3001",
+                }
+            },
+        }
+        with self.assertRaisesRegex(CommsError, "cliente \\(customer.fullname\\)"):
+            import_result_from_json_payload(payload)
+        with self.assertRaisesRegex(CommsError, "direccion \\(sede.address\\)"):
+            import_result_from_json_payload(
+                {
+                    **payload,
+                    "customer": {"document": "B19532548", "fullname": "Cliente Demo"},
+                }
+            )
+
     def test_import_result_requires_mac_on_crm_terminals(self) -> None:
         payload = {
             **SAMPLE_CRM_PAYLOAD,
@@ -240,7 +271,7 @@ class CrmImportTests(unittest.TestCase):
         self.assertEqual(result.work_order_id, "9012")
         self.assertEqual(result.cliente, "RESTAURACION ALBENZAIRE SL")
         self.assertEqual(result.cif, "B19532548")
-        self.assertEqual(result.sede, "Local Fuensanta - Bajo")
+        self.assertEqual(result.sede, "Sede 1 - PRINCIPAL")
         self.assertEqual(
             result.direccion,
             "Calle Nueva, 5, Bajo. Fuensanta, Pinos Puente 18328, Granada",
@@ -258,6 +289,36 @@ class CrmImportTests(unittest.TestCase):
         self.assertEqual(result.terminals[1]["mac"], "44:DB:D2:9A:A9:6D")
         self.assertEqual(result.terminals[2]["serial"], "301046H090045964")
         self.assertTrue(any(device["tipo"] == "wifi" for device in result.devices_json))
+
+    def test_import_unwraps_status_result_envelope(self) -> None:
+        result = import_result_from_json_payload(
+            RESTAURACION_ALBENZAIRE_CRM_API_RESPONSE,
+            work_order_id="9012",
+        )
+        self.assertEqual(result.cliente, "RESTAURACION ALBENZAIRE SL")
+        self.assertEqual(result.sede, "Sede 1 - PRINCIPAL")
+        self.assertEqual(len(result.terminals), 3)
+
+    @patch("generator.crm_client.urlopen")
+    def test_crm_client_unwraps_status_result_response(self, urlopen_mock) -> None:
+        response = urlopen_mock.return_value.__enter__.return_value
+        response.read.return_value = json.dumps(RESTAURACION_ALBENZAIRE_CRM_API_RESPONSE).encode("utf-8")
+
+        client = CrmClient("https://crm.example.test", api_token="secret-token")
+        result = client.import_work_order("9012")
+
+        self.assertEqual(result.sede, "Sede 1 - PRINCIPAL")
+        self.assertEqual(result.terminals[0]["dect_base"], "W70B")
+
+    def test_sede_ignores_crm_metadata_fields(self) -> None:
+        normalized = normalize_work_order_payload(RESTAURACION_ALBENZAIRE_CRM_PAYLOAD)
+        self.assertEqual(normalized["sede"], "Sede 1 - PRINCIPAL")
+        self.assertEqual(
+            normalized["direccion"],
+            "Calle Nueva, 5, Bajo. Fuensanta, Pinos Puente 18328, Granada",
+        )
+        self.assertNotIn("address_id", normalized)
+        self.assertNotIn("contact", normalized)
 
     def test_single_dect_base_links_all_wireless_handsets(self) -> None:
         payload = {
