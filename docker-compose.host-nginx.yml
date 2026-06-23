@@ -19,7 +19,7 @@ services:
       GLPI_VERIFY_SSL: "${GLPI_VERIFY_SSL:-1}"
       CRM_API_URL: "${CRM_API_URL:-}"
       CRM_API_TOKEN: "${CRM_API_TOKEN:-}"
-      CRM_WORK_ORDER_PATH: "${CRM_WORK_ORDER_PATH:-/api/work-orders/{work_order_id}}"
+      CRM_WORK_ORDER_PATH: "${CRM_WORK_ORDER_PATH:-/WorkOrders/getWorkOrderForDraw/{work_order_id}}"
       CRM_API_TIMEOUT: "${CRM_API_TIMEOUT:-20}"
       COMMS_URL: "${COMMS_URL:-https://comms.aureamotriz.com}"
       COMMS_USERNAME: "${COMMS_USERNAME:-}"

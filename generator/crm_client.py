@@ -27,12 +27,12 @@ class CrmClient:
         base_url: str,
         *,
         api_token: str = "",
-        work_order_path: str = "/api/work-orders/{work_order_id}",
+        work_order_path: str = "/WorkOrders/getWorkOrderForDraw/{work_order_id}",
         timeout: int = 20,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.api_token = api_token.strip()
-        self.work_order_path = work_order_path.strip() or "/api/work-orders/{work_order_id}"
+        self.work_order_path = work_order_path.strip() or "/WorkOrders/getWorkOrderForDraw/{work_order_id}"
         self.timeout = timeout
 
     @classmethod
@@ -46,7 +46,7 @@ class CrmClient:
             api_token=api_token,
             work_order_path=os.environ.get(
                 "CRM_WORK_ORDER_PATH",
-                "/api/work-orders/{work_order_id}",
+                "/WorkOrders/getWorkOrderForDraw/{work_order_id}",
             ).strip(),
             timeout=int(os.environ.get("CRM_API_TIMEOUT", "20")),
         )
