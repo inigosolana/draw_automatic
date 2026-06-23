@@ -147,9 +147,14 @@ def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryI
 
     for edge_spec in edges:
         edge_id = ids.next()
-        style = EDGE_STYLE.replace("rounded=1", "rounded=0" if edge_spec.label and edge_spec.label.startswith("ETH1") else "rounded=1")
+        style = EDGE_STYLE.replace(
+            "rounded=1",
+            "rounded=0" if edge_spec.label and edge_spec.label.startswith("ETH") else "rounded=1",
+        )
         if edge_spec.label == "DECT":
             style += "dashed=1;dashPattern=8 8;strokeColor=#6c8ebf;"
+        elif edge_spec.label and "ETH" in edge_spec.label:
+            style += "verticalLabelPosition=top;verticalAlign=bottom;"
         style += (
             f"exitX={edge_spec.exit_x};exitY={edge_spec.exit_y};exitDx=0;exitDy=0;exitPerimeter=1;"
             f"entryX={edge_spec.entry_x};entryY={edge_spec.entry_y};entryDx=0;entryDy=0;entryPerimeter=1;"

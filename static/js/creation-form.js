@@ -252,7 +252,20 @@
               .replaceAll(">", "&gt;");
           }
 
-          function addTerminalRow(values = {}) {
+          function normalizeTerminalValues(values = {}) {
+            return {
+              model: values.model || "",
+              extension: values.extension || "",
+              serial: values.serial || values.serial_number || "",
+              mac: values.mac || "",
+              ip: values.ip || "",
+              ownership: values.ownership || "propio",
+              dectBase: values.dectBase || values.dect_base || "",
+            };
+          }
+
+          function addTerminalRow(rawValues = {}) {
+            const values = normalizeTerminalValues(rawValues);
             const row = document.createElement("div");
             row.className = "terminal-row";
             const modelOptions = ['<option value="">Selecciona un modelo</option>']
@@ -604,10 +617,28 @@
               workOrderPaste.style.height = Math.min(workOrderPaste.scrollHeight, 120) + "px";
             }
 
+            function buildImportPayload(text) {
+              const trimmed = (text || "").trim();
+              if (!trimmed) {
+                return null;
+              }
+              if (trimmed.includes("\n") || trimmed.length > 160) {
+                return { pasted_text: trimmed };
+              }
+              if (/^https?:\/\//i.test(trimmed)) {
+                return { url: trimmed };
+              }
+              if (/^(?:OT)?0*\d{3,}$/i.test(trimmed)) {
+                return { work_order_id: trimmed };
+              }
+              return { pasted_text: trimmed };
+            }
+
             async function runImport() {
               const pastedText = (workOrderPaste && workOrderPaste.value || "").trim();
-              if (!pastedText) {
-                importStatus.textContent = "Pega primero el contenido de la oferta.";
+              const importPayload = buildImportPayload(pastedText);
+              if (!importPayload) {
+                importStatus.textContent = "Pega la OT, escribe el ID o un enlace.";
                 if (workOrderPaste) {
                   workOrderPaste.focus();
                 }
@@ -628,7 +659,7 @@
                     "Content-Type": "application/json",
                     "X-CSRFToken": csrfToken,
                   },
-                  body: JSON.stringify({ pasted_text: pastedText }),
+                  body: JSON.stringify(importPayload),
                 });
                 const body = await response.json();
                 if (!response.ok) {

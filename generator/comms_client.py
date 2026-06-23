@@ -9,10 +9,10 @@ from urllib.parse import urlencode
 from urllib.request import HTTPCookieProcessor, Request, build_opener
 
 from .offer_mapper import ImportResult, extract_work_order_id, map_offer_to_form, normalize_products, parse_product_lines
+from .work_order_json import import_result_from_json_payload, normalize_work_order_payload
 
 
-class CommsError(RuntimeError):
-    pass
+from .import_errors import CommsError
 
 
 class _LabelValueParser(HTMLParser):
@@ -159,46 +159,6 @@ def parse_work_order_html(html: str) -> dict:
     }
 
 
-def normalize_work_order_payload(payload: object) -> dict:
-    if not isinstance(payload, dict):
-        raise CommsError("La respuesta de comms no es un objeto JSON valido.")
-    customer = payload.get("customer") or payload.get("cliente") or payload.get("client") or {}
-    site = payload.get("site") or payload.get("sede") or payload.get("location") or {}
-    if not isinstance(customer, dict):
-        customer = {}
-    if not isinstance(site, dict):
-        site = {}
-    products = (
-        payload.get("products")
-        or payload.get("items")
-        or payload.get("lines")
-        or payload.get("equipment")
-        or []
-    )
-    if isinstance(products, dict):
-        products = products.get("items") or products.get("data") or []
-    connectivity = payload.get("connectivity") or payload.get("internet") or {}
-    connectivity_text = ""
-    if isinstance(connectivity, dict):
-        connectivity_text = " ".join(str(value) for value in connectivity.values() if value)
-    elif isinstance(connectivity, str):
-        connectivity_text = connectivity
-    return {
-        "cliente": str(customer.get("name") or customer.get("nombre") or payload.get("cliente") or "").strip(),
-        "cif": str(customer.get("tax_id") or customer.get("cif") or customer.get("nif") or payload.get("cif") or "").strip(),
-        "sede": str(site.get("name") or site.get("nombre") or payload.get("sede") or "").strip(),
-        "direccion": str(
-            site.get("address")
-            or site.get("direccion")
-            or payload.get("direccion")
-            or payload.get("address")
-            or ""
-        ).strip(),
-        "connectivity_text": connectivity_text or str(payload.get("connectivity_text") or ""),
-        "products": products if isinstance(products, list) else [],
-    }
-
-
 class CommsClient:
     def __init__(
         self,
@@ -299,7 +259,7 @@ class CommsClient:
 
         payload: dict | None = self._fetch_api_json(work_order_id)
         if payload is not None:
-            normalized = normalize_work_order_payload(payload)
+            return import_result_from_json_payload(payload, work_order_id=work_order_id)
         else:
             html = self._fetch_html_page(work_order_id)
             normalized = parse_work_order_html(html)

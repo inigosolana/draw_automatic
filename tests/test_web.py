@@ -637,6 +637,30 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(payload["terminals"][0]["model"], "T-31")
         self.assertTrue(any("Cargador" in item for item in payload["warnings"]))
 
+    @patch("generator.work_order_import.CrmClient.from_environment")
+    def test_import_work_order_with_work_order_id_uses_crm_api(self, crm_factory) -> None:
+        from generator.offer_mapper import ImportResult
+
+        crm_factory.return_value.import_work_order.return_value = ImportResult(
+            work_order_id="7885",
+            cliente="Cliente CRM",
+            cif="B12345678",
+            sede="Central",
+            direccion="Calle 1",
+            internet_proveedor="AIRE",
+            internet_velocidad="1 GB",
+            glpi_entity_id="999",
+            terminals=[{"model": "T-33", "extension": "3001", "serial": "SN1", "mac": "AA:BB", "ownership": "propio", "dect_base": ""}],
+        )
+        response = self.client.post("/api/import-work-order", json={"work_order_id": "7885"})
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["work_order_id"], "7885")
+        self.assertEqual(payload["cliente"], "Cliente CRM")
+        self.assertEqual(payload["glpi_entity_id"], "999")
+        self.assertEqual(payload["terminals"][0]["extension"], "3001")
+        crm_factory.return_value.import_work_order.assert_called_once_with("7885")
+
     def test_health_endpoint_is_available(self) -> None:
         response = self.client.get("/health")
         self.assertEqual(response.status_code, 200)

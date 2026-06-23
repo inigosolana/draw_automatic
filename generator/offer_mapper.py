@@ -70,6 +70,7 @@ class ImportResult:
     router_ip: str = ""
     devices_json: list[dict] = field(default_factory=list)
     terminals: list[dict] = field(default_factory=list)
+    glpi_entity_id: str = ""
     warnings: list[str] = field(default_factory=list)
 
 
@@ -181,6 +182,8 @@ def normalize_products(raw_products: list[object]) -> list[OfferProduct]:
             continue
         name = str(
             item.get("name")
+            or item.get("productName")
+            or item.get("product_name")
             or item.get("product")
             or item.get("description")
             or item.get("title")

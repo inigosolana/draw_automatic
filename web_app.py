@@ -361,6 +361,12 @@ def comms_configured() -> bool:
     return CommsClient.from_environment() is not None
 
 
+def crm_configured() -> bool:
+    from generator.crm_client import crm_configured as _crm_configured
+
+    return _crm_configured()
+
+
 def index_context(**extra):
     from flask import current_app
 
@@ -371,11 +377,13 @@ def index_context(**extra):
         "glpi_customers": glpi_customers,
         "glpi_error": glpi_error,
         "comms_configured": comms_configured(),
+        "crm_configured": crm_configured(),
         "technician": current_technician(),
         "page_config": {
             "glpiCustomers": glpi_customers or [],
             "deviceCatalog": device_catalog,
             "importWorkOrderUrl": url_for("glpi_import.import_work_order"),
+            "crmConfigured": crm_configured(),
         },
     }
     context.update(extra)
@@ -423,7 +431,7 @@ def create_app(stores: DrawioStores | None = None) -> Flask:
         strategy="fixed-window",
     )
     
-    static_asset_version = os.environ.get("DRAWIO_STATIC_VERSION", "20260619a")
+    static_asset_version = os.environ.get("DRAWIO_STATIC_VERSION", "20260619b")
 
     @app.after_request
     def adjust_response_headers(response: Response) -> Response:

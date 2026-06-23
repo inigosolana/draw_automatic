@@ -162,6 +162,13 @@ def _bus_waypoints(
     return ((exit_x_abs, bus_y), (target_center, bus_y))
 
 
+def _cable_label_offset(label: str, *, anchor_key: str) -> tuple[int, int]:
+    if not label:
+        return 0, -14
+    offset_x = 10 if label.endswith("-LAN") and anchor_key == "router" else 0
+    return offset_x, -24
+
+
 def _device_bus_y(anchor: NodeSpec, target: NodeSpec, row_top_y: int | None = None) -> int:
     if row_top_y is not None:
         return row_top_y - CABLE_CLEARANCE_ABOVE_DEVICE
@@ -433,7 +440,17 @@ def _place_internet_stack(
     edges.extend(
         [
             EdgeSpec("inet", "ont", exit_x=1.0, exit_y=0.5, entry_x=0.0, entry_y=0.5),
-            EdgeSpec("ont", "router", label="ETH1-WAN", exit_x=1.0, exit_y=0.5, entry_x=0.0, entry_y=0.5),
+            EdgeSpec(
+                "ont",
+                "router",
+                label="ETH1-WAN",
+                exit_x=1.0,
+                exit_y=0.5,
+                entry_x=0.0,
+                entry_y=0.5,
+                label_offset_x=0,
+                label_offset_y=-24,
+            ),
         ]
     )
 
@@ -476,7 +493,7 @@ def _place_backup(
                 entry_x=0.0,
                 entry_y=0.5,
                 label_offset_x=0,
-                label_offset_y=-12,
+                label_offset_y=-24,
             )
         )
 
@@ -520,8 +537,8 @@ def _place_switch(
             entry_x=0.5,
             entry_y=0.0,
             waypoints=_router_switch_waypoints(router_node, switch_node),
-            label_offset_x=22,
-            label_offset_y=-(ROUTER_SWITCH_GAP // 2 + 6),
+            label_offset_x=10,
+            label_offset_y=-24,
         )
     )
     return True
@@ -615,9 +632,9 @@ class _DevicePlacementState:
 
     def next_port_labels(self, anchor_key: str) -> tuple[str, str]:
         if anchor_key == "switch":
-            port = f"SW{self.switch_port_index}"
+            port = f"ETH{self.switch_port_index}"
             self.switch_port_index += 1
-            return "", port
+            return port, port
         port = f"ETH{self.router_port_index}"
         cable_label = f"{port}-LAN"
         self.router_port_index += 1
@@ -629,10 +646,7 @@ class _DevicePlacementState:
         exit_x = _anchor_exit_x(anchor, target) if anchor_key in {"switch", "router"} else 0.5
         bus_y = _device_bus_y(anchor, target, row_top_y)
         waypoints = _bus_waypoints(anchor, target, exit_x=exit_x, bus_y=bus_y)
-        label_offset_x = 0
-        label_offset_y = -max(12, (target.y - bus_y) // 2 + 6)
-        if label and label.endswith("-LAN"):
-            label_offset_x = 14
+        label_offset_x, label_offset_y = _cable_label_offset(label, anchor_key=anchor_key)
         self.edges.append(
             EdgeSpec(
                 anchor_key,

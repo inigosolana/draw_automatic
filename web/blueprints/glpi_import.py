@@ -12,7 +12,8 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
 import web_app
-from generator.comms_client import CommsClient, CommsError, import_products_text
+from generator.comms_client import CommsError, import_products_text
+from generator.work_order_import import import_work_order_by_id
 from generator.diagram_metadata import (
     build_diagram_description,
     format_activity_timestamp,
@@ -219,21 +220,20 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
             or ""
         ).strip()
         url = str(payload.get("url") or request.form.get("url") or "").strip()
+        work_order_id = str(payload.get("work_order_id") or request.form.get("work_order_id") or "").strip()
         products_text = str(payload.get("products_text") or request.form.get("products_text") or "").strip()
         try:
             if pasted_text:
                 result = parse_work_order_paste(pasted_text)
-            elif products_text and not url:
+            elif products_text and not url and not work_order_id:
                 result = import_products_text(products_text)
-            elif url:
-                client = CommsClient.from_environment()
-                if not client:
-                    raise CommsError(
-                        "AusartaConecta no esta configurado. Pega el texto copiado de la OT."
-                    )
-                result = client.import_work_order(url)
+            elif work_order_id or url:
+                result = import_work_order_by_id(work_order_id or url)
             else:
-                raise CommsError("Pega el texto copiado de la orden de trabajo o un enlace de comms.")
+                raise CommsError(
+                    "Pega el texto de la OT, indica un work order ID (ej. 7885 / OT00007885) "
+                    "o un enlace de comms."
+                )
         except (CommsError, ValueError) as exc:
             security_logger.warning(f"Work order import failed: {exc} (IP: {get_remote_address()})")
             return Response(
@@ -273,7 +273,7 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
                     "cif": glpi_merge.get("cif") or result.cif,
                     "sede": glpi_merge.get("sede") or result.sede,
                     "direccion": glpi_merge.get("direccion") or result.direccion,
-                    "glpi_entity_id": glpi_merge.get("glpi_entity_id") or "",
+                    "glpi_entity_id": result.glpi_entity_id or glpi_merge.get("glpi_entity_id") or "",
                     "glpi_matched": glpi_merge.get("matched", False),
                     "glpi_confidence": glpi_merge.get("confidence", "none"),
                     "glpi_message": glpi_merge.get("message") or public_error_message(

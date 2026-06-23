@@ -58,7 +58,7 @@ class BasicTests(unittest.TestCase):
         self.assertIn('value="ETH1-WAN"', result.xml)
         self.assertIn("image=data:image/png%3Bbase64,", result.xml)
         self.assertIn("exitY=1.0", result.xml)
-        self.assertIn("SW1", result.xml)
+        self.assertIn("ETH1", result.xml)
         ids = re.findall(r'<mxCell id="([^"]+)"', result.xml)
         self.assertEqual(len(ids), len(set(ids)))
         generated_ids = [cell_id for cell_id in ids if cell_id not in {"0", "1"}]
@@ -234,7 +234,7 @@ class BasicTests(unittest.TestCase):
         self.assertEqual(handset_node.x, base_node.x)
         self.assertGreater(handset_node.y, base_node.y)
         self.assertTrue(any(edge.target == base_node.key and edge.source == "switch" for edge in edges))
-        self.assertIn("SW1", base_node.label)
+        self.assertIn("ETH1", base_node.label)
         self.assertFalse(any(edge.target == handset_node.key and edge.label and edge.label.endswith("-ETH") for edge in edges))
         self.assertTrue(any(edge.target == handset_node.key and edge.label == "DECT" for edge in edges))
 
@@ -261,7 +261,7 @@ class BasicTests(unittest.TestCase):
         nodes, _ = build_layout(data)
         base_node = next(node for node in nodes if node.meta and node.meta.get("dect_role") == "base")
         self.assertEqual(base_node.model, "W70B")
-        self.assertIn("SW1", base_node.label)
+        self.assertIn("ETH1", base_node.label)
 
     def test_multiple_dect_handsets_share_one_base(self) -> None:
         data = {
@@ -332,7 +332,7 @@ class BasicTests(unittest.TestCase):
         }
         nodes, _ = build_layout(data)
         phone_node = next(node for node in nodes if node.model == "T-33")
-        self.assertIn("SW1", phone_node.label)
+        self.assertIn("ETH1", phone_node.label)
         self.assertIn("T-33", phone_node.label)
 
     def test_summary_lists_one_equipment_per_line(self) -> None:
@@ -497,13 +497,13 @@ class BasicTests(unittest.TestCase):
         )
         self.assertEqual(len(devices), 3)
         for index, device in enumerate(devices, start=1):
-            self.assertIn(f"SW{index}", device.label)
+            self.assertIn(f"ETH{index}", device.label)
             self.assertGreaterEqual(device.x + device.width, device.x)
             self.assertLess(device.x, SUMMARY_X - 40)
         for edge in edges:
             if edge.source != "switch" or not edge.target.startswith("team_"):
                 continue
-            self.assertFalse(edge.label)
+            self.assertTrue(edge.label and edge.label.startswith("ETH"))
             self.assertIsNotNone(edge.waypoints)
             self.assertGreaterEqual(len(edge.waypoints), 1)
         row_center = devices[1].x + devices[1].width / 2
@@ -535,7 +535,7 @@ class BasicTests(unittest.TestCase):
         self.assertIn("ETH4", phone.label)
         self.assertEqual(phone_edge.label, "ETH4-LAN")
         self.assertEqual(pc_edge.source, "switch")
-        self.assertIn("SW1", pc.label)
+        self.assertIn("ETH1", pc.label)
 
     def test_switch_uses_eth3_and_phones_use_switch_ports(self) -> None:
         data = {
@@ -559,8 +559,8 @@ class BasicTests(unittest.TestCase):
             (node for node in nodes if node.key.startswith("team_")),
             key=lambda node: node.x,
         )
-        self.assertIn("SW1", phones[0].label)
-        self.assertIn("SW2", phones[1].label)
+        self.assertIn("ETH1", phones[0].label)
+        self.assertIn("ETH2", phones[1].label)
 
     def test_summary_table_does_not_overlap_switch(self) -> None:
         data = {
@@ -624,7 +624,7 @@ class BasicTests(unittest.TestCase):
         for edge in phone_edges:
             target = next(node for node in nodes if node.key == edge.target)
             self.assertAlmostEqual(edge.exit_x, _anchor_exit_x(switch, target), places=2)
-            self.assertFalse(edge.label)
+            self.assertTrue(edge.label and edge.label.startswith("ETH"))
             self.assertIsNotNone(edge.waypoints)
 
 
