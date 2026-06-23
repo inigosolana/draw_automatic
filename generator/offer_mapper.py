@@ -20,8 +20,14 @@ ACCESSORY_PATTERN = re.compile(
     r"\b("
     r"cargador|psu|power\s*supply|fuente(?:\s+de\s+alimentaci[oó]n)?|"
     r"alimentaci[oó]n|adaptador(?:\s+de\s+corriente)?|cable|patch\s*cord|"
-    r"soporte|mount|bracket|clip|tornillo|kit\s*de\s*montaje|bater[ií]a\s*de\s*respaldo"
+    r"soporte|mount|bracket|clip|tornillo|kit\s*de\s*montaje|bater[ií]a\s*de\s*respaldo|"
+    r"poe\s*injector|inyector(?:\s+de)?\s*poe|poe\s*injector|injector(?:\s+poe)?"
     r")\b",
+    re.IGNORECASE,
+)
+
+HEADSET_PATTERN = re.compile(
+    r"\b(wh6[0-9](?:\s*e2)?(?:\s*uc)?|headset|casco|auricular)\b",
     re.IGNORECASE,
 )
 
@@ -29,6 +35,7 @@ DECT_BASE_PATTERN = re.compile(r"\b(w60b|w70b|w80b|w90dm|yealink\s*w90dm)\b", re
 DECT_HANDSET_PATTERN = re.compile(r"\b(w71h|w72h|w53h|w73h)\b", re.IGNORECASE)
 SIP_TERMINAL_PATTERN = re.compile(r"\b(?:sip[-\s]?t(\d{2})g?|t[-\s]?(\d{2}))\b", re.IGNORECASE)
 FANVIL_PATTERN = re.compile(r"\bfanvil\s*(v\d{2})?\b", re.IGNORECASE)
+FANVIL_STANDALONE_PATTERN = re.compile(r"\bv(62|64)\b", re.IGNORECASE)
 
 FIBER_PROVIDERS = {
     "fibra pro max velocidad": "AIRE",
@@ -91,8 +98,8 @@ def is_accessory(name: str) -> bool:
     return bool(ACCESSORY_PATTERN.search(name or ""))
 
 
-def is_accessory(name: str) -> bool:
-    return bool(ACCESSORY_PATTERN.search(name or ""))
+def is_headset(name: str) -> bool:
+    return bool(HEADSET_PATTERN.search(name or ""))
 
 
 def parse_extension_tokens(text: str) -> list[str]:
@@ -234,6 +241,9 @@ def _normalize_terminal_model(name: str) -> str:
     if fanvil:
         version = fanvil.group(1)
         return f"FANVIL V{version[1:]}" if version else "FANVIL V62"
+    standalone_fanvil = FANVIL_STANDALONE_PATTERN.search(name)
+    if standalone_fanvil:
+        return f"FANVIL V{standalone_fanvil.group(1)}"
     lowered = name.lower()
     for token in ("t-33", "t-31", "t-30", "t-43", "t-44", "t-73"):
         if token.replace("-", "") in lowered.replace("-", "").replace(" ", ""):
@@ -400,6 +410,9 @@ def map_offer_to_form(
             continue
         if is_accessory(name):
             result.warnings.append(f"Accesorio ignorado: {name}")
+            continue
+        if is_headset(name):
+            result.warnings.append(f"Cascos/headset ignorado (no van al diagrama): {name}")
             continue
         active_products.append(product)
 

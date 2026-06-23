@@ -20,7 +20,27 @@ class OfferImportTests(unittest.TestCase):
 
     def test_accessory_detection(self) -> None:
         self.assertTrue(is_accessory("Cargador PSU 5V 600mA"))
+        self.assertTrue(is_accessory("Ubiquiti POE 48 24W G POE Injector, 48VDC, 24W"))
         self.assertFalse(is_accessory("SIP-T31G"))
+
+    def test_maps_v64_and_ignores_headsets(self) -> None:
+        from generator.offer_mapper import is_headset
+
+        self.assertTrue(is_headset("WH63 E2 UC"))
+        products = normalize_products(
+            [
+                {"name": "V64", "quantity": 1, "extension": "3005"},
+                {"name": "WH63 E2 UC", "quantity": 1},
+                {"name": "Ubiquiti POE 48 24W G POE Injector, 48VDC, 24W", "quantity": 1},
+            ]
+        )
+        result = map_offer_to_form(products)
+        self.assertEqual(len(result.terminals), 1)
+        self.assertEqual(result.terminals[0]["model"], "FANVIL V64")
+        self.assertEqual(result.terminals[0]["extension"], "3005")
+        self.assertTrue(any("Cascos/headset ignorado" in w for w in result.warnings))
+        self.assertTrue(any("Accesorio ignorado" in w for w in result.warnings))
+        self.assertFalse(any("no clasificado" in w for w in result.warnings))
 
     def test_maps_sample_offer_products(self) -> None:
         products = parse_product_lines(

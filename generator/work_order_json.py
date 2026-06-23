@@ -14,6 +14,8 @@ from .offer_mapper import (
     _normalize_speed,
     _normalize_terminal_model,
     extract_work_order_id,
+    is_accessory,
+    is_headset,
     map_offer_to_form,
     normalize_products,
 )
@@ -161,6 +163,10 @@ def _parse_crm_equipments(equipments: object) -> dict:
         if not product_name:
             continue
         clean_name = _strip_vendor_prefix(product_name)
+        if is_headset(clean_name) or is_headset(product_name):
+            continue
+        if is_accessory(clean_name):
+            continue
         service_name = _crm_equipment_field(item, "service_name", "serviceName")
         extension = _crm_equipment_field(item, "service_ext", "serviceExt", "extension", "ext")
         serial = _crm_equipment_field(item, "S/N", "serial_number", "serial", "sn")
@@ -177,10 +183,6 @@ def _parse_crm_equipments(equipments: object) -> dict:
 
         terminal_model = _normalize_terminal_model(clean_name)
         if terminal_model:
-            product_entry: dict = {"name": clean_name, "quantity": 1}
-            if extension:
-                product_entry["extension"] = extension
-            products.append(product_entry)
             if terminal_model in DECT_HANDSET_MODELS:
                 handset_bases_from_order.append(active_dect_base)
             terminals.append(
@@ -493,12 +495,19 @@ def import_result_from_json_payload(payload: dict, *, work_order_id: str = "") -
         work_order_id=resolved_work_order_id,
     )
     apply_structured_connectivity(result, normalized.get("connectivity_structured") or {})
+    offer_terminals = list(result.terminals)
 
     if explicit_terminals:
         dect_bases = normalized.get("dect_bases") or []
         if dect_bases:
             _assign_dect_bases_to_handsets(explicit_terminals, dect_bases, [])
-        result.terminals = explicit_terminals
+        result.terminals = list(explicit_terminals)
+        seen = {(t.get("model"), t.get("extension"), t.get("serial")) for t in result.terminals}
+        for terminal in offer_terminals:
+            key = (terminal.get("model"), terminal.get("extension"), terminal.get("serial"))
+            if key not in seen:
+                result.terminals.append(terminal)
+                seen.add(key)
 
     glpi_entity_id = normalized.get("glpi_entity_id", "")
     if glpi_entity_id:

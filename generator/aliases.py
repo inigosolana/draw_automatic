@@ -10,6 +10,8 @@ ALIASES = {
     "fanvil v62": "FANVIL_V62",
     "fanvil v64": "FANVIL_V64",
     "fanvil_v64": "FANVIL_V64",
+    "v64": "FANVIL V64",
+    "v62": "FANVIL V62",
     "yealink t27g": "Yealink T27G",
     "sip-t27g": "Yealink T27G",
     "yealink t30p": "T-30",

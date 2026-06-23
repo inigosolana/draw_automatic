@@ -29,6 +29,7 @@ class BasicTests(unittest.TestCase):
         self.assertEqual(resolve_alias("Yealink T33G"), "T-33")
         self.assertEqual(resolve_alias("Yealink T73W"), "T-73")
         self.assertEqual(resolve_alias("Fanvil V64"), "FANVIL_V64")
+        self.assertEqual(resolve_alias("V64"), "FANVIL V64")
         self.assertEqual(resolve_alias("TP-Link TL-SG108"), "TP-Link 8P")
         self.assertEqual(resolve_alias("W70B"), "W70B")
         self.assertEqual(resolve_alias("GPON ONT"), "ONT ZTE")
