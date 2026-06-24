@@ -67,6 +67,16 @@ La web permite:
 
 Las credenciales GLPI solo se leen desde variables de entorno. No deben incluirse en el repositorio.
 
+### Panel de administracion (`/admin`)
+
+Define los tecnicos autorizados con `DRAWIO_ADMIN_USERS` en `.env` (obligatorio en produccion):
+
+```bash
+DRAWIO_ADMIN_USERS=nombre apellido,otro nombre
+```
+
+Usa el nombre completo tal como aparece en GLPI, separado por comas. El orden apellido/nombre no importa.
+
 ## Produccion con Portainer
 
 El repositorio incluye `Dockerfile`, `docker-compose.yml`, `.env.example` y una guia

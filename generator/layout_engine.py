@@ -3,6 +3,24 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from .aliases import resolve_alias
+from .geometry import (
+    CANVAS_RIGHT,
+    DEVICE_HEIGHT,
+    DEVICE_ROW_GAP,
+    DEVICE_WIDTH,
+    MIN_LEFT_MARGIN,
+    MIN_SLOT_SPACING,
+    SLOT_SPACING,
+    SUMMARY_X,
+    TELEPHONY_ZONE_MIN_SPACING,
+    anchor_row_limits as _anchor_row_limits,
+    canvas_bounds as _canvas_bounds,
+    device_row_layout as _device_row_layout,
+    dual_switch_zone_limits as _dual_switch_zone_limits,
+    max_slots_for_zone as _max_slots_for_zone,
+    max_slots_per_row as _max_slots_per_row,
+    row_layout as _row_layout,
+)
 from .parser import ValidatedEquipment, validate_input_schema
 
 
@@ -15,22 +33,13 @@ DECT_HANDSET_BASE = {
     "w53h": "W80B",
     "w73h": "YEALINK W90DM",
 }
-SUMMARY_X = 900
 SUMMARY_WIDTH = 380
 SUMMARY_TITLE_Y = 75
 SUMMARY_Y = 105
 SUMMARY_HEIGHT = 165
-DEVICE_WIDTH = 150
-DEVICE_HEIGHT = 150
 DECT_HANDSET_OFFSET_Y = 195
 DECT_HANDSET_STACK_STEP = 168
-SLOT_SPACING = 235
-MIN_SLOT_SPACING = 230
-MIN_LEFT_MARGIN = 60
-CANVAS_RIGHT = SUMMARY_X - 20
-DEVICE_ROW_GAP = 175
 DECT_ROW_EXTRA = 110
-TELEPHONY_ZONE_MIN_SPACING = 118
 SWITCH_FALLBACK_ICON = "TP-Link 8P"
 SWITCH_ANCHOR_KEYS = frozenset({"switch", "switch_datos"})
 DUAL_SWITCH_GAP = 90
@@ -110,116 +119,6 @@ def _count_layout_slots(equipos: list) -> int:
             continue
         total += qty
     return total
-
-
-def _canvas_bounds() -> tuple[int, int]:
-    return MIN_LEFT_MARGIN, CANVAS_RIGHT
-
-
-def _dual_switch_zone_limits(switch_key: str) -> tuple[int, int]:
-    canvas_left, canvas_right = _canvas_bounds()
-    mid = canvas_left + (canvas_right - canvas_left) // 2
-    if switch_key == "switch":
-        return canvas_left, mid - 16
-    return mid + 16, canvas_right
-
-
-def _compact_row_spacing(slots_in_row: int, available: int) -> int | None:
-    if slots_in_row <= 1:
-        return 0
-    spacing = (available - DEVICE_WIDTH) // (slots_in_row - 1)
-    if spacing < TELEPHONY_ZONE_MIN_SPACING:
-        return None
-    return min(SLOT_SPACING, spacing)
-
-
-def _max_slots_for_zone(
-    total_slots: int,
-    left: int,
-    right: int,
-    *,
-    force_horizontal: bool,
-) -> tuple[int, int]:
-    available = max(DEVICE_WIDTH, right - left)
-    if total_slots <= 0:
-        return 1, 0
-    if force_horizontal:
-        spacing = _compact_row_spacing(total_slots, available)
-        if spacing is not None:
-            return total_slots, spacing
-    for slots_in_row in range(total_slots, 0, -1):
-        spacing = _compact_row_spacing(slots_in_row, available)
-        if spacing is not None:
-            return slots_in_row, spacing
-    return 1, 0
-
-
-def _row_layout(total_slots: int, max_right: int = CANVAS_RIGHT) -> tuple[int, int]:
-    available = max_right - MIN_LEFT_MARGIN
-    if total_slots <= 0:
-        return MIN_LEFT_MARGIN, MIN_SLOT_SPACING
-    if total_slots == 1:
-        return MIN_LEFT_MARGIN + (available - DEVICE_WIDTH) // 2, MIN_SLOT_SPACING
-    spacing = max(MIN_SLOT_SPACING, min(SLOT_SPACING, (available - DEVICE_WIDTH) // (total_slots - 1)))
-    row_width = (total_slots - 1) * spacing + DEVICE_WIDTH
-    start_x = MIN_LEFT_MARGIN + (available - row_width) // 2
-    return start_x, spacing
-
-
-def _device_row_layout(
-    total_slots: int,
-    anchor: NodeSpec,
-    layout: _DeviceRowLayout | None = None,
-    max_right: int = CANVAS_RIGHT,
-) -> tuple[int, int]:
-    zone_left: int | None = None
-    zone_right: int | None = None
-    constrain_to_anchor = False
-    if layout is not None:
-        zone_left = layout.zone_left
-        zone_right = layout.zone_right
-        constrain_to_anchor = layout.constrain_to_anchor
-    if zone_left is not None and zone_right is not None:
-        left, right = zone_left, zone_right
-        available = max(DEVICE_WIDTH, right - left)
-        if total_slots <= 1:
-            return left + (available - DEVICE_WIDTH) // 2, 0
-        spacing = _compact_row_spacing(total_slots, available) or MIN_SLOT_SPACING
-        row_width = (total_slots - 1) * spacing + DEVICE_WIDTH
-        start_x = left + max(0, (available - row_width) // 2)
-        return start_x, spacing
-    if constrain_to_anchor:
-        left, right = _anchor_row_limits(anchor)
-        available = max(DEVICE_WIDTH, right - left)
-        if total_slots <= 1:
-            return left + (available - DEVICE_WIDTH) // 2, 0
-        spacing = max(
-            MIN_SLOT_SPACING,
-            min(SLOT_SPACING, (available - DEVICE_WIDTH) // (total_slots - 1)),
-        )
-        row_width = (total_slots - 1) * spacing + DEVICE_WIDTH
-        start_x = left + max(0, (available - row_width) // 2)
-        return start_x, spacing
-    _, spacing = _row_layout(total_slots, max_right)
-    row_width = (total_slots - 1) * spacing + DEVICE_WIDTH
-    centered_start = anchor.x + (anchor.width - row_width) // 2
-    start_x = max(MIN_LEFT_MARGIN, min(centered_start, max_right - row_width))
-    return start_x, spacing
-
-
-def _max_slots_per_row(total_slots: int, *, max_right: int = CANVAS_RIGHT) -> tuple[int, int]:
-    for slots_in_row in range(total_slots, 0, -1):
-        _, spacing = _row_layout(slots_in_row, max_right)
-        row_width = (slots_in_row - 1) * spacing + DEVICE_WIDTH
-        if row_width <= max_right - MIN_LEFT_MARGIN:
-            return slots_in_row, spacing
-    return 1, 0
-
-
-def _anchor_row_limits(anchor_node: NodeSpec) -> tuple[int, int]:
-    left = max(MIN_LEFT_MARGIN, anchor_node.x - 24)
-    right = min(CANVAS_RIGHT, anchor_node.x + anchor_node.width + 24)
-    return left, right
 
 
 def _anchor_exit_x(anchor: NodeSpec, target: NodeSpec) -> float:

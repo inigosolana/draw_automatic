@@ -2,6 +2,15 @@
 
 Objetivo: que los compañeros usen la app, pero **sin abrir puertos** al mundo. Solo acceso desde IPs de confianza (oficina / VPN) por HTTPS.
 
+## Variantes de docker-compose
+
+| Fichero | Cuándo usarlo |
+|---|---|
+| `docker-compose.yml` | Desarrollo local estándar |
+| `docker-compose.host-nginx.yml` | Producción con nginx en el host |
+| `docker-compose.portainer.yml` | Gestión vía Portainer con red externa |
+| `docker-compose.portainer-internal.yml` | Portainer con nginx interno en el stack |
+
 ## Arquitectura recomendada
 
 ```

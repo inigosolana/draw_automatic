@@ -4,9 +4,9 @@ from flask import Blueprint, Response, redirect, render_template, request, sessi
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
-import web_app
+from app_context import security_logger
+from generator.glpi_client import GlpiClient, GlpiError
 from generator.utils import is_safe_redirect
-from web_app import security_logger
 
 
 def create_auth_blueprint(limiter: Limiter) -> Blueprint:
@@ -21,7 +21,7 @@ def create_auth_blueprint(limiter: Limiter) -> Blueprint:
             password = request.form.get("password", "")
             client_ip = get_remote_address()
 
-            client = web_app.GlpiClient.from_environment()
+            client = GlpiClient.from_environment()
             if not client:
                 error = "El acceso no esta disponible en este momento."
                 security_logger.warning(f"Login attempt failed: GLPI not configured (IP: {client_ip})")
@@ -36,7 +36,7 @@ def create_auth_blueprint(limiter: Limiter) -> Blueprint:
                     security_logger.info(f"Login successful: user={username}, IP={client_ip}")
                     next_url = request.args.get("next", "")
                     return redirect(next_url if is_safe_redirect(next_url) else url_for("glpi_import.index"))
-                except web_app.GlpiError:
+                except GlpiError:
                     error = "Usuario o clave incorrectos."
                     security_logger.warning(
                         f"Login attempt failed: invalid credentials for user={username}, IP={client_ip}"

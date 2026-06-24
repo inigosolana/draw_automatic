@@ -6,17 +6,12 @@ from flask import Blueprint, Response, current_app, render_template, request
 from flask_limiter import Limiter
 from flask_wtf.csrf import CSRFProtect
 
-import web_app
+from app_context import current_technician, get_drawio_stores, login_required
+from catalog_loader import _glpi_diagram_rows, load_glpi_catalog
 from generator.diagram_metadata import format_activity_timestamp
+from generator.glpi_client import GlpiClient, GlpiError
 from generator.safe_errors import public_error_message
 from generator.utils import positive_integer
-from web_app import (
-    _glpi_diagram_rows,
-    current_technician,
-    get_drawio_stores,
-    load_glpi_catalog,
-    login_required,
-)
 
 
 def create_diagrams_blueprint(limiter: Limiter, csrf: CSRFProtect) -> Blueprint:
@@ -41,11 +36,11 @@ def create_diagrams_blueprint(limiter: Limiter, csrf: CSRFProtect) -> Blueprint:
         if selected_entity:
             try:
                 entity_id = positive_integer(selected_entity, "entity_id")
-                client = web_app.GlpiClient.from_environment()
+                client = GlpiClient.from_environment()
                 if not client:
-                    raise web_app.GlpiError("GLPI no esta configurado.")
+                    raise GlpiError("GLPI no esta configurado.")
                 diagram_rows = _glpi_diagram_rows(client, entity_id, drawio_stores.activity)
-            except (ValueError, web_app.GlpiError) as exc:
+            except (ValueError, GlpiError) as exc:
                 glpi_error = public_error_message(str(exc), context="consulta de diagramas GLPI")
         return render_template(
             "diagrams.html",
@@ -62,7 +57,7 @@ def create_diagrams_blueprint(limiter: Limiter, csrf: CSRFProtect) -> Blueprint:
         drawio_stores = get_drawio_stores()
         technician = current_technician()
         username = technician.get("username") or technician.get("name") or "local"
-        client = web_app.GlpiClient.from_environment()
+        client = GlpiClient.from_environment()
         rows = []
         for item in drawio_stores.activity.list_for_technician(username):
             item["created_label"] = format_activity_timestamp(item["created_at"])

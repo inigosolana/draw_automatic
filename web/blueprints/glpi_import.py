@@ -11,8 +11,15 @@ from flask import Blueprint, Response, current_app, render_template, request, ur
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
-import web_app
+from app_context import (
+    current_technician,
+    get_drawio_stores,
+    login_required,
+    security_logger,
+)
+from catalog_loader import _glpi_diagram_rows, index_context, load_glpi_catalog
 from generator.comms_client import CommsError, import_products_text
+from generator.glpi_client import GlpiClient, GlpiError
 from generator.work_order_import import import_work_order_by_id
 from generator.diagram_metadata import (
     build_diagram_description,
@@ -25,15 +32,6 @@ from generator.safe_errors import public_error_message
 from generator.utils import positive_integer
 from generator.web_adapter import build_drawio_from_data, form_to_data, form_to_structured_data
 from generator.work_order_text_parser import parse_work_order_paste
-from web_app import (
-    _glpi_diagram_rows,
-    current_technician,
-    get_drawio_stores,
-    index_context,
-    load_glpi_catalog,
-    login_required,
-    security_logger,
-)
 
 
 def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
@@ -93,11 +91,11 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
             )
         token = uuid.uuid4().hex
         existing_diagrams: list[dict] = []
-        glpi_client = web_app.GlpiClient.from_environment()
+        glpi_client = GlpiClient.from_environment()
         if glpi_entity_id and glpi_client:
             try:
                 existing_diagrams = _glpi_diagram_rows(glpi_client, glpi_entity_id, drawio_stores.activity)
-            except web_app.GlpiError:
+            except GlpiError:
                 existing_diagrams = []
         technician = current_technician()
         drawio_stores.downloads[token] = {
@@ -144,7 +142,7 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
             return Response("Diagrama pendiente no encontrado.", status=404, mimetype="text/plain; charset=utf-8")
         if payload["uploaded"]:
             return Response("El diagrama ya fue subido a GLPI.", status=409, mimetype="text/plain; charset=utf-8")
-        client = web_app.GlpiClient.from_environment()
+        client = GlpiClient.from_environment()
         if not client:
             return Response("GLPI no esta configurado.", status=503, mimetype="text/plain; charset=utf-8")
         try:
@@ -189,7 +187,7 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
                 status=400,
                 mimetype="text/plain; charset=utf-8",
             )
-        except web_app.GlpiError as exc:
+        except GlpiError as exc:
             security_logger.warning(f"GLPI confirm failed: {exc} (IP: {get_remote_address()})")
             return Response(
                 public_error_message(str(exc), context="publicacion en GLPI"),
@@ -324,9 +322,9 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
             else:
                 try:
                     validated_entity_id = positive_integer(entity_id, "glpi_entity_id")
-                    client = web_app.GlpiClient.from_environment()
+                    client = GlpiClient.from_environment()
                     if not client:
-                        raise web_app.GlpiError("GLPI no esta configurado.")
+                        raise GlpiError("GLPI no esta configurado.")
                     existing_diagrams = client.list_network_diagrams(validated_entity_id)
                     technician = current_technician()
                     for uploaded_file in uploaded_files:
@@ -395,7 +393,7 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
                             DefusedET.ParseError,
                             DefusedXmlException,
                             ValueError,
-                            web_app.GlpiError,
+                            GlpiError,
                         ) as exc:
                             upload_errors.append(
                                 f"{uploaded_file.filename}: {public_error_message(str(exc), context='subida del diagrama')}"
@@ -410,7 +408,7 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
                             if len(upload_errors) == 1
                             else "No se ha podido subir ningun archivo."
                         )
-                except (ValueError, web_app.GlpiError) as exc:
+                except (ValueError, GlpiError) as exc:
                     upload_error = public_error_message(str(exc), context="subida del diagrama")
                     security_logger.warning(f"Upload failed: {exc}, user={technician_name}, IP={client_ip}")
         return render_template(

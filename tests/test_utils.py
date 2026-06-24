@@ -3,34 +3,34 @@ import unittest
 from generator.utils import normalize_person_name, technician_is_admin
 
 ADMIN_USERS = {
-    "iñigo solana",
-    "solana iñigo",
-    "alberto ferez",
-    "ferez alberto",
-    "marcos medina",
-    "medina marcos",
+    "ana garcia",
+    "garcia ana",
+    "bob smith",
+    "smith bob",
+    "carol jones",
+    "jones carol",
 }
 
 
 class UtilsTests(unittest.TestCase):
     def test_normalize_person_name_ignores_surname_first_order(self) -> None:
-        self.assertEqual(normalize_person_name("Solana Iñigo"), normalize_person_name("Iñigo Solana"))
-        self.assertEqual(normalize_person_name("Ferez Alberto"), normalize_person_name("Alberto Ferez"))
-        self.assertEqual(normalize_person_name("Medina Marcos"), normalize_person_name("Marcos Medina"))
+        self.assertEqual(normalize_person_name("Garcia Ana"), normalize_person_name("Ana Garcia"))
+        self.assertEqual(normalize_person_name("Smith Bob"), normalize_person_name("Bob Smith"))
+        self.assertEqual(normalize_person_name("Jones Carol"), normalize_person_name("Carol Jones"))
 
     def test_normalize_person_name_handles_comma_format(self) -> None:
-        self.assertEqual(normalize_person_name("Solana, Iñigo"), normalize_person_name("Iñigo Solana"))
-        self.assertEqual(normalize_person_name("Ferez, Alberto"), normalize_person_name("Alberto Ferez"))
-        self.assertEqual(normalize_person_name("Medina, Marcos"), normalize_person_name("Marcos Medina"))
+        self.assertEqual(normalize_person_name("Garcia, Ana"), normalize_person_name("Ana Garcia"))
+        self.assertEqual(normalize_person_name("Smith, Bob"), normalize_person_name("Bob Smith"))
+        self.assertEqual(normalize_person_name("Jones, Carol"), normalize_person_name("Carol Jones"))
 
     def test_technician_is_admin_for_all_authorized_users(self) -> None:
         cases = [
-            {"name": "Solana Iñigo"},
-            {"name": "Iñigo Solana"},
-            {"name": "Ferez Alberto"},
-            {"name": "Alberto Ferez"},
-            {"name": "Medina Marcos"},
-            {"name": "Marcos Medina"},
+            {"name": "Garcia Ana"},
+            {"name": "Ana Garcia"},
+            {"name": "Smith Bob"},
+            {"name": "Bob Smith"},
+            {"name": "Jones Carol"},
+            {"name": "Carol Jones"},
         ]
         for technician in cases:
             with self.subTest(technician=technician):

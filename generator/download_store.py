@@ -40,7 +40,6 @@ class DownloadStore(MutableMapping[str, dict]):
                 connection.execute("DELETE FROM downloads WHERE expires_at <= ?", (time.time(),))
 
     def __getitem__(self, token: str) -> dict:
-        self.cleanup()
         with closing(self._connect()) as connection:
             row = connection.execute(
                 "SELECT payload FROM downloads WHERE token = ?",
@@ -70,13 +69,11 @@ class DownloadStore(MutableMapping[str, dict]):
             raise KeyError(token)
 
     def __iter__(self) -> Iterator[str]:
-        self.cleanup()
         with closing(self._connect()) as connection:
             rows = connection.execute("SELECT token FROM downloads ORDER BY created_at").fetchall()
         return iter(row[0] for row in rows)
 
     def __len__(self) -> int:
-        self.cleanup()
         with closing(self._connect()) as connection:
             row = connection.execute("SELECT COUNT(*) FROM downloads").fetchone()
         return int(row[0])

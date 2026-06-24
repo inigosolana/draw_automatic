@@ -18,12 +18,12 @@ class DiagramMetadataTests(unittest.TestCase):
         description = build_diagram_description(
             client_name="Cliente",
             site_name="Sede 1",
-            technician={"name": "Solana Iñigo", "username": "is"},
+            technician={"name": "Ana Garcia", "username": "ag"},
             source="Generado",
             filename="demo.drawio",
         )
         self.assertIn("Generado", description)
-        self.assertIn("Solana Iñigo", description)
+        self.assertIn("Ana Garcia", description)
         self.assertIn("Cliente - Sede 1", description)
         self.assertIn("demo.drawio", description)
 

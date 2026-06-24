@@ -6,17 +6,17 @@ from datetime import datetime, timedelta
 from flask import Blueprint, Response, render_template
 from flask_limiter.util import get_remote_address
 
-import web_app
-from web.services.stats import build_admin_chart_periods, build_coverage_data
-from web_app import (
+from app_context import (
     ADMIN_USERS,
     current_technician,
     get_drawio_stores,
-    load_glpi_catalog,
     login_required,
     security_logger,
 )
+from catalog_loader import load_glpi_catalog
+from generator.glpi_client import GlpiClient
 from generator.utils import technician_is_admin
+from web.services.stats import build_admin_chart_periods, build_coverage_data
 
 
 def create_admin_blueprint() -> Blueprint:
@@ -45,7 +45,7 @@ def create_admin_blueprint() -> Blueprint:
 
         coverage_data = None
         try:
-            glpi_client = web_app.GlpiClient.from_environment()
+            glpi_client = GlpiClient.from_environment()
             if glpi_client:
                 catalog_for_coverage, _ = load_glpi_catalog()
                 if catalog_for_coverage:

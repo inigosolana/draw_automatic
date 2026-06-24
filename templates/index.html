@@ -107,7 +107,7 @@
           {% endif %}
           <details class="json-preview">
             <summary>Ver JSON estructurado</summary>
-            <pre>{{ preview.structured_json }}</pre>
+            <pre>{{ preview.structured_json | e }}</pre>
           </details>
           <div class="generation-result-actions">
             <button
