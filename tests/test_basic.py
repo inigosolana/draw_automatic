@@ -5,7 +5,7 @@ import unittest
 
 from generator.aliases import resolve_alias
 from generator.drawio_writer import build_drawio
-from generator.layout_engine import SUMMARY_X, _anchor_exit_x, build_layout, summarize_equipment, validate_input_data
+from generator.layout_engine import SUMMARY_X, _anchor_exit_x, _canvas_bounds, build_layout, summarize_equipment, validate_input_data
 from generator.library_loader import load_library
 from generator.parser import load_input, parse_equipment_line
 
@@ -709,10 +709,19 @@ class BasicTests(unittest.TestCase):
         nodes, edges = build_layout(data)
         switch_tel = next(node for node in nodes if node.key == "switch")
         switch_datos = next(node for node in nodes if node.key == "switch_datos")
-        phones = [node for node in nodes if node.key.startswith("team_") and "FANVIL" in node.label]
+        phones = sorted(
+            (node for node in nodes if node.key.startswith("team_") and "FANVIL" in node.label),
+            key=lambda node: node.x,
+        )
         ap = next(node for node in nodes if node.key.startswith("team_") and "Grandstream" in node.label)
-        self.assertTrue(all(phone.x + phone.width <= switch_datos.x for phone in phones))
-        self.assertGreater(ap.x, switch_tel.x + switch_tel.width)
+        self.assertEqual(len(phones), 3)
+        self.assertEqual(len({phone.y for phone in phones}), 1)
+        self.assertLess(phones[1].x, phones[2].x)
+        canvas_left, canvas_right = _canvas_bounds()
+        mid = canvas_left + (canvas_right - canvas_left) // 2
+        self.assertTrue(all(phone.x + phone.width < mid for phone in phones))
+        self.assertGreater(ap.x, mid)
+        self.assertGreater(switch_datos.x, switch_tel.x + switch_tel.width)
         router_switch_edges = [edge for edge in edges if edge.label in {"ETH3-LAN", "ETH4-LAN"}]
         self.assertEqual(len(router_switch_edges), 2)
         router_lanes = {

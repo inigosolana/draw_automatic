@@ -27,8 +27,10 @@ DECT_HANDSET_STACK_STEP = 168
 SLOT_SPACING = 235
 MIN_SLOT_SPACING = 230
 MIN_LEFT_MARGIN = 60
+CANVAS_RIGHT = SUMMARY_X - 20
 DEVICE_ROW_GAP = 175
 DECT_ROW_EXTRA = 110
+TELEPHONY_ZONE_MIN_SPACING = 118
 SWITCH_FALLBACK_ICON = "TP-Link 8P"
 SWITCH_ANCHOR_KEYS = frozenset({"switch", "switch_datos"})
 DUAL_SWITCH_GAP = 90
@@ -110,7 +112,49 @@ def _count_layout_slots(equipos: list) -> int:
     return total
 
 
-def _row_layout(total_slots: int, max_right: int = SUMMARY_X - 20) -> tuple[int, int]:
+def _canvas_bounds() -> tuple[int, int]:
+    return MIN_LEFT_MARGIN, CANVAS_RIGHT
+
+
+def _dual_switch_zone_limits(switch_key: str) -> tuple[int, int]:
+    canvas_left, canvas_right = _canvas_bounds()
+    mid = canvas_left + (canvas_right - canvas_left) // 2
+    if switch_key == "switch":
+        return canvas_left, mid - 16
+    return mid + 16, canvas_right
+
+
+def _compact_row_spacing(slots_in_row: int, available: int) -> int | None:
+    if slots_in_row <= 1:
+        return 0
+    spacing = (available - DEVICE_WIDTH) // (slots_in_row - 1)
+    if spacing < TELEPHONY_ZONE_MIN_SPACING:
+        return None
+    return min(SLOT_SPACING, spacing)
+
+
+def _max_slots_for_zone(
+    total_slots: int,
+    left: int,
+    right: int,
+    *,
+    force_horizontal: bool,
+) -> tuple[int, int]:
+    available = max(DEVICE_WIDTH, right - left)
+    if total_slots <= 0:
+        return 1, 0
+    if force_horizontal:
+        spacing = _compact_row_spacing(total_slots, available)
+        if spacing is not None:
+            return total_slots, spacing
+    for slots_in_row in range(total_slots, 0, -1):
+        spacing = _compact_row_spacing(slots_in_row, available)
+        if spacing is not None:
+            return slots_in_row, spacing
+    return 1, 0
+
+
+def _row_layout(total_slots: int, max_right: int = CANVAS_RIGHT) -> tuple[int, int]:
     available = max_right - MIN_LEFT_MARGIN
     if total_slots <= 0:
         return MIN_LEFT_MARGIN, MIN_SLOT_SPACING
@@ -125,10 +169,25 @@ def _row_layout(total_slots: int, max_right: int = SUMMARY_X - 20) -> tuple[int,
 def _device_row_layout(
     total_slots: int,
     anchor: NodeSpec,
-    max_right: int = SUMMARY_X - 20,
-    *,
-    constrain_to_anchor: bool = False,
+    layout: _DeviceRowLayout | None = None,
+    max_right: int = CANVAS_RIGHT,
 ) -> tuple[int, int]:
+    zone_left: int | None = None
+    zone_right: int | None = None
+    constrain_to_anchor = False
+    if layout is not None:
+        zone_left = layout.zone_left
+        zone_right = layout.zone_right
+        constrain_to_anchor = layout.constrain_to_anchor
+    if zone_left is not None and zone_right is not None:
+        left, right = zone_left, zone_right
+        available = max(DEVICE_WIDTH, right - left)
+        if total_slots <= 1:
+            return left + (available - DEVICE_WIDTH) // 2, 0
+        spacing = _compact_row_spacing(total_slots, available) or MIN_SLOT_SPACING
+        row_width = (total_slots - 1) * spacing + DEVICE_WIDTH
+        start_x = left + max(0, (available - row_width) // 2)
+        return start_x, spacing
     if constrain_to_anchor:
         left, right = _anchor_row_limits(anchor)
         available = max(DEVICE_WIDTH, right - left)
@@ -148,7 +207,7 @@ def _device_row_layout(
     return start_x, spacing
 
 
-def _max_slots_per_row(total_slots: int, *, max_right: int = SUMMARY_X - 20) -> tuple[int, int]:
+def _max_slots_per_row(total_slots: int, *, max_right: int = CANVAS_RIGHT) -> tuple[int, int]:
     for slots_in_row in range(total_slots, 0, -1):
         _, spacing = _row_layout(slots_in_row, max_right)
         row_width = (slots_in_row - 1) * spacing + DEVICE_WIDTH
@@ -159,24 +218,8 @@ def _max_slots_per_row(total_slots: int, *, max_right: int = SUMMARY_X - 20) -> 
 
 def _anchor_row_limits(anchor_node: NodeSpec) -> tuple[int, int]:
     left = max(MIN_LEFT_MARGIN, anchor_node.x - 24)
-    right = min(SUMMARY_X - 20, anchor_node.x + anchor_node.width + 24)
+    right = min(CANVAS_RIGHT, anchor_node.x + anchor_node.width + 24)
     return left, right
-
-
-def _max_slots_for_anchor(total_slots: int, anchor_node: NodeSpec) -> tuple[int, int]:
-    left, right = _anchor_row_limits(anchor_node)
-    available = max(DEVICE_WIDTH, right - left)
-    for slots_in_row in range(total_slots, 0, -1):
-        if slots_in_row == 1:
-            return 1, 0
-        spacing = max(
-            MIN_SLOT_SPACING,
-            min(SLOT_SPACING, (available - DEVICE_WIDTH) // (slots_in_row - 1)),
-        )
-        row_width = (slots_in_row - 1) * spacing + DEVICE_WIDTH
-        if row_width <= available:
-            return slots_in_row, spacing
-    return 1, 0
 
 
 def _anchor_exit_x(anchor: NodeSpec, target: NodeSpec) -> float:
@@ -638,13 +681,18 @@ def _place_switch(
     switch_y = router_node.y + router_node.height + ROUTER_SWITCH_GAP
 
     if has_dual_switch:
-        total_width = DEVICE_WIDTH * 2 + DUAL_SWITCH_GAP
-        start_x = router_node.x + (router_node.width - total_width) // 2
-        switch_tel = _make_switch_node("switch", switches[0], start_x, switch_y)
+        canvas_left, canvas_right = _canvas_bounds()
+        usable = canvas_right - canvas_left
+        switch_tel = _make_switch_node(
+            "switch",
+            switches[0],
+            int(canvas_left + usable * 0.30 - DEVICE_WIDTH / 2),
+            switch_y,
+        )
         switch_datos = _make_switch_node(
             "switch_datos",
             switches[1],
-            start_x + DEVICE_WIDTH + DUAL_SWITCH_GAP,
+            int(canvas_left + usable * 0.70 - DEVICE_WIDTH / 2),
             switch_y,
         )
         nodes.extend([switch_tel, switch_datos])
@@ -729,15 +777,41 @@ class _DeviceRowLayout:
     equipo_y: int
     row_step: int
     constrain_to_anchor: bool = False
+    zone_left: int | None = None
+    zone_right: int | None = None
+    force_horizontal: bool = False
 
 
-def _compute_anchor_row_layout(anchor_node: NodeSpec, device_equipos: list, *, constrain_to_anchor: bool = False) -> _DeviceRowLayout:
+def _compute_anchor_row_layout(
+    anchor_node: NodeSpec,
+    device_equipos: list,
+    *,
+    constrain_to_anchor: bool = False,
+    zone_left: int | None = None,
+    zone_right: int | None = None,
+    force_horizontal: bool = False,
+) -> _DeviceRowLayout:
     total_slots = _count_device_slots(device_equipos)
     has_dect_handsets = any(_dect_handset_key(_normalized_model(team)) for team in device_equipos)
     max_dect_stack = _max_dect_stack_depth(device_equipos) if has_dect_handsets else 1
     equipo_y = anchor_node.y + anchor_node.height + DEVICE_ROW_GAP
-    if constrain_to_anchor:
-        max_per_row, _ = _max_slots_for_anchor(total_slots, anchor_node) if total_slots else (1, 0)
+    if zone_left is not None and zone_right is not None:
+        max_per_row, _ = _max_slots_for_zone(
+            total_slots,
+            zone_left,
+            zone_right,
+            force_horizontal=force_horizontal,
+        ) if total_slots else (1, 0)
+    elif constrain_to_anchor:
+        left, right = _anchor_row_limits(anchor_node)
+        max_per_row, _ = _max_slots_for_zone(
+            total_slots,
+            left,
+            right,
+            force_horizontal=force_horizontal,
+        ) if total_slots else (1, 0)
+    elif force_horizontal and total_slots:
+        max_per_row = total_slots
     else:
         max_per_row, _ = _max_slots_per_row(total_slots) if total_slots else (1, MIN_SLOT_SPACING)
     row_step = DEVICE_HEIGHT + (DECT_ROW_EXTRA if has_dect_handsets else 95)
@@ -750,6 +824,9 @@ def _compute_anchor_row_layout(anchor_node: NodeSpec, device_equipos: list, *, c
         equipo_y=equipo_y,
         row_step=row_step,
         constrain_to_anchor=constrain_to_anchor,
+        zone_left=zone_left,
+        zone_right=zone_right,
+        force_horizontal=force_horizontal,
     )
 
 
@@ -761,7 +838,29 @@ def _compute_device_row_layout(
     has_dual_switch: bool,
 ) -> _DeviceRowLayout:
     anchor_node = _layout_anchor_node(nodes, has_switch=has_switch, has_dual_switch=has_dual_switch)
-    layout = _compute_anchor_row_layout(anchor_node, device_equipos)
+    total_slots = _count_device_slots(device_equipos)
+    telephony_only = bool(device_equipos) and all(_is_telephony_equipment(team) for team in device_equipos)
+    force_horizontal = False
+    zone_left: int | None = None
+    zone_right: int | None = None
+    if telephony_only and not has_dual_switch and total_slots > 1:
+        canvas_left, canvas_right = _canvas_bounds()
+        fitted, _ = _max_slots_for_zone(
+            total_slots,
+            canvas_left,
+            canvas_right,
+            force_horizontal=True,
+        )
+        if fitted == total_slots:
+            force_horizontal = True
+            zone_left, zone_right = canvas_left, canvas_right
+    layout = _compute_anchor_row_layout(
+        anchor_node,
+        device_equipos,
+        force_horizontal=force_horizontal,
+        zone_left=zone_left,
+        zone_right=zone_right,
+    )
     backup_node = next((n for n in nodes if n.key == "backup"), None)
     if backup_node and not has_switch:
         anchor_bottom = max(anchor_node.y + anchor_node.height, backup_node.y + backup_node.height)
@@ -772,6 +871,9 @@ def _compute_device_row_layout(
             equipo_y=anchor_bottom + DEVICE_ROW_GAP,
             row_step=layout.row_step,
             constrain_to_anchor=layout.constrain_to_anchor,
+            zone_left=layout.zone_left,
+            zone_right=layout.zone_right,
+            force_horizontal=layout.force_horizontal,
         )
     return layout
 
@@ -806,9 +908,23 @@ def _compute_dual_switch_row_layouts(
         )
         == "switch_datos"
     ]
+    tel_left, tel_right = _dual_switch_zone_limits("switch")
+    datos_left, datos_right = _dual_switch_zone_limits("switch_datos")
     return {
-        "switch": _compute_anchor_row_layout(switch_tel, telefonia_equipos, constrain_to_anchor=True),
-        "switch_datos": _compute_anchor_row_layout(switch_datos, datos_equipos, constrain_to_anchor=True),
+        "switch": _compute_anchor_row_layout(
+            switch_tel,
+            telefonia_equipos,
+            zone_left=tel_left,
+            zone_right=tel_right,
+            force_horizontal=True,
+        ),
+        "switch_datos": _compute_anchor_row_layout(
+            switch_datos,
+            datos_equipos,
+            zone_left=datos_left,
+            zone_right=datos_right,
+            force_horizontal=True,
+        ),
     }
 
 
@@ -868,7 +984,7 @@ class _DevicePlacementState:
         start_x, spacing = _device_row_layout(
             slots_in_row,
             layout.anchor_node,
-            constrain_to_anchor=layout.constrain_to_anchor,
+            layout=layout,
         )
         x = start_x + col * spacing
         y = layout.equipo_y + row_num * layout.row_step
