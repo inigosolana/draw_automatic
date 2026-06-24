@@ -290,6 +290,9 @@ class CrmImportTests(unittest.TestCase):
         self.assertEqual(result.terminals[1]["mac"], "44:DB:D2:9A:A9:6D")
         self.assertEqual(result.terminals[2]["serial"], "301046H090045964")
         self.assertTrue(any(device["tipo"] == "wifi" for device in result.devices_json))
+        wifi_devices = [device for device in result.devices_json if device["tipo"] == "wifi"]
+        self.assertEqual(len(wifi_devices), 1)
+        self.assertEqual(wifi_devices[0]["modelo"], "Grandstream AP")
 
     def test_import_unwraps_status_result_envelope(self) -> None:
         result = import_result_from_json_payload(

@@ -69,6 +69,19 @@ class OfferImportTests(unittest.TestCase):
         library = load_library(Path(__file__).resolve().parents[1] / "library" / "libreria_Ausarta_JUN_2026.xml")
         self.assertIsNotNone(library.find("TP-LINK-5_PORTS"))
 
+    def test_gwn7660_maps_to_grandstream_ap(self) -> None:
+        from pathlib import Path
+
+        name = "Grandstream GWN7660 Punto de Acceso Wifi 6, 2×2:2 MU-MIM"
+        result = map_offer_to_form(normalize_products([{"name": name, "quantity": 1}]))
+        self.assertEqual(len(result.devices_json), 1)
+        self.assertEqual(result.devices_json[0]["tipo"], "wifi")
+        self.assertEqual(result.devices_json[0]["modelo"], "Grandstream AP")
+        self.assertFalse(any("no clasificado" in w for w in result.warnings))
+
+        library = load_library(Path(__file__).resolve().parents[1] / "library" / "libreria_Ausarta_JUN_2026.xml")
+        self.assertIsNotNone(library.find("Grandstream AP"))
+
     def test_maps_sample_offer_products(self) -> None:
         products = parse_product_lines(
             "\n".join(

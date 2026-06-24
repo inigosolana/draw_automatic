@@ -291,6 +291,16 @@ def _detect_backup_model(name: str) -> str:
     return ""
 
 
+def _normalize_wifi_ap_model(name: str) -> str:
+    lowered = name.lower()
+    compact = re.sub(r"[\s\-_]+", "", lowered)
+    if any(token in compact for token in ("gwn7660", "gwn7630", "gwn7615", "gwn7610", "gwn7600")):
+        return "Grandstream AP"
+    if "grandstream" in lowered and "gwn" in lowered:
+        return "Grandstream AP"
+    return name.strip()
+
+
 def _detect_device_category(name: str) -> tuple[str, str, str] | None:
     lowered = name.lower()
     if any(token in lowered for token in ("tl-sg1005", "sg1005d", "ls105g")):
@@ -301,7 +311,7 @@ def _detect_device_category(name: str) -> tuple[str, str, str] | None:
             model = f"switch {model}"
         return ("switch", "switch", model)
     if any(token in lowered for token in ("deco", "mesh", "access point", "punto de acceso", " gwn", " ruijie", " wifi")):
-        return ("ap", "wifi", name.strip())
+        return ("ap", "wifi", _normalize_wifi_ap_model(name))
     if "ata" in lowered:
         return ("ata", "ata", "ATA")
     if "nas" in lowered:
