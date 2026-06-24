@@ -19,7 +19,7 @@ class EdgeRoutingTests(unittest.TestCase):
     def test_device_bus_routes_below_anchor_and_above_target(self) -> None:
         anchor = NodeSpec("switch", "device", "", 470, 360, 150, 150)
         target = NodeSpec("team_1", "device", "", 240, 615, 150, 150)
-        bus_y = _device_bus_y(anchor, target, row_top_y=615)
+        bus_y = _device_bus_y(anchor, target, row_top_y=615, lane_index=0)
         self.assertLess(bus_y, 615)
         self.assertGreater(bus_y, anchor.y + anchor.height)
         waypoints = _bus_waypoints(anchor, target, exit_x=0.5, bus_y=bus_y)

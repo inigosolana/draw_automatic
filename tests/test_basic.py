@@ -688,6 +688,46 @@ class BasicTests(unittest.TestCase):
         ap_edge = next(edge for edge in edges if edge.target == ap.key)
         self.assertEqual(ap_edge.source, "switch_datos")
 
+    def test_dual_switch_cables_use_separate_bus_lanes(self) -> None:
+        data = {
+            "cliente": "INMOBILIARIA HUMEDO SL",
+            "sede": "Central",
+            "direccion": "Bilbao",
+            "template": "con_switch",
+            "internet": {"tipo": "FIBRA + BACK UP", "velocidad": "1 GB", "proveedor": "AIRE"},
+            "ont": {"modelo": "ONT ZTE"},
+            "router": {"modelo": "MikroTik hAP ac2", "ip": "192.168.0.1/24"},
+            "equipos": [
+                {"tipo": "switch", "modelo": "TP-LINK-5_PORTS", "cantidad": 1},
+                {"tipo": "switch", "modelo": "TP-LINK-5_PORTS", "cantidad": 1},
+                {"tipo": "telefono", "modelo": "FANVIL V64", "cantidad": 1, "extensiones": ["3001"]},
+                {"tipo": "telefono", "modelo": "FANVIL V64", "cantidad": 1, "extensiones": ["3002"]},
+                {"tipo": "telefono", "modelo": "FANVIL V64", "cantidad": 1, "extensiones": ["3000"]},
+                {"tipo": "wifi", "modelo": "Grandstream AP", "cantidad": 1},
+            ],
+        }
+        nodes, edges = build_layout(data)
+        switch_tel = next(node for node in nodes if node.key == "switch")
+        switch_datos = next(node for node in nodes if node.key == "switch_datos")
+        phones = [node for node in nodes if node.key.startswith("team_") and "FANVIL" in node.label]
+        ap = next(node for node in nodes if node.key.startswith("team_") and "Grandstream" in node.label)
+        self.assertTrue(all(phone.x + phone.width <= switch_datos.x for phone in phones))
+        self.assertGreater(ap.x, switch_tel.x + switch_tel.width)
+        router_switch_edges = [edge for edge in edges if edge.label in {"ETH3-LAN", "ETH4-LAN"}]
+        self.assertEqual(len(router_switch_edges), 2)
+        router_lanes = {
+            edge.waypoints[0][1]
+            for edge in router_switch_edges
+            if edge.waypoints
+        }
+        self.assertEqual(len(router_lanes), 2)
+        tel_bus_ys = {
+            edge.waypoints[0][1]
+            for edge in edges
+            if edge.source == "switch" and edge.target.startswith("team_") and edge.waypoints
+        }
+        self.assertEqual(len(tel_bus_ys), len(phones))
+
     def test_two_switches_infer_con_switch_template(self) -> None:
         from generator.parser import infer_template
 

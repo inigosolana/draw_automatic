@@ -31,11 +31,13 @@ DEVICE_ROW_GAP = 175
 DECT_ROW_EXTRA = 110
 SWITCH_FALLBACK_ICON = "TP-Link 8P"
 SWITCH_ANCHOR_KEYS = frozenset({"switch", "switch_datos"})
-DUAL_SWITCH_GAP = 70
+DUAL_SWITCH_GAP = 90
 ROUTER_BACKUP_GAP = 70
 ROUTER_SWITCH_GAP = 90
 CABLE_CLEARANCE_ABOVE_DEVICE = 40
 CABLE_GAP_BELOW_ANCHOR = 40
+BUS_LANE_SPACING = 24
+ROUTER_SWITCH_LANE_BASE = 18
 TELEPHONY_TYPES = {"telefono", "terminal_dect", "base_dect", "ata"}
 
 
@@ -120,7 +122,25 @@ def _row_layout(total_slots: int, max_right: int = SUMMARY_X - 20) -> tuple[int,
     return start_x, spacing
 
 
-def _device_row_layout(total_slots: int, anchor: NodeSpec, max_right: int = SUMMARY_X - 20) -> tuple[int, int]:
+def _device_row_layout(
+    total_slots: int,
+    anchor: NodeSpec,
+    max_right: int = SUMMARY_X - 20,
+    *,
+    constrain_to_anchor: bool = False,
+) -> tuple[int, int]:
+    if constrain_to_anchor:
+        left, right = _anchor_row_limits(anchor)
+        available = max(DEVICE_WIDTH, right - left)
+        if total_slots <= 1:
+            return left + (available - DEVICE_WIDTH) // 2, 0
+        spacing = max(
+            MIN_SLOT_SPACING,
+            min(SLOT_SPACING, (available - DEVICE_WIDTH) // (total_slots - 1)),
+        )
+        row_width = (total_slots - 1) * spacing + DEVICE_WIDTH
+        start_x = left + max(0, (available - row_width) // 2)
+        return start_x, spacing
     _, spacing = _row_layout(total_slots, max_right)
     row_width = (total_slots - 1) * spacing + DEVICE_WIDTH
     centered_start = anchor.x + (anchor.width - row_width) // 2
@@ -128,11 +148,33 @@ def _device_row_layout(total_slots: int, anchor: NodeSpec, max_right: int = SUMM
     return start_x, spacing
 
 
-def _max_slots_per_row(total_slots: int) -> tuple[int, int]:
+def _max_slots_per_row(total_slots: int, *, max_right: int = SUMMARY_X - 20) -> tuple[int, int]:
     for slots_in_row in range(total_slots, 0, -1):
-        _, spacing = _row_layout(slots_in_row)
+        _, spacing = _row_layout(slots_in_row, max_right)
         row_width = (slots_in_row - 1) * spacing + DEVICE_WIDTH
-        if row_width <= SUMMARY_X - 20 - MIN_LEFT_MARGIN:
+        if row_width <= max_right - MIN_LEFT_MARGIN:
+            return slots_in_row, spacing
+    return 1, 0
+
+
+def _anchor_row_limits(anchor_node: NodeSpec) -> tuple[int, int]:
+    left = max(MIN_LEFT_MARGIN, anchor_node.x - 24)
+    right = min(SUMMARY_X - 20, anchor_node.x + anchor_node.width + 24)
+    return left, right
+
+
+def _max_slots_for_anchor(total_slots: int, anchor_node: NodeSpec) -> tuple[int, int]:
+    left, right = _anchor_row_limits(anchor_node)
+    available = max(DEVICE_WIDTH, right - left)
+    for slots_in_row in range(total_slots, 0, -1):
+        if slots_in_row == 1:
+            return 1, 0
+        spacing = max(
+            MIN_SLOT_SPACING,
+            min(SLOT_SPACING, (available - DEVICE_WIDTH) // (slots_in_row - 1)),
+        )
+        row_width = (slots_in_row - 1) * spacing + DEVICE_WIDTH
+        if row_width <= available:
             return slots_in_row, spacing
     return 1, 0
 
@@ -165,29 +207,53 @@ def _bus_waypoints(
     return ((exit_x_abs, bus_y), (target_center, bus_y))
 
 
-def _cable_label_offset(label: str, *, anchor_key: str) -> tuple[int, int]:
+def _cable_label_offset(
+    label: str,
+    *,
+    anchor_key: str,
+    lane_index: int = 0,
+    anchor: NodeSpec | None = None,
+    target: NodeSpec | None = None,
+) -> tuple[int, int]:
     if not label:
         return 0, -14
     if anchor_key in SWITCH_ANCHOR_KEYS and label.startswith("ETH") and not label.endswith("-LAN"):
-        return 0, -34
+        return lane_index * 10, -36 - lane_index * 4
+    if label.endswith("-LAN") and anchor_key == "router":
+        offset_x = 10
+        if anchor is not None and target is not None:
+            offset_x += int((target.x + target.width / 2) - (anchor.x + anchor.width / 2)) // 4
+        return offset_x, -32 - lane_index * 4
     offset_x = 10 if label.endswith("-LAN") and anchor_key == "router" else 0
     offset_y = -30 if label.endswith("-LAN") and anchor_key == "router" else -24
-    return offset_x, offset_y
+    return offset_x, offset_y - lane_index * 2
 
 
-def _device_bus_y(anchor: NodeSpec, target: NodeSpec, row_top_y: int | None = None) -> int:
+def _device_bus_y(
+    anchor: NodeSpec,
+    target: NodeSpec,
+    row_top_y: int | None = None,
+    *,
+    lane_index: int = 0,
+) -> int:
     if row_top_y is not None:
-        return row_top_y - CABLE_CLEARANCE_ABOVE_DEVICE
+        return row_top_y - CABLE_CLEARANCE_ABOVE_DEVICE - lane_index * BUS_LANE_SPACING
     midpoint = (anchor.y + anchor.height + target.y) // 2
-    return max(anchor.y + anchor.height + CABLE_GAP_BELOW_ANCHOR, midpoint)
+    base = max(anchor.y + anchor.height + CABLE_GAP_BELOW_ANCHOR, midpoint)
+    return base - lane_index * BUS_LANE_SPACING
 
 
-def _router_switch_waypoints(router: NodeSpec, switch: NodeSpec) -> tuple[tuple[int, int], ...] | None:
+def _router_switch_waypoints(
+    router: NodeSpec,
+    switch: NodeSpec,
+    *,
+    lane_index: int = 0,
+) -> tuple[tuple[int, int], ...] | None:
     router_center = int(router.x + router.width / 2)
     switch_center = int(switch.x + switch.width / 2)
+    joint_y = router.y + router.height + ROUTER_SWITCH_LANE_BASE + lane_index * BUS_LANE_SPACING
     if abs(router_center - switch_center) <= 8:
-        return None
-    joint_y = router.y + router.height + max(14, ROUTER_SWITCH_GAP // 2)
+        return ((switch_center, joint_y),)
     return ((router_center, joint_y), (switch_center, joint_y))
 
 
@@ -523,17 +589,18 @@ def _expand_switch_equipment(equipos: list) -> list[dict]:
 
 def _make_switch_node(key: str, switch_eq: dict, x: int, y: int) -> NodeSpec:
     model = _safe(switch_eq.get("modelo", "Switch"))
+    display_name = _switch_icon_model(model)
     return NodeSpec(
         key=key,
         kind="device",
-        label=f"<b>{model}</b>",
+        label=f"<b>{display_name}</b>",
         model=model,
         x=x,
         y=y,
         width=DEVICE_WIDTH,
         height=DEVICE_HEIGHT,
         meta={"propiedad": _ownership(switch_eq), "label_above": True},
-        icon_model=_switch_icon_model(model),
+        icon_model=display_name,
     )
 
 
@@ -586,13 +653,13 @@ def _place_switch(
                 "router",
                 "switch",
                 label="ETH3-LAN",
-                exit_x=0.5,
+                exit_x=_anchor_exit_x(router_node, switch_tel),
                 exit_y=1.0,
                 entry_x=0.5,
                 entry_y=0.0,
-                waypoints=_router_switch_waypoints(router_node, switch_tel),
-                label_offset_x=10,
-                label_offset_y=-30,
+                waypoints=_router_switch_waypoints(router_node, switch_tel, lane_index=0),
+                label_offset_x=-24,
+                label_offset_y=-32,
             )
         )
         edges.append(
@@ -600,13 +667,13 @@ def _place_switch(
                 "router",
                 "switch_datos",
                 label="ETH4-LAN",
-                exit_x=0.5,
+                exit_x=_anchor_exit_x(router_node, switch_datos),
                 exit_y=1.0,
                 entry_x=0.5,
                 entry_y=0.0,
-                waypoints=_router_switch_waypoints(router_node, switch_datos),
-                label_offset_x=10,
-                label_offset_y=-30,
+                waypoints=_router_switch_waypoints(router_node, switch_datos, lane_index=1),
+                label_offset_x=24,
+                label_offset_y=-36,
             )
         )
         return True, True
@@ -661,25 +728,18 @@ class _DeviceRowLayout:
     max_per_row: int
     equipo_y: int
     row_step: int
+    constrain_to_anchor: bool = False
 
 
-def _compute_device_row_layout(
-    nodes: list[NodeSpec],
-    device_equipos: list,
-    *,
-    has_switch: bool,
-    has_dual_switch: bool,
-) -> _DeviceRowLayout:
+def _compute_anchor_row_layout(anchor_node: NodeSpec, device_equipos: list, *, constrain_to_anchor: bool = False) -> _DeviceRowLayout:
     total_slots = _count_device_slots(device_equipos)
     has_dect_handsets = any(_dect_handset_key(_normalized_model(team)) for team in device_equipos)
     max_dect_stack = _max_dect_stack_depth(device_equipos) if has_dect_handsets else 1
-    anchor_node = _layout_anchor_node(nodes, has_switch=has_switch, has_dual_switch=has_dual_switch)
-    backup_node = next((n for n in nodes if n.key == "backup"), None)
-    anchor_bottom = anchor_node.y + anchor_node.height
-    if backup_node and not has_switch:
-        anchor_bottom = max(anchor_bottom, backup_node.y + backup_node.height)
-    equipo_y = anchor_bottom + DEVICE_ROW_GAP
-    max_per_row, _ = _max_slots_per_row(total_slots) if total_slots else (1, MIN_SLOT_SPACING)
+    equipo_y = anchor_node.y + anchor_node.height + DEVICE_ROW_GAP
+    if constrain_to_anchor:
+        max_per_row, _ = _max_slots_for_anchor(total_slots, anchor_node) if total_slots else (1, 0)
+    else:
+        max_per_row, _ = _max_slots_per_row(total_slots) if total_slots else (1, MIN_SLOT_SPACING)
     row_step = DEVICE_HEIGHT + (DECT_ROW_EXTRA if has_dect_handsets else 95)
     if max_dect_stack > 1:
         row_step += (max_dect_stack - 1) * DECT_HANDSET_STACK_STEP
@@ -689,21 +749,84 @@ def _compute_device_row_layout(
         max_per_row=max_per_row,
         equipo_y=equipo_y,
         row_step=row_step,
+        constrain_to_anchor=constrain_to_anchor,
     )
+
+
+def _compute_device_row_layout(
+    nodes: list[NodeSpec],
+    device_equipos: list,
+    *,
+    has_switch: bool,
+    has_dual_switch: bool,
+) -> _DeviceRowLayout:
+    anchor_node = _layout_anchor_node(nodes, has_switch=has_switch, has_dual_switch=has_dual_switch)
+    layout = _compute_anchor_row_layout(anchor_node, device_equipos)
+    backup_node = next((n for n in nodes if n.key == "backup"), None)
+    if backup_node and not has_switch:
+        anchor_bottom = max(anchor_node.y + anchor_node.height, backup_node.y + backup_node.height)
+        layout = _DeviceRowLayout(
+            anchor_node=layout.anchor_node,
+            total_slots=layout.total_slots,
+            max_per_row=layout.max_per_row,
+            equipo_y=anchor_bottom + DEVICE_ROW_GAP,
+            row_step=layout.row_step,
+            constrain_to_anchor=layout.constrain_to_anchor,
+        )
+    return layout
+
+
+def _compute_dual_switch_row_layouts(
+    nodes: list[NodeSpec],
+    device_equipos: list,
+    *,
+    switch_telefonia: bool,
+) -> dict[str, _DeviceRowLayout]:
+    switch_tel = next(node for node in nodes if node.key == "switch")
+    switch_datos = next(node for node in nodes if node.key == "switch_datos")
+    telefonia_equipos = [
+        eq
+        for eq in device_equipos
+        if _device_anchor(
+            eq,
+            has_switch=True,
+            has_dual_switch=True,
+            switch_telefonia=switch_telefonia,
+        )
+        == "switch"
+    ]
+    datos_equipos = [
+        eq
+        for eq in device_equipos
+        if _device_anchor(
+            eq,
+            has_switch=True,
+            has_dual_switch=True,
+            switch_telefonia=switch_telefonia,
+        )
+        == "switch_datos"
+    ]
+    return {
+        "switch": _compute_anchor_row_layout(switch_tel, telefonia_equipos, constrain_to_anchor=True),
+        "switch_datos": _compute_anchor_row_layout(switch_datos, datos_equipos, constrain_to_anchor=True),
+    }
 
 
 @dataclass
 class _DevicePlacementState:
     nodes: list[NodeSpec]
     edges: list[EdgeSpec]
-    row_layout: _DeviceRowLayout
     has_switch: bool
     has_dual_switch: bool
     switch_telefonia: bool
+    row_layout: _DeviceRowLayout | None = None
+    row_layouts: dict[str, _DeviceRowLayout] | None = None
     slot_index: int = 0
     team_index: int = 1
     router_port_index: int = 3
     switch_port_indices: dict[str, int] | None = None
+    slot_indices: dict[str, int] | None = None
+    bus_lane_counters: dict[str, int] | None = None
     dect_base_registry: dict[str, str] | None = None
     ordered_base_keys: list[str] | None = None
     handsets_on_base: dict[str, int] | None = None
@@ -711,6 +834,10 @@ class _DevicePlacementState:
     def __post_init__(self) -> None:
         if self.switch_port_indices is None:
             self.switch_port_indices = {"switch": 1, "switch_datos": 1}
+        if self.slot_indices is None:
+            self.slot_indices = {}
+        if self.bus_lane_counters is None:
+            self.bus_lane_counters = {}
         if self.dect_base_registry is None:
             self.dect_base_registry = {}
         if self.ordered_base_keys is None:
@@ -720,17 +847,35 @@ class _DevicePlacementState:
         if self.has_switch:
             self.router_port_index = 5 if self.has_dual_switch else 4
 
-    def next_position(self) -> tuple[int, int, int]:
-        row_num = self.slot_index // self.row_layout.max_per_row
-        col = self.slot_index % self.row_layout.max_per_row
+    def _layout_for(self, anchor_key: str) -> _DeviceRowLayout:
+        if self.row_layouts is not None:
+            return self.row_layouts[anchor_key]
+        assert self.row_layout is not None
+        return self.row_layout
+
+    def next_position(self, anchor_key: str) -> tuple[int, int, int]:
+        layout = self._layout_for(anchor_key)
+        if self.row_layouts is not None:
+            slot_index = self.slot_indices.get(anchor_key, 0)
+        else:
+            slot_index = self.slot_index
+        row_num = slot_index // layout.max_per_row
+        col = slot_index % layout.max_per_row
         slots_in_row = min(
-            self.row_layout.max_per_row,
-            self.row_layout.total_slots - row_num * self.row_layout.max_per_row,
+            layout.max_per_row,
+            layout.total_slots - row_num * layout.max_per_row,
         )
-        start_x, spacing = _device_row_layout(slots_in_row, self.row_layout.anchor_node)
+        start_x, spacing = _device_row_layout(
+            slots_in_row,
+            layout.anchor_node,
+            constrain_to_anchor=layout.constrain_to_anchor,
+        )
         x = start_x + col * spacing
-        y = self.row_layout.equipo_y + row_num * self.row_layout.row_step
-        self.slot_index += 1
+        y = layout.equipo_y + row_num * layout.row_step
+        if self.row_layouts is not None:
+            self.slot_indices[anchor_key] = slot_index + 1
+        else:
+            self.slot_index += 1
         return x, y, y
 
     def next_port_labels(self, anchor_key: str) -> tuple[str, str]:
@@ -747,9 +892,17 @@ class _DevicePlacementState:
         anchor = next(node for node in self.nodes if node.key == anchor_key)
         target = next(node for node in self.nodes if node.key == target_key)
         exit_x = _anchor_exit_x(anchor, target) if anchor_key in SWITCH_ANCHOR_KEYS | {"router"} else 0.5
-        bus_y = _device_bus_y(anchor, target, row_top_y)
+        lane_index = self.bus_lane_counters.get(anchor_key, 0)
+        self.bus_lane_counters[anchor_key] = lane_index + 1
+        bus_y = _device_bus_y(anchor, target, row_top_y, lane_index=lane_index)
         waypoints = _bus_waypoints(anchor, target, exit_x=exit_x, bus_y=bus_y)
-        label_offset_x, label_offset_y = _cable_label_offset(label, anchor_key=anchor_key)
+        label_offset_x, label_offset_y = _cable_label_offset(
+            label,
+            anchor_key=anchor_key,
+            lane_index=lane_index,
+            anchor=anchor,
+            target=target,
+        )
         self.edges.append(
             EdgeSpec(
                 anchor_key,
@@ -778,8 +931,8 @@ def _create_dect_base(state: _DevicePlacementState, team: dict, normalized_model
     registry_key = _dect_registry_key(team, normalized_model)
     base_model_name = _display_model(_resolve_dect_base(team, normalized_model))
     base_key = f"team_{state.team_index}"
-    base_x, base_y, row_top_y = state.next_position()
     anchor_key = state.anchor_for(team)
+    base_x, base_y, row_top_y = state.next_position(anchor_key)
     cable_label, port_label = state.next_port_labels(anchor_key)
     state.nodes.append(
         NodeSpec(
@@ -861,8 +1014,8 @@ def _place_device_row(
     is_dect_base: bool,
 ) -> None:
     key = f"team_{state.team_index}"
-    node_x, node_y, row_top_y = state.next_position()
     anchor_key = state.anchor_for(team)
+    node_x, node_y, row_top_y = state.next_position(anchor_key)
     cable_label, port_label = state.next_port_labels(anchor_key)
     state.nodes.append(
         NodeSpec(
@@ -949,16 +1102,26 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
     has_switch, has_dual_switch = _place_switch(data, nodes, edges, include_switch)
     switch_telefonia = _parse_switch_telefonia(data.get("switch_telefonia"), default=True)
     device_equipos = [eq for eq in data.get("equipos", []) if eq.get("tipo") != "switch"]
-    row_layout = _compute_device_row_layout(
-        nodes,
-        device_equipos,
-        has_switch=has_switch,
-        has_dual_switch=has_dual_switch,
-    )
+    row_layout: _DeviceRowLayout | None = None
+    row_layouts: dict[str, _DeviceRowLayout] | None = None
+    if has_dual_switch:
+        row_layouts = _compute_dual_switch_row_layouts(
+            nodes,
+            device_equipos,
+            switch_telefonia=switch_telefonia,
+        )
+    else:
+        row_layout = _compute_device_row_layout(
+            nodes,
+            device_equipos,
+            has_switch=has_switch,
+            has_dual_switch=has_dual_switch,
+        )
     state = _DevicePlacementState(
         nodes=nodes,
         edges=edges,
         row_layout=row_layout,
+        row_layouts=row_layouts,
         has_switch=has_switch,
         has_dual_switch=has_dual_switch,
         switch_telefonia=switch_telefonia,
