@@ -274,7 +274,7 @@ class CrmImportTests(unittest.TestCase):
         self.assertEqual(result.sede, "Sede 1 - PRINCIPAL")
         self.assertEqual(
             result.direccion,
-            "Calle Nueva, 5, Bajo. Fuensanta, Pinos Puente 18328, Granada",
+            "Calle Nueva, 5, Bajo",
         )
         self.assertEqual(result.internet_proveedor, "AIRE")
         self.assertEqual(result.internet_tipo, "FIBRA + BACK UP")
@@ -319,7 +319,7 @@ class CrmImportTests(unittest.TestCase):
         self.assertEqual(normalized["sede"], "Sede 1 - PRINCIPAL")
         self.assertEqual(
             normalized["direccion"],
-            "Calle Nueva, 5, Bajo. Fuensanta, Pinos Puente 18328, Granada",
+            "Calle Nueva, 5, Bajo",
         )
         self.assertNotIn("address_id", normalized)
         self.assertNotIn("contact", normalized)

@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 
 from .import_errors import CommsError
+from .address_formatter import normalize_street_address
 from .offer_mapper import (
     ImportResult,
     _detect_backup_model,
@@ -343,7 +344,7 @@ def normalize_work_order_payload(payload: object) -> dict:
             or payload.get("cif")
         ),
         "sede": sede_name or _clean(payload.get("sede") if isinstance(payload.get("sede"), str) else ""),
-        "direccion": sede_address,
+        "direccion": normalize_street_address(sede_address),
         "glpi_entity_id": _clean(site.get("glpi_entity_id") or site.get("entity_id") or payload.get("glpi_entity_id")),
         "connectivity_text": connectivity_text or _clean(payload.get("connectivity_text")),
         "connectivity_structured": connectivity_structured,

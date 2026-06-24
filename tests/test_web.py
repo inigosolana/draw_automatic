@@ -259,7 +259,7 @@ class WebAdapterTests(unittest.TestCase):
             sites = SiteDirectory(Path(directory) / "sites.sqlite3")
             sites.set(45, "AVENIDA LIBERTAD, 65, 5. BARAKALDO 48901, Bizkaia", "Tecnico Uno")
             saved = sites.get(45)
-            self.assertEqual(saved["address"], "AVENIDA LIBERTAD, 65, 5. BARAKALDO 48901, Bizkaia")
+            self.assertEqual(saved["address"], "Avenida LIBERTAD, 65, 5")
             self.assertEqual(saved["updated_by"], "Tecnico Uno")
 
     def test_saved_address_overrides_incomplete_glpi_address(self) -> None:

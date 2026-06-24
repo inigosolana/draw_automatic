@@ -39,7 +39,9 @@ class SiteDirectory:
         return {"address": row[0], "updated_by": row[1], "updated_at": row[2]}
 
     def set(self, entity_id: int, address: str, updated_by: str) -> None:
-        clean_address = " ".join((address or "").split()).strip()
+        from .address_formatter import normalize_street_address
+
+        clean_address = normalize_street_address(address)
         if not clean_address:
             return
         with closing(self._connect()) as connection:
