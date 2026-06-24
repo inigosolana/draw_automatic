@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 from generator.glpi_client import GlpiError
 from generator.safe_errors import public_error_message
@@ -26,6 +26,12 @@ def activity_technician_name(row: dict) -> str:
     return row.get("technician_name") or row.get("technician", {}).get("name", "?")
 
 
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
 def _daily_labels(now: datetime, days: int) -> list[tuple[date, str]]:
     return [
         ((now - timedelta(days=offset)).date(), (now - timedelta(days=offset)).strftime("%d/%m"))
@@ -41,8 +47,13 @@ def _year_month_windows(now: datetime) -> list[tuple[str, datetime, datetime, tu
         while month <= 0:
             month += 12
             year -= 1
-        start = datetime(year, month, 1)
-        end = datetime(year + 1, 1, 1) if month == 12 else datetime(year, month + 1, 1)
+        tz = now.tzinfo or UTC
+        start = datetime(year, month, 1, tzinfo=tz)
+        end = (
+            datetime(year + 1, 1, 1, tzinfo=tz)
+            if month == 12
+            else datetime(year, month + 1, 1, tzinfo=tz)
+        )
         label = f"{MONTHS_ES[month - 1]} {str(year)[2:]}"
         windows.append((label, start, end, (year, month)))
     return windows
@@ -50,6 +61,7 @@ def _year_month_windows(now: datetime) -> list[tuple[str, datetime, datetime, tu
 
 def build_admin_chart_periods(all_rows: list[dict], now: datetime) -> dict:
     """Aggregate activity rows into week/month/year chart payloads in a single O(N) pass."""
+    now = _as_utc(now)
     cutoff_week = now - timedelta(days=7)
     cutoff_month = now - timedelta(days=30)
     cutoff_year = now - timedelta(days=365)
@@ -74,7 +86,7 @@ def build_admin_chart_periods(all_rows: list[dict], now: datetime) -> dict:
     tech_year: Counter[str] = Counter()
 
     for row in all_rows:
-        created = datetime.utcfromtimestamp(row["created_at"])
+        created = datetime.fromtimestamp(row["created_at"], UTC)
         created_day = created.date()
         technician = activity_technician_name(row)
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from flask import Blueprint, Response, render_template
 from flask_limiter.util import get_remote_address
@@ -36,11 +36,11 @@ def create_admin_blueprint() -> Blueprint:
             )
             return Response("Acceso restringido.", status=403, mimetype="text/plain; charset=utf-8")
 
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         all_rows = drawio_stores.activity.list_all() if hasattr(drawio_stores.activity, "list_all") else []
-        today = [r for r in all_rows if datetime.utcfromtimestamp(r["created_at"]).date() == now.date()]
-        week = [r for r in all_rows if datetime.utcfromtimestamp(r["created_at"]) >= now - timedelta(days=7)]
-        month = [r for r in all_rows if datetime.utcfromtimestamp(r["created_at"]) >= now - timedelta(days=30)]
+        today = [r for r in all_rows if datetime.fromtimestamp(r["created_at"], UTC).date() == now.date()]
+        week = [r for r in all_rows if datetime.fromtimestamp(r["created_at"], UTC) >= now - timedelta(days=7)]
+        month = [r for r in all_rows if datetime.fromtimestamp(r["created_at"], UTC) >= now - timedelta(days=30)]
         chart_periods = build_admin_chart_periods(all_rows, now)
 
         coverage_data = None
