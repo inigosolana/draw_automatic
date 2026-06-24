@@ -9,7 +9,7 @@ SWITCH_MODELS: list[str] = [
     "tp-link-tl-sg1024de-switch-24-puertos-gigabit  02",
     "tp-link-tl-sg1024de-switch-24-puertos-gigabit  01",
     "TP-LIINK",
-    "SW TP-LINK LS105G",
+    "TP-LINK-5_PORTS",
     "DGS 108GL A1 Front",
     "SW tp-link basico",
     "SW_TP-LINK_16PORTs",

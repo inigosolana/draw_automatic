@@ -1,6 +1,7 @@
 import unittest
 
 from generator.comms_client import import_products_text, normalize_work_order_payload, parse_work_order_html
+from generator.library_loader import load_library
 from generator.offer_mapper import (
     extract_work_order_id,
     is_accessory,
@@ -54,6 +55,19 @@ class OfferImportTests(unittest.TestCase):
             connectivity_text="Fibra Profesional MásMóvil",
         )
         self.assertEqual(pro_speed.internet_velocidad, "600 MB")
+
+    def test_tl_sg1005d_maps_to_tp_link_5_ports_switch(self) -> None:
+        from pathlib import Path
+
+        name = "TL-SG1005D 5-port Gigabit Switch, 5 10/100/1000M RJ45 ports, plastic case"
+        result = map_offer_to_form(normalize_products([{"name": name, "quantity": 1}]))
+        self.assertEqual(len(result.devices_json), 1)
+        self.assertEqual(result.devices_json[0]["tipo"], "switch")
+        self.assertEqual(result.devices_json[0]["modelo"], "TP-LINK-5_PORTS")
+        self.assertFalse(any("no clasificado" in w for w in result.warnings))
+
+        library = load_library(Path(__file__).resolve().parents[1] / "library" / "libreria_Ausarta_JUN_2026.xml")
+        self.assertIsNotNone(library.find("TP-LINK-5_PORTS"))
 
     def test_maps_sample_offer_products(self) -> None:
         products = parse_product_lines(

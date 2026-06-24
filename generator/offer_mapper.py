@@ -293,6 +293,8 @@ def _detect_backup_model(name: str) -> str:
 
 def _detect_device_category(name: str) -> tuple[str, str, str] | None:
     lowered = name.lower()
+    if any(token in lowered for token in ("tl-sg1005", "sg1005d", "ls105g")):
+        return ("switch", "switch", "TP-LINK-5_PORTS")
     if any(token in lowered for token in ("switch", "swtich", "tp-link", "tp link", "dgs", "firebox")):
         model = name.strip()
         if "switch" not in model.lower():
