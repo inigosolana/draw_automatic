@@ -28,10 +28,18 @@ class LibraryIndex:
         self.by_normalized = {normalize_name(item.title): item for item in items}
 
     def find(self, name: str) -> LibraryItem | None:
-        alias = resolve_alias(name)
-        if alias in self.by_title:
-            return self.by_title[alias]
-        return self.by_normalized.get(normalize_name(alias))
+        candidates = [name]
+        stripped = re.sub(r"^switch\s+", "", (name or "").strip(), flags=re.IGNORECASE)
+        if stripped and stripped != name:
+            candidates.append(stripped)
+        for candidate in candidates:
+            alias = resolve_alias(candidate)
+            if alias in self.by_title:
+                return self.by_title[alias]
+            found = self.by_normalized.get(normalize_name(alias))
+            if found:
+                return found
+        return None
 
 
 def _load_local_icon(title: str, image_path: Path, width: int = 120, height: int = 120) -> LibraryItem | None:

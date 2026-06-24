@@ -32,6 +32,7 @@ class BasicTests(unittest.TestCase):
         self.assertEqual(resolve_alias("V64"), "FANVIL V64")
         self.assertEqual(resolve_alias("TP-Link TL-SG108"), "TP-Link 8P")
         self.assertEqual(resolve_alias("TL-SG1005D"), "TP-LINK-5_PORTS")
+        self.assertEqual(resolve_alias("switch TP-LINK-5_PORTS"), "TP-LINK-5_PORTS")
         self.assertEqual(resolve_alias("W70B"), "W70B")
         self.assertEqual(resolve_alias("GPON ONT"), "ONT ZTE")
 
@@ -41,6 +42,30 @@ class BasicTests(unittest.TestCase):
         self.assertEqual(resolve_alias("Fanvil V64"), "FANVIL_V64")
         self.assertEqual(library.find("WAP LTE").title, "Mikrotik wAP LTE")
         self.assertIsNotNone(library.find("MikroTik hAP ac2"))
+
+    def test_library_resolves_switch_prefixed_tp_link_5_ports(self) -> None:
+        real_library = ROOT / "library" / "libreria_Ausarta_JUN_2026.xml"
+        if not real_library.is_file():
+            self.skipTest("libreria real no disponible en este entorno")
+        library = load_library(real_library)
+        self.assertIsNotNone(library.find("switch TP-LINK-5_PORTS"))
+        data = {
+            "cliente": "Demo",
+            "sede": "Central",
+            "direccion": "Bilbao",
+            "template": "con_switch",
+            "internet": {"tipo": "SOLO FIBRA", "velocidad": "600 MB"},
+            "ont": {"modelo": "ONT ZTE"},
+            "router": {"modelo": "MikroTik hAP ac2"},
+            "equipos": [
+                {"tipo": "switch", "modelo": "switch TP-LINK-5_PORTS", "cantidad": 1},
+                {"tipo": "switch", "modelo": "switch TP-LINK-5_PORTS", "cantidad": 1},
+                {"tipo": "wifi", "modelo": "Grandstream AP", "cantidad": 1},
+            ],
+        }
+        nodes, edges = build_layout(data)
+        result = build_drawio(nodes, edges, library)
+        self.assertNotIn("No se ha encontrado icono para: switch TP-LINK-5_PORTS", result.warnings)
 
     def test_multiple_devices_layout(self) -> None:
         data = load_input(EXAMPLE)

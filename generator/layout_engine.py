@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from .aliases import resolve_alias
 from .parser import ValidatedEquipment, validate_input_schema
@@ -228,6 +229,12 @@ def _normalized_model(team: dict) -> str:
 
 def _display_model(value: str) -> str:
     return resolve_alias(value or "")
+
+
+def _switch_icon_model(model: str) -> str:
+    without_prefix = re.sub(r"^switch\s+", "", _safe(model).strip(), flags=re.IGNORECASE)
+    resolved = _display_model(without_prefix)
+    return resolved or SWITCH_FALLBACK_ICON
 
 
 def _router_label(router: dict, internet: dict | None = None) -> str:
@@ -526,7 +533,7 @@ def _make_switch_node(key: str, switch_eq: dict, x: int, y: int) -> NodeSpec:
         width=DEVICE_WIDTH,
         height=DEVICE_HEIGHT,
         meta={"propiedad": _ownership(switch_eq), "label_above": True},
-        icon_model=_display_model(model) or SWITCH_FALLBACK_ICON,
+        icon_model=_switch_icon_model(model),
     )
 
 

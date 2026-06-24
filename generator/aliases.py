@@ -65,6 +65,8 @@ ALIASES = {
     "tl-sg1005d": "TP-LINK-5_PORTS",
     "tp-link-5_ports": "TP-LINK-5_PORTS",
     "tp-link-5 ports": "TP-LINK-5_PORTS",
+    "switch tp-link-5_ports": "TP-LINK-5_PORTS",
+    "switch tp-link-5 ports": "TP-LINK-5_PORTS",
     "sw tp-link ls105g": "TP-LINK-5_PORTS",
     "switch 8 puertos tp link": "TP-Link 8P",
     "switch 8 puertos tp-link": "TP-Link 8P",
