@@ -10,6 +10,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
+from .address_formatter import to_glpi_ascii
+
 
 class GlpiError(RuntimeError):
     pass
@@ -268,7 +270,7 @@ def format_address(entity: dict) -> str:
         entity.get("state"),
         entity.get("country"),
     ]
-    return ", ".join(str(part).strip() for part in parts if part and str(part).strip())
+    return to_glpi_ascii(", ".join(str(part).strip() for part in parts if part and str(part).strip()))
 
 
 def _split_cif_and_name(entity: dict) -> tuple[str, str]:
