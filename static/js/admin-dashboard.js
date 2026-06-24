@@ -1,28 +1,28 @@
 (function () {
-  var configElement = document.getElementById("admin-dashboard-config");
+  const configElement = document.getElementById("admin-dashboard-config");
   if (!configElement) {
     return;
   }
 
-  var config;
+  let config;
   try {
     config = JSON.parse(configElement.textContent);
   } catch (_error) {
     return;
   }
 
-  var chartPeriods = config.chartPeriods || {};
-  var periodTitles = {
+  const chartPeriods = config.chartPeriods || {};
+  const periodTitles = {
     week: { chart: "Diagramas últimos 7 días", top: "Top técnicos (7 días)" },
     month: { chart: "Diagramas últimos 30 días", top: "Top técnicos (30 días)" },
     year: { chart: "Diagramas últimos 12 meses", top: "Top técnicos (12 meses)" },
   };
 
-  var ctx = document.getElementById("activityChart");
-  var activityChart = null;
-  var gradient = null;
+  const ctx = document.getElementById("activityChart");
+  let activityChart = null;
+  let gradient = null;
   if (ctx && typeof Chart !== "undefined") {
-    var chartCtx = ctx.getContext("2d");
+    const chartCtx = ctx.getContext("2d");
     gradient = chartCtx.createLinearGradient(0, 0, 0, ctx.height || 220);
     gradient.addColorStop(0, "rgba(1,105,111,0.35)");
     gradient.addColorStop(1, "rgba(1,105,111,0.02)");
@@ -56,7 +56,7 @@
             displayColors: false,
             callbacks: {
               label: function (item) {
-                var n = item.parsed.y;
+                const n = item.parsed.y;
                 return n + (n === 1 ? " diagrama" : " diagramas");
               },
             },
@@ -73,9 +73,9 @@
   }
 
   function renderTopTechnicians(period) {
-    var data = chartPeriods[period];
-    var list = document.getElementById("topTechBody");
-    var empty = document.getElementById("topTechEmpty");
+    const data = chartPeriods[period];
+    const list = document.getElementById("topTechBody");
+    const empty = document.getElementById("topTechEmpty");
     if (!list || !empty) {
       return;
     }
@@ -87,26 +87,26 @@
     }
     empty.classList.remove("is-visible");
 
-    var maxCount = Math.max(1, ...data.top.map(function (row) {
+    const maxCount = Math.max(1, ...data.top.map(function (row) {
       return row.count;
     }));
     data.top.forEach(function (row) {
-      var li = document.createElement("li");
+      const li = document.createElement("li");
       li.className = "top-tech-row";
 
-      var name = document.createElement("span");
+      const name = document.createElement("span");
       name.className = "top-tech-name";
       name.textContent = row.name;
       name.title = row.name;
 
-      var barWrap = document.createElement("span");
+      const barWrap = document.createElement("span");
       barWrap.className = "top-tech-bar-wrap";
-      var bar = document.createElement("span");
-      var bucket = Math.max(1, Math.min(10, Math.ceil((row.count / maxCount) * 10)));
+      const bar = document.createElement("span");
+      const bucket = Math.max(1, Math.min(10, Math.ceil((row.count / maxCount) * 10)));
       bar.className = "top-tech-bar bar-w-" + bucket;
       barWrap.appendChild(bar);
 
-      var count = document.createElement("span");
+      const count = document.createElement("span");
       count.className = "top-tech-count";
       count.textContent = row.count;
 
@@ -116,7 +116,7 @@
   }
 
   function setPeriod(period) {
-    var data = chartPeriods[period];
+    const data = chartPeriods[period];
     if (!data) {
       return;
     }
@@ -127,7 +127,7 @@
       activityChart.update();
     }
 
-    var titles = periodTitles[period];
+    const titles = periodTitles[period];
     document.getElementById("chartTitle").textContent = titles.chart;
     document.getElementById("topTechTitle").textContent = titles.top;
     renderTopTechnicians(period);
@@ -145,18 +145,18 @@
 
   setPeriod("week");
 
-  var rows = Array.from(document.querySelectorAll("#secTable .sec-row"));
-  var emptyMsg = document.getElementById("secEmpty");
-  var activeLevel = "ALL";
-  var searchTerm = "";
+  const rows = Array.from(document.querySelectorAll("#secTable .sec-row"));
+  const emptyMsg = document.getElementById("secEmpty");
+  let activeLevel = "ALL";
+  let searchTerm = "";
 
   function applyFilters() {
-    var visible = 0;
+    let visible = 0;
     rows.forEach(function (row) {
-      var level = row.dataset.level;
-      var text = row.textContent.toLowerCase();
-      var matchLevel = activeLevel === "ALL" || level === activeLevel;
-      var matchSearch = !searchTerm || text.includes(searchTerm);
+      const level = row.dataset.level;
+      const text = row.textContent.toLowerCase();
+      const matchLevel = activeLevel === "ALL" || level === activeLevel;
+      const matchSearch = !searchTerm || text.includes(searchTerm);
       row.classList.toggle("is-hidden", !(matchLevel && matchSearch));
       if (matchLevel && matchSearch) {
         visible += 1;
@@ -178,7 +178,7 @@
     });
   });
 
-  var searchInput = document.getElementById("secSearch");
+  const searchInput = document.getElementById("secSearch");
   if (searchInput) {
     searchInput.addEventListener("input", function (event) {
       searchTerm = event.target.value.toLowerCase().trim();
@@ -186,21 +186,21 @@
     });
   }
 
-  var exportButton = document.getElementById("exportCsv");
+  const exportButton = document.getElementById("exportCsv");
   if (exportButton) {
     exportButton.addEventListener("click", function () {
-      var visibleRows = rows.filter(function (row) {
+      const visibleRows = rows.filter(function (row) {
         return !row.classList.contains("is-hidden");
       });
-      var lines = [["Fecha/Hora", "Nivel", "Mensaje"].join(";")];
+      const lines = [["Fecha/Hora", "Nivel", "Mensaje"].join(";")];
       visibleRows.forEach(function (row) {
-        var cells = Array.from(row.querySelectorAll("td")).map(function (td) {
+        const cells = Array.from(row.querySelectorAll("td")).map(function (td) {
           return '"' + td.textContent.trim().replace(/"/g, '""') + '"';
         });
         lines.push(cells.join(";"));
       });
-      var blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
-      var anchor = document.createElement("a");
+      const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+      const anchor = document.createElement("a");
       anchor.href = URL.createObjectURL(blob);
       anchor.download = "security_events.csv";
       anchor.click();

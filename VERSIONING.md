@@ -63,3 +63,16 @@ Según `.gitignore`:
 - `library/*.xml` — librería de iconos (~12 MB); guardar copia aparte
 
 Tras restaurar una versión antigua, copiar de nuevo la librería real a `library/libreria_Ausarta_JUN_2026.xml` si hace falta.
+
+## Dependencias frontend embebidas
+
+| Librería | Versión | Fichero |
+|----------|---------|---------|
+| Chart.js | 4.4.0 | `static/js/chart-4.4.0.umd.min.js` |
+
+Para actualizar Chart.js:
+
+1. Descarga `chart.umd.min.js` de la versión deseada desde [cdn.jsdelivr.net/npm/chart.js](https://cdn.jsdelivr.net/npm/chart.js).
+2. Renómbralo a `chart-X.Y.Z.umd.min.js` con la versión real del comentario de cabecera.
+3. Actualiza la referencia en `templates/admin.html`.
+4. Elimina el fichero de la versión anterior.

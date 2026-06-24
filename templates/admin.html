@@ -218,7 +218,7 @@
       </section>
     </main>
 
-    <script src="{{ url_for('static', filename='js/chart.umd.min.js') }}?v={{ static_v }}"></script>
+    <script src="{{ url_for('static', filename='js/chart-4.4.0.umd.min.js') }}?v={{ static_v }}"></script>
     <script type="application/json" id="admin-dashboard-config"{% if csp_nonce is defined %} nonce="{{ csp_nonce() }}"{% endif %}>{{ {"chartPeriods": chart_periods} | tojson }}</script>
     <script src="{{ url_for('static', filename='js/admin-dashboard.js') }}?v={{ static_v }}"></script>
     {% include "_app_footer.html" %}

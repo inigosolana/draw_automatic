@@ -69,6 +69,13 @@ class GlpiClient:
         self.user_token = user_token
         self.timeout = timeout
         self.verify_ssl = verify_ssl
+        if not self.verify_ssl:
+            import logging
+
+            logging.getLogger("security").warning(
+                "GLPI_VERIFY_SSL=0 — verificacion TLS desactivada. "
+                "No uses esta opcion en produccion."
+            )
         self._ssl_context = ssl_context
 
     @classmethod

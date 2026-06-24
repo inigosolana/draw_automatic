@@ -1,17 +1,12 @@
 from __future__ import annotations
 
-import logging
 import os
 import random
-import secrets
 from dataclasses import dataclass
-from datetime import timedelta
 
-from flask import Flask, Response, request, session
+from flask import Flask, session
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from flask_talisman import Talisman
-from flask_wtf.csrf import CSRFProtect
 
 from app_context import ADMIN_USERS, PROJECT_ROOT, get_drawio_stores, security_logger
 from generator.catalog_cache import CatalogCache
@@ -21,6 +16,14 @@ from generator.download_store import DownloadStore
 from generator.security_log import SecurityLog
 from generator.site_directory import SiteDirectory
 from generator.utils import technician_is_admin
+from security_config import (
+    configure_csrf,
+    configure_security_logger,
+    configure_session,
+    configure_talisman,
+    register_cache_headers,
+    resolve_secret_key,
+)
 
 
 @dataclass
@@ -55,60 +58,6 @@ def build_drawio_stores(project_root: os.PathLike[str] | None = None) -> DrawioS
     )
 
 
-PLACEHOLDER_SECRET_KEYS = {
-    "",
-    "CAMBIAR_POR_UNA_CADENA_ALEATORIA_LARGA_GENERADA_CON_EL_COMANDO_ANTERIOR",
-}
-
-
-def _production_requires_secret_key() -> bool:
-    return (
-        os.environ.get("DRAWIO_AUTH_REQUIRED", "0") == "1"
-        or os.environ.get("DRAWIO_COOKIE_SECURE", "0") == "1"
-    )
-
-
-def resolve_secret_key() -> str:
-    secret_key = os.environ.get("DRAWIO_SECRET_KEY", "").strip()
-    production_mode = _production_requires_secret_key()
-    if secret_key in PLACEHOLDER_SECRET_KEYS:
-        if production_mode:
-            raise RuntimeError(
-                "DRAWIO_SECRET_KEY no esta configurada o usa el valor placeholder de .env.example. "
-                'Genera una clave con: python -c "import secrets; print(secrets.token_hex(32))"'
-            )
-        security_logger.warning(
-            "DRAWIO_SECRET_KEY no esta configurado. Generando clave temporal (las sesiones se perderan al reiniciar)."
-        )
-        return secrets.token_hex(32)
-    return secret_key
-
-
-class _SQLiteHandler(logging.Handler):
-    def __init__(self, seclog: SecurityLog) -> None:
-        super().__init__()
-        self._seclog = seclog
-
-    def emit(self, record: logging.LogRecord) -> None:
-        try:
-            self._seclog.write(record.levelname, self.format(record))
-        except Exception:
-            pass
-
-
-def configure_security_logger(seclog: SecurityLog) -> logging.Logger:
-    logger = logging.getLogger("security")
-    logger.setLevel(logging.INFO)
-    if not logger.handlers:
-        handler = logging.StreamHandler()
-        handler.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)s [SECURITY] %(message)s"))
-        logger.addHandler(handler)
-        sqlite_handler = _SQLiteHandler(seclog)
-        sqlite_handler.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)s [SECURITY] %(message)s"))
-        logger.addHandler(sqlite_handler)
-    return logger
-
-
 def create_app(stores: DrawioStores | None = None) -> Flask:
     app = Flask(__name__, template_folder=str(PROJECT_ROOT / "templates"), static_folder=str(PROJECT_ROOT / "static"))
     drawio_stores = stores or build_drawio_stores()
@@ -130,23 +79,31 @@ def create_app(stores: DrawioStores | None = None) -> Flask:
 
     app.config["AUTH_REQUIRED"] = os.environ.get("DRAWIO_AUTH_REQUIRED", "0") == "1"
 
-    app.config["SESSION_COOKIE_HTTPONLY"] = True
-    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-    app.config["SESSION_COOKIE_SECURE"] = os.environ.get("DRAWIO_COOKIE_SECURE", "0") == "1"
-    app.config["SESSION_COOKIE_NAME"] = "drawio_session"
-    app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=int(os.environ.get("DRAWIO_SESSION_HOURS", "8")))
+    configure_session(app)
+    csrf = configure_csrf(app)
 
-    app.config["WTF_CSRF_TIME_LIMIT"] = 14400
-    app.config["WTF_CSRF_SSL_STRICT"] = app.config["SESSION_COOKIE_SECURE"]
-    csrf = CSRFProtect(app)
-
+    _ratelimit_uri = os.environ.get("DRAWIO_RATELIMIT_STORAGE", "memory://")
     limiter = Limiter(
         get_remote_address,
         app=app,
         default_limits=["200 per day", "50 per hour"],
-        storage_uri=os.environ.get("DRAWIO_RATELIMIT_STORAGE", "memory://"),
+        storage_uri=_ratelimit_uri,
         strategy="fixed-window",
     )
+    if _ratelimit_uri.startswith("memory://"):
+        _workers = int(os.environ.get("WEB_CONCURRENCY", "1"))
+        if _workers > 1:
+            import warnings
+
+            warnings.warn(
+                f"DRAWIO_RATELIMIT_STORAGE=memory:// con WEB_CONCURRENCY={_workers}. "
+                "El rate limiting no es compartido entre workers. Usa Redis en produccion.",
+                stacklevel=2,
+            )
+        else:
+            security_logger.info(
+                "Rate limiting en memoria (aceptable para desarrollo o worker unico)."
+            )
 
     static_asset_version = os.environ.get("DRAWIO_STATIC_VERSION", "20260619b")
 
@@ -155,43 +112,9 @@ def create_app(stores: DrawioStores | None = None) -> Flask:
         if random.random() < 0.02:
             get_drawio_stores().downloads.cleanup()
 
-    @app.after_request
-    def adjust_response_headers(response: Response) -> Response:
-        if request.path.startswith("/static/"):
-            response.headers.pop("Expires", None)
-            response.headers.pop("Content-Security-Policy", None)
-            response.headers.pop("X-Frame-Options", None)
-            response.headers.pop("Referrer-Policy", None)
-            response.headers.pop("Permissions-Policy", None)
-        elif response.content_type and "text/html" in response.content_type:
-            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
-            response.headers.pop("Expires", None)
-        return response
-
     force_https = os.environ.get("DRAWIO_FORCE_HTTPS", "0") == "1"
-    csp = {
-        "default-src": "'self'",
-        "script-src": ["'self'", "embed.diagrams.net"],
-        "style-src": ["'self'"],
-        "img-src": ["'self'", "data:", "embed.diagrams.net"],
-        "frame-src": ["'self'", "embed.diagrams.net"],
-        "frame-ancestors": "'self'",
-        "connect-src": ["'self'"],
-    }
-    use_security_headers = (
-        os.environ.get("DRAWIO_ENABLE_SECURITY_HEADERS", "1") == "1"
-        and os.environ.get("DRAWIO_COOKIE_SECURE", "0") == "1"
-    )
-    if use_security_headers:
-        Talisman(
-            app,
-            force_https=force_https,
-            strict_transport_security=force_https,
-            content_security_policy=csp,
-            content_security_policy_nonce_in=["script-src", "style-src"],
-            frame_options=None,
-            referrer_policy="strict-origin-when-cross-origin",
-        )
+    configure_talisman(app, force_https=force_https)
+    register_cache_headers(app)
 
     app.config["PREVIEW_URL"] = os.environ.get("DRAWIO_PREVIEW_URL", "https://embed.diagrams.net/").rstrip("/")
     is_local_dev = os.environ.get("DRAWIO_COOKIE_SECURE", "0") != "1"

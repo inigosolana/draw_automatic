@@ -2407,3 +2407,24 @@ ul {
     font-size: 0.62rem;
   }
 }
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --primary: #4da6c8;
+    --primary-dark: #3a8fab;
+    --accent: #2ab3ba;
+    --accent-soft: #0f2f31;
+    --ink: #e8f0f7;
+    --muted: #8faabb;
+    --border: #2a3f52;
+    --panel-bg: #0f1d28;
+  }
+
+  body {
+    background:
+      radial-gradient(circle at 1px 1px, rgba(77,166,200,0.06) 1px, transparent 1px),
+      linear-gradient(135deg, #0a1520 0%, #0d1e2e 100%);
+    background-size: 18px 18px, auto;
+    color: #e8f0f7;
+  }
+}

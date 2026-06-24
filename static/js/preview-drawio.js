@@ -1,11 +1,11 @@
 (function () {
-  var configElement = document.getElementById("drawio-preview-config");
-  var frame = document.getElementById("drawio-preview");
+  const configElement = document.getElementById("drawio-preview-config");
+  const frame = document.getElementById("drawio-preview");
   if (!configElement || !frame) {
     return;
   }
 
-  var config;
+  let config;
   try {
     config = JSON.parse(configElement.textContent);
   } catch (_error) {
@@ -16,7 +16,7 @@
     if (event.source !== frame.contentWindow) {
       return;
     }
-    var message;
+    let message;
     try {
       message = JSON.parse(event.data);
     } catch (_error) {

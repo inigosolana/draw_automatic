@@ -4,8 +4,8 @@
       return null;
     }
 
-    var items = [];
-    var selected = null;
+    let items = [];
+    let selected = null;
     element.innerHTML =
       '<button type="button" class="search-select-trigger">' +
       "<span>" +
@@ -14,20 +14,20 @@
       '<div class="search-select-menu">' +
       '<input type="search" class="search-select-filter" placeholder="Buscar...">' +
       '<div class="search-select-options"></div></div>';
-    var trigger = element.querySelector(".search-select-trigger");
-    var label = trigger.querySelector("span");
-    var filter = element.querySelector(".search-select-filter");
-    var options = element.querySelector(".search-select-options");
+    const trigger = element.querySelector(".search-select-trigger");
+    const label = trigger.querySelector("span");
+    const filter = element.querySelector(".search-select-filter");
+    const options = element.querySelector(".search-select-options");
 
     function render(query) {
-      var normalized = (query || "").toLocaleLowerCase("es");
+      const normalized = (query || "").toLocaleLowerCase("es");
       options.innerHTML = "";
       items
         .filter(function (item) {
           return item.nombre.toLocaleLowerCase("es").includes(normalized);
         })
         .forEach(function (item) {
-          var button = document.createElement("button");
+          const button = document.createElement("button");
           button.type = "button";
           button.className = "search-select-option";
           button.textContent = item.nombre;

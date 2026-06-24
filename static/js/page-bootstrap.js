@@ -1,5 +1,5 @@
 (function () {
-  var configElement = document.getElementById("drawio-page-config");
+  const configElement = document.getElementById("drawio-page-config");
   window.__DRAWIO_PAGE_CONFIG = {};
   if (!configElement || !configElement.textContent) {
     return;

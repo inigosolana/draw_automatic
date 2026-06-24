@@ -1,21 +1,21 @@
 (function () {
-  var configElement = document.getElementById("diagram-glpi-config");
+  const configElement = document.getElementById("diagram-glpi-config");
   if (!configElement) {
     return;
   }
 
-  var config;
+  let config;
   try {
     config = JSON.parse(configElement.textContent);
   } catch (_error) {
     return;
   }
 
-  var catalog = config.catalog || [];
-  var province = document.getElementById("diagram-province");
-  var customer = document.getElementById("diagram-customer");
-  var site = document.getElementById("diagram-site");
-  var entityId = document.getElementById("diagram-entity-id");
+  const catalog = config.catalog || [];
+  const province = document.getElementById("diagram-province");
+  const customer = document.getElementById("diagram-customer");
+  const site = document.getElementById("diagram-site");
+  const entityId = document.getElementById("diagram-entity-id");
   if (!province || !customer || !site || !entityId) {
     return;
   }
@@ -31,7 +31,7 @@
 
   fill(province, catalog, "Selecciona una provincia");
   province.addEventListener("change", function () {
-    var item = catalog.find(function (value) {
+    const item = catalog.find(function (value) {
       return String(value.id) === province.value;
     });
     fill(customer, item ? item.clientes : [], "Selecciona un cliente");
@@ -39,10 +39,10 @@
     entityId.value = "";
   });
   customer.addEventListener("change", function () {
-    var provinceItem = catalog.find(function (value) {
+    const provinceItem = catalog.find(function (value) {
       return String(value.id) === province.value;
     });
-    var item = provinceItem && provinceItem.clientes
+    const item = provinceItem && provinceItem.clientes
       ? provinceItem.clientes.find(function (value) {
           return String(value.id) === customer.value;
         })

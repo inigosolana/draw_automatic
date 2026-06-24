@@ -3,6 +3,17 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from .aliases import resolve_alias
+from .dect_layout import (
+    DECT_BASE_MODELS,
+    DECT_HANDSET_BASE,
+    DECT_HANDSET_MODELS,
+    _dect_base_model,
+    _dect_handset_key,
+    _dect_registry_key,
+    _is_dect_base,
+    _max_dect_stack_depth,
+    _resolve_dect_base,
+)
 from .geometry import (
     CANVAS_RIGHT,
     DEVICE_HEIGHT,
@@ -24,15 +35,6 @@ from .geometry import (
 from .parser import ValidatedEquipment, validate_input_schema
 
 
-DECT_BASE_MODELS = {"w60b", "w70b", "w80b", "w90b"}
-DECT_HANDSET_MODELS = {"w71h", "w72h", "w53", "w53h", "w73h"}
-DECT_HANDSET_BASE = {
-    "w71h": "W60B",
-    "w72h": "W60B",
-    "w53": "W80B",
-    "w53h": "W80B",
-    "w73h": "YEALINK W90DM",
-}
 SUMMARY_WIDTH = 380
 SUMMARY_TITLE_Y = 75
 SUMMARY_Y = 105
@@ -72,27 +74,6 @@ def _parse_switch_telefonia(value: object, *, default: bool = True) -> bool:
 
 def _count_device_slots(equipos: list) -> int:
     return _count_layout_slots(equipos)
-
-
-def _dect_registry_key(team: dict, normalized_model: str) -> str:
-    custom = _safe(team.get("dect_base", "")).strip()
-    if custom:
-        return _display_model(custom).upper()
-    return _display_model(_dect_base_model(normalized_model)).upper()
-
-
-def _max_dect_stack_depth(equipos: list) -> int:
-    counts: dict[str, int] = {}
-    for index, team in enumerate(equipos):
-        if team.get("tipo") == "switch":
-            continue
-        normalized = _normalized_model(team)
-        if not _dect_handset_key(normalized):
-            continue
-        validated = ValidatedEquipment.from_dict(team, index)
-        key = _dect_registry_key(team, normalized)
-        counts[key] = counts.get(key, 0) + validated.cantidad
-    return max(counts.values(), default=1)
 
 
 def _count_layout_slots(equipos: list) -> int:
@@ -280,31 +261,6 @@ def _equipment_label(team: dict, extension: str = "", port_label: str = "") -> s
     if team.get("ip"):
         parts.append(f"IP {_safe(team.get('ip'))}")
     return "<br>".join(parts)
-
-
-def _dect_handset_key(normalized_model: str) -> str | None:
-    for handset in DECT_HANDSET_MODELS:
-        if handset in normalized_model:
-            return handset
-    return None
-
-
-def _dect_base_model(normalized_model: str) -> str:
-    handset_key = _dect_handset_key(normalized_model)
-    if handset_key:
-        return DECT_HANDSET_BASE.get(handset_key, "W60B")
-    return "W60B"
-
-
-def _resolve_dect_base(team: dict, normalized_model: str) -> str:
-    custom = _safe(team.get("dect_base", "")).strip()
-    if custom:
-        return _display_model(custom)
-    return _dect_base_model(normalized_model)
-
-
-def _is_dect_base(normalized_model: str) -> bool:
-    return any(base in normalized_model for base in DECT_BASE_MODELS)
 
 
 def _ownership(team: dict) -> str:
