@@ -315,12 +315,45 @@ class BasicTests(unittest.TestCase):
         self.assertEqual(len(bases), 1)
         self.assertEqual(bases[0].model, "W70B")
         self.assertEqual(len(handsets), 3)
-        self.assertTrue(all(handset.x == bases[0].x for handset in handsets))
-        self.assertEqual([handset.y for handset in handsets], sorted(handset.y for handset in handsets))
-        self.assertGreater(handsets[1].y, handsets[0].y)
-        self.assertGreater(handsets[2].y, handsets[1].y)
+        self.assertEqual(handsets[0].y, handsets[1].y)
+        self.assertEqual(handsets[1].y, handsets[2].y)
+        handset_xs = sorted(handset.x for handset in handsets)
+        self.assertLess(handset_xs[0], bases[0].x)
+        self.assertGreater(handset_xs[-1], bases[0].x)
         self.assertEqual(len([edge for edge in edges if edge.label == "DECT"]), 3)
         self.assertEqual(len([edge for edge in edges if edge.target == bases[0].key and edge.source == "switch"]), 1)
+
+    def test_dense_phone_row_avoids_dect_handset_overlap(self) -> None:
+        data = {
+            "cliente": "Demo",
+            "sede": "Central",
+            "direccion": "Bilbao",
+            "template": "con_switch",
+            "internet": {"tipo": "SOLO FIBRA", "velocidad": "1 GB"},
+            "ont": {"modelo": "ONT ZTE"},
+            "router": {"modelo": "CHATEAU", "ip": "192.168.0.1/24"},
+            "equipos": [
+                {"tipo": "switch", "modelo": "TP-LINK-5_PORTS", "cantidad": 1},
+                *[{"tipo": "telefono", "modelo": "T-33", "cantidad": 1} for _ in range(8)],
+                {"tipo": "telefono", "modelo": "W71H", "cantidad": 1, "extension": "3001", "dect_base": "W70B"},
+                {"tipo": "telefono", "modelo": "W71H", "cantidad": 1, "extension": "3002", "dect_base": "W70B"},
+            ],
+        }
+        nodes, _ = build_layout(data)
+        devices = [
+            node
+            for node in nodes
+            if node.key.startswith("team_") or node.key in {"router", "switch", "ont"}
+        ]
+        for index, a in enumerate(devices):
+            for b in devices[index + 1 :]:
+                overlaps = (
+                    a.x < b.x + b.width
+                    and a.x + a.width > b.x
+                    and a.y < b.y + b.height
+                    and a.y + a.height > b.y
+                )
+                self.assertFalse(overlaps, f"{a.key} overlaps {b.key}")
 
     def test_w70b_equipment_before_handsets_reuses_same_base(self) -> None:
         data = {

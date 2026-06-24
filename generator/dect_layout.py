@@ -70,3 +70,17 @@ def _max_dect_stack_depth(equipos: list) -> int:
         key = _dect_registry_key(team, normalized)
         counts[key] = counts.get(key, 0) + validated.cantidad
     return max(counts.values(), default=1)
+
+
+def count_dect_handsets_per_base(equipos: list) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for index, team in enumerate(equipos):
+        if team.get("tipo") == "switch":
+            continue
+        normalized = _normalized_model(team)
+        if not _dect_handset_key(normalized):
+            continue
+        validated = ValidatedEquipment.from_dict(team, index)
+        key = _dect_registry_key(team, normalized)
+        counts[key] = counts.get(key, 0) + validated.cantidad
+    return counts

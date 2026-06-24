@@ -13,6 +13,7 @@ from .dect_layout import (
     _is_dect_base,
     _max_dect_stack_depth,
     _resolve_dect_base,
+    count_dect_handsets_per_base,
 )
 from .geometry import (
     CANVAS_RIGHT,
@@ -41,7 +42,9 @@ SUMMARY_Y = 105
 SUMMARY_HEIGHT = 165
 DECT_HANDSET_OFFSET_Y = 195
 DECT_HANDSET_STACK_STEP = 168
+DECT_HANDSET_FAN_STEP = 170
 DECT_ROW_EXTRA = 110
+DECT_ROW_CLEARANCE = 28
 SWITCH_FALLBACK_ICON = "TP-Link 8P"
 SWITCH_ANCHOR_KEYS = frozenset({"switch", "switch_datos"})
 DUAL_SWITCH_GAP = 90
@@ -648,7 +651,6 @@ def _compute_anchor_row_layout(
 ) -> _DeviceRowLayout:
     total_slots = _count_device_slots(device_equipos)
     has_dect_handsets = any(_dect_handset_key(_normalized_model(team)) for team in device_equipos)
-    max_dect_stack = _max_dect_stack_depth(device_equipos) if has_dect_handsets else 1
     equipo_y = anchor_node.y + anchor_node.height + DEVICE_ROW_GAP
     if zone_left is not None and zone_right is not None:
         max_per_row, _ = _max_slots_for_zone(
@@ -670,8 +672,9 @@ def _compute_anchor_row_layout(
     else:
         max_per_row, _ = _max_slots_per_row(total_slots) if total_slots else (1, MIN_SLOT_SPACING)
     row_step = DEVICE_HEIGHT + (DECT_ROW_EXTRA if has_dect_handsets else 95)
-    if max_dect_stack > 1:
-        row_step += (max_dect_stack - 1) * DECT_HANDSET_STACK_STEP
+    if has_dect_handsets:
+        handset_band = DECT_HANDSET_OFFSET_Y + DEVICE_HEIGHT + DECT_ROW_CLEARANCE
+        row_step = max(row_step, handset_band)
     return _DeviceRowLayout(
         anchor_node=anchor_node,
         total_slots=total_slots,
@@ -801,6 +804,7 @@ class _DevicePlacementState:
     dect_base_registry: dict[str, str] | None = None
     ordered_base_keys: list[str] | None = None
     handsets_on_base: dict[str, int] | None = None
+    dect_handset_totals: dict[str, int] | None = None
 
     def __post_init__(self) -> None:
         if self.switch_port_indices is None:
@@ -815,6 +819,8 @@ class _DevicePlacementState:
             self.ordered_base_keys = []
         if self.handsets_on_base is None:
             self.handsets_on_base = {}
+        if self.dect_handset_totals is None:
+            self.dect_handset_totals = {}
         if self.has_switch:
             self.router_port_index = 5 if self.has_dual_switch else 4
 
@@ -843,11 +849,12 @@ class _DevicePlacementState:
         )
         x = start_x + col * spacing
         y = layout.equipo_y + row_num * layout.row_step
+        row_top_y = layout.equipo_y + row_num * layout.row_step
         if self.row_layouts is not None:
             self.slot_indices[anchor_key] = slot_index + 1
         else:
             self.slot_index += 1
-        return x, y, y
+        return x, y, row_top_y
 
     def next_port_labels(self, anchor_key: str) -> tuple[str, str]:
         if anchor_key in SWITCH_ANCHOR_KEYS:
@@ -942,7 +949,11 @@ def _place_dect_handset(
 
     base_node = next(node for node in state.nodes if node.key == base_key)
     stack_index = state.handsets_on_base.get(base_key, 0)
-    handset_y = base_node.y + DECT_HANDSET_OFFSET_Y + stack_index * DECT_HANDSET_STACK_STEP
+    registry_key = _dect_registry_key(team, normalized_model)
+    total_on_base = state.dect_handset_totals.get(registry_key, stack_index + 1)
+    handset_y = base_node.y + DECT_HANDSET_OFFSET_Y
+    center_offset = (stack_index - (total_on_base - 1) / 2) * DECT_HANDSET_FAN_STEP
+    handset_x = int(base_node.x + center_offset)
     key = f"team_{state.team_index}"
     handset_label = _equipment_label(team, extension=extension)
     state.nodes.append(
@@ -951,7 +962,7 @@ def _place_dect_handset(
             kind="device",
             label=handset_label,
             model=team.get("modelo", team.get("tipo", "Equipo")),
-            x=base_node.x,
+            x=handset_x,
             y=handset_y,
             width=150,
             height=150,
@@ -1096,6 +1107,7 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
         has_switch=has_switch,
         has_dual_switch=has_dual_switch,
         switch_telefonia=switch_telefonia,
+        dect_handset_totals=count_dect_handsets_per_base(device_equipos),
     )
     _place_equipment_rows(data, state)
     _place_summary_nodes(data, nodes)
