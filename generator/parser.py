@@ -193,9 +193,9 @@ def infer_template(data: dict) -> None:
     switch_count = sum(1 for item in equipment if item.get("tipo") == "switch")
     if isinstance(data.get("sedes"), list) and len(data["sedes"]) > 1:
         data["template"] = "multisede"
-    elif switch_count > 1 or any(item.get("tipo") in {"patch_panel", "firewall", "sai"} for item in equipment):
+    elif any(item.get("tipo") in {"patch_panel", "firewall", "sai"} for item in equipment):
         data["template"] = "rack"
-    elif switch_count == 1:
+    elif switch_count >= 1:
         data["template"] = "con_switch"
     else:
         data["template"] = "oficina_simple"

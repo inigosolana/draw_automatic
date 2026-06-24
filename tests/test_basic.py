@@ -629,6 +629,53 @@ class BasicTests(unittest.TestCase):
             self.assertTrue(edge.label and edge.label.startswith("ETH"))
             self.assertIsNotNone(edge.waypoints)
 
+    def test_dual_switches_route_telephony_and_data_separately(self) -> None:
+        data = {
+            "cliente": "INMOBILIARIA HUMEDO SL",
+            "sede": "Central",
+            "direccion": "Bilbao",
+            "template": "con_switch",
+            "internet": {"tipo": "FIBRA + BACK UP", "velocidad": "1 GB", "proveedor": "AIRE"},
+            "ont": {"modelo": "ONT ZTE"},
+            "router": {"modelo": "MikroTik hAP ac2", "ip": "192.168.0.1/24"},
+            "equipos": [
+                {"tipo": "switch", "modelo": "TP-LINK-5_PORTS", "cantidad": 1},
+                {"tipo": "switch", "modelo": "TP-LINK-5_PORTS", "cantidad": 1},
+                {"tipo": "telefono", "modelo": "FANVIL V64", "cantidad": 1, "extensiones": ["3001"]},
+                {"tipo": "telefono", "modelo": "FANVIL V64", "cantidad": 1, "extensiones": ["3002"]},
+                {"tipo": "wifi", "modelo": "Grandstream AP", "cantidad": 1},
+            ],
+        }
+        nodes, edges = build_layout(data)
+        switches = [node for node in nodes if node.key in {"switch", "switch_datos"}]
+        self.assertEqual(len(switches), 2)
+        self.assertTrue(any(edge.label == "ETH3-LAN" and edge.target == "switch" for edge in edges))
+        self.assertTrue(any(edge.label == "ETH4-LAN" and edge.target == "switch_datos" for edge in edges))
+        phones = sorted(
+            (node for node in nodes if node.key.startswith("team_") and "FANVIL" in node.label),
+            key=lambda node: node.x,
+        )
+        ap = next(node for node in nodes if node.key.startswith("team_") and "Grandstream" in node.label)
+        self.assertEqual(len(phones), 2)
+        for phone in phones:
+            phone_edge = next(edge for edge in edges if edge.target == phone.key)
+            self.assertEqual(phone_edge.source, "switch")
+        ap_edge = next(edge for edge in edges if edge.target == ap.key)
+        self.assertEqual(ap_edge.source, "switch_datos")
+
+    def test_two_switches_infer_con_switch_template(self) -> None:
+        from generator.parser import infer_template
+
+        data = {
+            "equipos": [
+                {"tipo": "switch", "modelo": "TP-LINK-5_PORTS", "cantidad": 1},
+                {"tipo": "switch", "modelo": "TP-LINK-5_PORTS", "cantidad": 1},
+                {"tipo": "wifi", "modelo": "Grandstream AP", "cantidad": 1},
+            ]
+        }
+        infer_template(data)
+        self.assertEqual(data["template"], "con_switch")
+
 
 if __name__ == "__main__":
     unittest.main()

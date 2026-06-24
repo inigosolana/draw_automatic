@@ -7,7 +7,7 @@ from uuid import uuid4
 from lxml import etree
 
 from .library_loader import LibraryIndex
-from .layout_engine import EdgeSpec, NodeSpec
+from .layout_engine import EdgeSpec, NodeSpec, SWITCH_ANCHOR_KEYS
 
 
 GENERIC_DEVICE_STYLE = (
@@ -144,6 +144,8 @@ def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryI
             label_style += f"fontColor={color};fontStyle=1;"
         label_lines = max(1, node.label.count("<br>") + 1)
         label_height = max(42, label_lines * 18 + 10)
+        label_above = node.key in SWITCH_ANCHOR_KEYS or bool(node.meta and node.meta.get("label_above"))
+        label_y = node.y - label_height - 10 if label_above else node.y + node.height + 16
         label_cell = etree.Element("mxCell", {
             "id": label_id,
             "value": node.label,
@@ -151,7 +153,7 @@ def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryI
             "parent": "1",
             "vertex": "1",
         })
-        _geom(label_cell, node.x - 12, node.y + node.height + 12, node.width + 24, label_height)
+        _geom(label_cell, node.x - 12, label_y, node.width + 24, label_height)
         deferred_labels.append(label_cell)
 
     for edge_spec in edges:

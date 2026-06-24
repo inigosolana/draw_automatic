@@ -26,13 +26,15 @@ DECT_HANDSET_STACK_STEP = 168
 SLOT_SPACING = 235
 MIN_SLOT_SPACING = 230
 MIN_LEFT_MARGIN = 60
-DEVICE_ROW_GAP = 165
+DEVICE_ROW_GAP = 175
 DECT_ROW_EXTRA = 110
 SWITCH_FALLBACK_ICON = "TP-Link 8P"
+SWITCH_ANCHOR_KEYS = frozenset({"switch", "switch_datos"})
+DUAL_SWITCH_GAP = 70
 ROUTER_BACKUP_GAP = 70
 ROUTER_SWITCH_GAP = 90
-CABLE_CLEARANCE_ABOVE_DEVICE = 24
-CABLE_GAP_BELOW_ANCHOR = 32
+CABLE_CLEARANCE_ABOVE_DEVICE = 40
+CABLE_GAP_BELOW_ANCHOR = 40
 TELEPHONY_TYPES = {"telefono", "terminal_dect", "base_dect", "ata"}
 
 
@@ -165,8 +167,11 @@ def _bus_waypoints(
 def _cable_label_offset(label: str, *, anchor_key: str) -> tuple[int, int]:
     if not label:
         return 0, -14
+    if anchor_key in SWITCH_ANCHOR_KEYS and label.startswith("ETH") and not label.endswith("-LAN"):
+        return 0, -34
     offset_x = 10 if label.endswith("-LAN") and anchor_key == "router" else 0
-    return offset_x, -24
+    offset_y = -30 if label.endswith("-LAN") and anchor_key == "router" else -24
+    return offset_x, offset_y
 
 
 def _device_bus_y(anchor: NodeSpec, target: NodeSpec, row_top_y: int | None = None) -> int:
@@ -498,35 +503,115 @@ def _place_backup(
         )
 
 
+def _expand_switch_equipment(equipos: list) -> list[dict]:
+    expanded: list[dict] = []
+    for eq in equipos:
+        if eq.get("tipo") != "switch":
+            continue
+        qty = max(1, int(eq.get("cantidad", 1) or 1))
+        for _ in range(qty):
+            expanded.append(eq)
+    return expanded
+
+
+def _make_switch_node(key: str, switch_eq: dict, x: int, y: int) -> NodeSpec:
+    model = _safe(switch_eq.get("modelo", "Switch"))
+    return NodeSpec(
+        key=key,
+        kind="device",
+        label=f"<b>{model}</b>",
+        model=model,
+        x=x,
+        y=y,
+        width=DEVICE_WIDTH,
+        height=DEVICE_HEIGHT,
+        meta={"propiedad": _ownership(switch_eq), "label_above": True},
+        icon_model=_display_model(model) or SWITCH_FALLBACK_ICON,
+    )
+
+
+def _layout_anchor_node(nodes: list[NodeSpec], *, has_switch: bool, has_dual_switch: bool) -> NodeSpec:
+    if has_dual_switch:
+        switch_tel = next(node for node in nodes if node.key == "switch")
+        switch_datos = next(node for node in nodes if node.key == "switch_datos")
+        left = min(switch_tel.x, switch_datos.x)
+        right = max(switch_tel.x + switch_tel.width, switch_datos.x + switch_datos.width)
+        return NodeSpec(
+            key="layout_anchor",
+            kind="virtual",
+            label="",
+            x=left,
+            y=switch_tel.y,
+            width=right - left,
+            height=switch_tel.height,
+        )
+    layout_anchor_key = "switch" if has_switch else "router"
+    return next(node for node in nodes if node.key == layout_anchor_key)
+
+
 def _place_switch(
     data: dict,
     nodes: list[NodeSpec],
     edges: list[EdgeSpec],
     include_switch: bool,
-) -> bool:
-    switches = [eq for eq in data.get("equipos", []) if eq.get("tipo") == "switch"]
+) -> tuple[bool, bool]:
+    switches = _expand_switch_equipment(data.get("equipos", []))
     has_switch = include_switch and bool(switches)
     if not has_switch:
-        return False
+        return False, False
+    has_dual_switch = len(switches) >= 2
     router_node = next(node for node in nodes if node.key == "router")
-    switch = switches[0]
-    switch_width = 150
-    switch_height = 150
-    nodes.append(
-        NodeSpec(
-            key="switch",
-            kind="device",
-            label=f"<b>{_safe(switch.get('modelo', 'Switch'))}</b>",
-            model=switch.get("modelo", "Switch"),
-            x=router_node.x + (router_node.width - switch_width) // 2,
-            y=router_node.y + router_node.height + ROUTER_SWITCH_GAP,
-            width=switch_width,
-            height=switch_height,
-            meta={"propiedad": _ownership(switch)},
-            icon_model=SWITCH_FALLBACK_ICON,
+    switch_y = router_node.y + router_node.height + ROUTER_SWITCH_GAP
+
+    if has_dual_switch:
+        total_width = DEVICE_WIDTH * 2 + DUAL_SWITCH_GAP
+        start_x = router_node.x + (router_node.width - total_width) // 2
+        switch_tel = _make_switch_node("switch", switches[0], start_x, switch_y)
+        switch_datos = _make_switch_node(
+            "switch_datos",
+            switches[1],
+            start_x + DEVICE_WIDTH + DUAL_SWITCH_GAP,
+            switch_y,
         )
+        nodes.extend([switch_tel, switch_datos])
+        edges.append(
+            EdgeSpec(
+                "router",
+                "switch",
+                label="ETH3-LAN",
+                exit_x=0.5,
+                exit_y=1.0,
+                entry_x=0.5,
+                entry_y=0.0,
+                waypoints=_router_switch_waypoints(router_node, switch_tel),
+                label_offset_x=10,
+                label_offset_y=-30,
+            )
+        )
+        edges.append(
+            EdgeSpec(
+                "router",
+                "switch_datos",
+                label="ETH4-LAN",
+                exit_x=0.5,
+                exit_y=1.0,
+                entry_x=0.5,
+                entry_y=0.0,
+                waypoints=_router_switch_waypoints(router_node, switch_datos),
+                label_offset_x=10,
+                label_offset_y=-30,
+            )
+        )
+        return True, True
+
+    switch = switches[0]
+    switch_node = _make_switch_node(
+        "switch",
+        switch,
+        router_node.x + (router_node.width - DEVICE_WIDTH) // 2,
+        switch_y,
     )
-    switch_node = nodes[-1]
+    nodes.append(switch_node)
     edges.append(
         EdgeSpec(
             "router",
@@ -538,15 +623,23 @@ def _place_switch(
             entry_y=0.0,
             waypoints=_router_switch_waypoints(router_node, switch_node),
             label_offset_x=10,
-            label_offset_y=-24,
+            label_offset_y=-30,
         )
     )
-    return True
+    return True, False
 
 
-def _device_anchor(team: dict, *, has_switch: bool, switch_telefonia: bool) -> str:
+def _device_anchor(
+    team: dict,
+    *,
+    has_switch: bool,
+    has_dual_switch: bool,
+    switch_telefonia: bool,
+) -> str:
     if not has_switch:
         return "router"
+    if has_dual_switch:
+        return "switch" if _is_telephony_equipment(team) else "switch_datos"
     if switch_telefonia:
         return "switch"
     if _is_telephony_equipment(team):
@@ -568,12 +661,12 @@ def _compute_device_row_layout(
     device_equipos: list,
     *,
     has_switch: bool,
+    has_dual_switch: bool,
 ) -> _DeviceRowLayout:
     total_slots = _count_device_slots(device_equipos)
     has_dect_handsets = any(_dect_handset_key(_normalized_model(team)) for team in device_equipos)
     max_dect_stack = _max_dect_stack_depth(device_equipos) if has_dect_handsets else 1
-    layout_anchor_key = "switch" if has_switch else "router"
-    anchor_node = next(node for node in nodes if node.key == layout_anchor_key)
+    anchor_node = _layout_anchor_node(nodes, has_switch=has_switch, has_dual_switch=has_dual_switch)
     backup_node = next((n for n in nodes if n.key == "backup"), None)
     anchor_bottom = anchor_node.y + anchor_node.height
     if backup_node and not has_switch:
@@ -598,16 +691,19 @@ class _DevicePlacementState:
     edges: list[EdgeSpec]
     row_layout: _DeviceRowLayout
     has_switch: bool
+    has_dual_switch: bool
     switch_telefonia: bool
     slot_index: int = 0
     team_index: int = 1
     router_port_index: int = 3
-    switch_port_index: int = 1
+    switch_port_indices: dict[str, int] | None = None
     dect_base_registry: dict[str, str] | None = None
     ordered_base_keys: list[str] | None = None
     handsets_on_base: dict[str, int] | None = None
 
     def __post_init__(self) -> None:
+        if self.switch_port_indices is None:
+            self.switch_port_indices = {"switch": 1, "switch_datos": 1}
         if self.dect_base_registry is None:
             self.dect_base_registry = {}
         if self.ordered_base_keys is None:
@@ -615,7 +711,7 @@ class _DevicePlacementState:
         if self.handsets_on_base is None:
             self.handsets_on_base = {}
         if self.has_switch:
-            self.router_port_index = 4
+            self.router_port_index = 5 if self.has_dual_switch else 4
 
     def next_position(self) -> tuple[int, int, int]:
         row_num = self.slot_index // self.row_layout.max_per_row
@@ -631,9 +727,9 @@ class _DevicePlacementState:
         return x, y, y
 
     def next_port_labels(self, anchor_key: str) -> tuple[str, str]:
-        if anchor_key == "switch":
-            port = f"ETH{self.switch_port_index}"
-            self.switch_port_index += 1
+        if anchor_key in SWITCH_ANCHOR_KEYS:
+            port = f"ETH{self.switch_port_indices[anchor_key]}"
+            self.switch_port_indices[anchor_key] += 1
             return port, port
         port = f"ETH{self.router_port_index}"
         cable_label = f"{port}-LAN"
@@ -643,7 +739,7 @@ class _DevicePlacementState:
     def place_edge(self, anchor_key: str, target_key: str, label: str, row_top_y: int | None = None) -> None:
         anchor = next(node for node in self.nodes if node.key == anchor_key)
         target = next(node for node in self.nodes if node.key == target_key)
-        exit_x = _anchor_exit_x(anchor, target) if anchor_key in {"switch", "router"} else 0.5
+        exit_x = _anchor_exit_x(anchor, target) if anchor_key in SWITCH_ANCHOR_KEYS | {"router"} else 0.5
         bus_y = _device_bus_y(anchor, target, row_top_y)
         waypoints = _bus_waypoints(anchor, target, exit_x=exit_x, bus_y=bus_y)
         label_offset_x, label_offset_y = _cable_label_offset(label, anchor_key=anchor_key)
@@ -663,7 +759,12 @@ class _DevicePlacementState:
         )
 
     def anchor_for(self, team: dict) -> str:
-        return _device_anchor(team, has_switch=self.has_switch, switch_telefonia=self.switch_telefonia)
+        return _device_anchor(
+            team,
+            has_switch=self.has_switch,
+            has_dual_switch=self.has_dual_switch,
+            switch_telefonia=self.switch_telefonia,
+        )
 
 
 def _create_dect_base(state: _DevicePlacementState, team: dict, normalized_model: str) -> str:
@@ -838,15 +939,21 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
     nodes, edges = _init_office_nodes(data)
     _place_internet_stack(data, internet, nodes, edges)
     _place_backup(data, internet, nodes, edges)
-    has_switch = _place_switch(data, nodes, edges, include_switch)
+    has_switch, has_dual_switch = _place_switch(data, nodes, edges, include_switch)
     switch_telefonia = _parse_switch_telefonia(data.get("switch_telefonia"), default=True)
     device_equipos = [eq for eq in data.get("equipos", []) if eq.get("tipo") != "switch"]
-    row_layout = _compute_device_row_layout(nodes, device_equipos, has_switch=has_switch)
+    row_layout = _compute_device_row_layout(
+        nodes,
+        device_equipos,
+        has_switch=has_switch,
+        has_dual_switch=has_dual_switch,
+    )
     state = _DevicePlacementState(
         nodes=nodes,
         edges=edges,
         row_layout=row_layout,
         has_switch=has_switch,
+        has_dual_switch=has_dual_switch,
         switch_telefonia=switch_telefonia,
     )
     _place_equipment_rows(data, state)
@@ -857,11 +964,13 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
 def build_rack_layout(data: dict) -> tuple[list[NodeSpec], list[EdgeSpec]]:
     nodes, edges = build_office_layout(data, include_switch=True)
     router = next(node for node in nodes if node.key == "router")
+    switch_nodes = [node for node in nodes if node.key in SWITCH_ANCHOR_KEYS]
     for node in nodes:
         if node.key == "router":
             node.y = 240
-        elif node.key == "switch":
-            node.x = router.x + (router.width - node.width) // 2
+        elif node.key in SWITCH_ANCHOR_KEYS:
+            if len(switch_nodes) == 1:
+                node.x = router.x + (router.width - node.width) // 2
             node.y = router.y + router.height + ROUTER_SWITCH_GAP
         elif node.key == "backup":
             node.x = router.x + router.width + ROUTER_BACKUP_GAP
