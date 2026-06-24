@@ -1,6 +1,6 @@
 (function () {
   const configElement = document.getElementById("diagram-glpi-config");
-  if (!configElement) {
+  if (!configElement || typeof window.__drawioCreateSearchSelect !== "function") {
     return;
   }
 
@@ -12,45 +12,73 @@
   }
 
   const catalog = config.catalog || [];
-  const province = document.getElementById("diagram-province");
-  const customer = document.getElementById("diagram-customer");
-  const site = document.getElementById("diagram-site");
+  const selectedEntityId = String(config.selectedEntityId || "");
+  const createSearchSelect = window.__drawioCreateSearchSelect;
   const entityId = document.getElementById("diagram-entity-id");
-  if (!province || !customer || !site || !entityId) {
+  const form = document.getElementById("diagram-search-form");
+
+  if (!entityId) {
     return;
   }
 
-  function fill(select, items, placeholder) {
-    select.innerHTML = "";
-    select.append(new Option(placeholder, ""));
-    items.forEach(function (item) {
-      select.append(new Option(item.nombre, String(item.id)));
-    });
-    select.disabled = !items.length;
+  const siteControl = createSearchSelect(document.getElementById("diagram-site"), function (site) {
+    entityId.value = String(site.id);
+  });
+  const customerControl = createSearchSelect(document.getElementById("diagram-customer"), function (customer) {
+    entityId.value = "";
+    siteControl.setItems(customer.sedes || [], "Selecciona una sede");
+  });
+  const provinceControl = createSearchSelect(document.getElementById("diagram-province"), function (province) {
+    entityId.value = "";
+    customerControl.setItems(province.clientes || [], "Selecciona un cliente");
+    siteControl.setItems([], "Selecciona primero un cliente");
+  });
+
+  provinceControl.setItems(catalog, "Selecciona una provincia");
+
+  function selectByEntityId(targetId) {
+    if (!targetId || !catalog.length) {
+      return false;
+    }
+    for (const province of catalog) {
+      for (const customer of province.clientes || []) {
+        for (const site of customer.sedes || []) {
+          if (String(site.id) !== targetId) {
+            continue;
+          }
+          provinceControl.setItems(catalog, "Selecciona una provincia");
+          provinceControl.selectItem(province, { silent: true });
+          customerControl.setItems(province.clientes || [], "Selecciona un cliente");
+          customerControl.selectItem(customer, { silent: true });
+          siteControl.setItems(customer.sedes || [], "Selecciona una sede");
+          siteControl.selectItem(site);
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
-  fill(province, catalog, "Selecciona una provincia");
-  province.addEventListener("change", function () {
-    const item = catalog.find(function (value) {
-      return String(value.id) === province.value;
+  if (selectedEntityId) {
+    if (!selectByEntityId(selectedEntityId)) {
+      entityId.value = selectedEntityId;
+    }
+  }
+
+  if (form) {
+    form.addEventListener("submit", function (event) {
+      if (!entityId.value) {
+        event.preventDefault();
+        window.alert("Selecciona una sede antes de consultar.");
+      }
     });
-    fill(customer, item ? item.clientes : [], "Selecciona un cliente");
-    fill(site, [], "Selecciona primero un cliente");
-    entityId.value = "";
-  });
-  customer.addEventListener("change", function () {
-    const provinceItem = catalog.find(function (value) {
-      return String(value.id) === province.value;
-    });
-    const item = provinceItem && provinceItem.clientes
-      ? provinceItem.clientes.find(function (value) {
-          return String(value.id) === customer.value;
-        })
-      : null;
-    fill(site, item ? item.sedes : [], "Selecciona una sede");
-    entityId.value = "";
-  });
-  site.addEventListener("change", function () {
-    entityId.value = site.value;
+  }
+
+  document.addEventListener("click", function (event) {
+    if (!event.target.closest(".search-select")) {
+      document.querySelectorAll(".search-select.open").forEach(function (element) {
+        element.classList.remove("open");
+      });
+    }
   });
 })();

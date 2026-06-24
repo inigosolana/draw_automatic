@@ -7,7 +7,7 @@ from pathlib import Path
 
 from defusedxml import ElementTree as DefusedET
 from defusedxml.common import DefusedXmlException
-from flask import Blueprint, Response, current_app, render_template, request, url_for
+from flask import Blueprint, Response, current_app, jsonify, render_template, request, url_for
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
@@ -34,15 +34,75 @@ from generator.web_adapter import build_drawio_from_data, form_to_data, form_to_
 from generator.work_order_text_parser import parse_work_order_paste
 
 
+def _pending_generation_url(token: str) -> str:
+    return url_for("glpi_import.index", pending=token)
+
+
+def _preview_drawio_url(token: str) -> str:
+    return url_for(
+        "diagrams.preview_drawio",
+        token=token,
+        next=_pending_generation_url(token),
+    )
+
+
+def _preview_from_download(token: str, payload: dict) -> dict:
+    drawio_stores = get_drawio_stores()
+    entity_id = payload.get("entity_id", "")
+    existing_diagrams: list[dict] = []
+    glpi_client = GlpiClient.from_environment()
+    if entity_id and glpi_client:
+        try:
+            existing_diagrams = _glpi_diagram_rows(glpi_client, entity_id, drawio_stores.activity)
+        except GlpiError:
+            existing_diagrams = []
+    technician = payload.get("technician") or current_technician()
+    uploaded = bool(payload.get("uploaded"))
+    return {
+        "token": token,
+        "cliente": payload.get("cliente", ""),
+        "sede": payload.get("sede", ""),
+        "direccion": payload.get("direccion", ""),
+        "template": payload.get("template", ""),
+        "total_equipment": payload.get("total_equipment", 0),
+        "warnings": payload.get("warnings") or [],
+        "download_url": url_for("diagrams.download", token=token),
+        "filename": payload.get("filename", ""),
+        "structured_json": payload.get("structured_json", "{}"),
+        "glpi_diagram_id": payload.get("glpi_diagram_id"),
+        "glpi_diagram_url": payload.get("glpi_diagram_url", ""),
+        "glpi_upload_error": payload.get("glpi_upload_error", ""),
+        "confirm_url": url_for("glpi_import.confirm_glpi", token=token)
+        if entity_id and not uploaded
+        else "",
+        "preview_url": _preview_drawio_url(token),
+        "technician": technician,
+        "existing_diagrams": existing_diagrams,
+        "zabbix_url": payload.get("zabbix_url", ""),
+    }
+
+
 def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
     bp = Blueprint("glpi_import", __name__)
 
-    @bp.get("/")
+    @bp.get("/draw")
     @login_required
     def index() -> str:
+        drawio_stores = get_drawio_stores()
+        form_data = {"library_path": current_app.config["DEFAULT_LIBRARY"]}
+        preview = None
+        errors: list[str] = []
+        pending = request.args.get("pending", "").strip()
+        if pending:
+            try:
+                payload = drawio_stores.downloads[pending]
+            except KeyError:
+                errors = ["El diagrama pendiente ya no esta disponible. Genera uno nuevo."]
+            else:
+                preview = _preview_from_download(pending, payload)
         return render_template(
             "index.html",
-            **index_context(form_data={"library_path": current_app.config["DEFAULT_LIBRARY"]}),
+            **index_context(form_data=form_data, preview=preview, errors=errors),
         )
 
     @bp.post("/generate")
@@ -104,30 +164,18 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
             "entity_id": glpi_entity_id,
             "cliente": generated.data.get("cliente", ""),
             "sede": generated.data.get("sede", ""),
+            "direccion": generated.data.get("direccion", ""),
+            "template": generated.data.get("template", ""),
+            "total_equipment": generated.total_equipment,
+            "warnings": generated.result.warnings,
+            "structured_json": json.dumps(structured_data, ensure_ascii=False, indent=2),
             "uploaded": False,
             "technician": technician,
             "existing_diagram_ids": [
                 int(item["id"]) for item in existing_diagrams if str(item.get("id", "")).isdigit()
             ],
         }
-        preview = {
-            "cliente": generated.data.get("cliente", ""),
-            "sede": generated.data.get("sede", ""),
-            "direccion": generated.data.get("direccion", ""),
-            "template": generated.data.get("template", ""),
-            "total_equipment": generated.total_equipment,
-            "warnings": generated.result.warnings,
-            "download_url": url_for("diagrams.download", token=token),
-            "filename": generated.filename,
-            "structured_json": json.dumps(structured_data, ensure_ascii=False, indent=2),
-            "glpi_diagram_id": None,
-            "glpi_diagram_url": "",
-            "glpi_upload_error": "",
-            "confirm_url": url_for("glpi_import.confirm_glpi", token=token) if glpi_entity_id else "",
-            "preview_url": url_for("diagrams.preview_drawio", token=token),
-            "technician": technician,
-            "existing_diagrams": existing_diagrams,
-        }
+        preview = _preview_from_download(token, drawio_stores.downloads[token])
         return render_template(
             "index.html",
             **index_context(form_data=form_data, preview=preview, errors=[]),
@@ -295,6 +343,48 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
             mimetype="application/json; charset=utf-8",
         )
 
+    @bp.get("/upload-draw/site-diagrams")
+    @login_required
+    @limiter.limit("120 per hour")
+    def upload_draw_site_diagrams():
+        entity_id_raw = request.args.get("entity_id", "").strip()
+        if not entity_id_raw:
+            return jsonify({"error": "Indica una sede."}), 400
+        try:
+            entity_id = positive_integer(entity_id_raw, "entity_id")
+        except ValueError:
+            return jsonify({"error": "Sede no valida."}), 400
+        client = GlpiClient.from_environment()
+        if not client:
+            return jsonify({"error": "GLPI no esta configurado."}), 503
+        try:
+            rows = _glpi_diagram_rows(client, entity_id, get_drawio_stores().activity)
+        except GlpiError as exc:
+            return jsonify({"error": public_error_message(str(exc), context="consulta de diagramas")}), 502
+        rows.sort(key=lambda item: item.get("created_label", ""), reverse=True)
+        return jsonify(
+            {
+                "count": len(rows),
+                "diagrams": [
+                    {
+                        "id": item.get("id"),
+                        "name": item.get("name", ""),
+                        "created_label": item.get("created_label") or "Fecha desconocida",
+                        "technician": item.get("technician") or "—",
+                        "source": item.get("source") or "GLPI",
+                        "url": item.get("url", ""),
+                        "preview_url": url_for(
+                            "diagrams.preview_glpi_diagram",
+                            diagram_id=int(item["id"]),
+                            next=url_for("glpi_import.upload_draw"),
+                        ),
+                    }
+                    for item in rows
+                    if str(item.get("id", "")).isdigit()
+                ],
+            }
+        )
+
     @bp.route("/upload-draw", methods=["GET", "POST"])
     @login_required
     @limiter.limit("20 per hour")
@@ -356,7 +446,7 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
                                     client_name=client_name,
                                     site_name=site_name,
                                     technician=technician,
-                                    source="Archivo antiguo",
+                                    source="Draw subido",
                                     filename=uploaded_file.filename,
                                 ),
                                 graph_xml=xml,
@@ -368,7 +458,7 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
                                 client_name=client_name,
                                 site_name=site_name,
                                 technician=technician,
-                                source="Archivo antiguo",
+                                source="Draw subido",
                             )
                             learned_models = learn_from_drawio(xml, uploaded_file.filename)
                             created = {
@@ -419,6 +509,7 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
             upload_errors=upload_errors,
             upload_results=upload_results,
             technician=current_technician(),
+            site_diagrams_url=url_for("glpi_import.upload_draw_site_diagrams"),
         )
 
     return bp

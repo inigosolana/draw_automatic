@@ -3,18 +3,72 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Subir Draw a GLPI</title>
+    <title>Subir draw a GLPI</title>
     <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='images/ausarta-drawio-32.png') }}?v={{ static_v }}">
     <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='images/ausarta-drawio-180.png') }}?v={{ static_v }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ static_v }}">
   </head>
-  <body>
+  <body class="upload-draw-page">
     {% include "_app_header.html" %}
-    <main class="page">
-      <section class="panel">
-        <header class="panel-header">
-          <h1>Subir draw antiguo a GLPI</h1>
-          <p>Asocia diagramas existentes al cliente y sede correctos.</p>
+    <main class="page page-wide">
+      <section class="panel upload-panel">
+        {% if upload_results %}
+        <div class="upload-success-panel" id="upload-success">
+          <header class="panel-header">
+            <h1>Subida completada</h1>
+            <p>
+              {% if upload_results | length == 1 %}
+              Se ha subido el diagrama correctamente a GLPI.
+              {% else %}
+              Se han subido {{ upload_results | length }} diagramas correctamente a GLPI.
+              {% endif %}
+            </p>
+          </header>
+
+          {% if upload_errors %}
+          <div class="message warning">
+            <h3>Algunos archivos no se han podido subir</h3>
+            <ul>
+              {% for item in upload_errors %}
+              <li>{{ item }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+          {% endif %}
+
+          <div class="upload-success-list">
+            {% for result in upload_results %}
+            <article class="upload-success-card">
+              <h2>{{ result.filename }}</h2>
+              <p class="upload-success-meta">
+                Publicado el <strong>{{ result.created_label }}</strong>
+                {% if result.technician %}· {{ result.technician }}{% endif %}
+                {% if result.cliente and result.sede %}· {{ result.cliente }} / {{ result.sede }}{% endif %}
+              </p>
+              <p class="upload-success-id">Diagrama #{{ result.id }} en GLPI</p>
+              <div class="upload-success-actions">
+                <a class="button secondary quiet" href="{{ url_for('diagrams.preview_glpi_diagram', diagram_id=result.id, next=url_for('glpi_import.upload_draw')) }}" target="_blank" rel="noopener">Previsualizar</a>
+                <a class="button glpi" href="{{ result.url }}" target="_blank" rel="noopener">Abrir diagrama en GLPI</a>
+              </div>
+              {% if result.url %}
+              <p class="upload-success-link">
+                <a class="diagram-direct-link" href="{{ result.url }}" target="_blank" rel="noopener">{{ result.url }}</a>
+              </p>
+              {% endif %}
+            </article>
+            {% endfor %}
+          </div>
+
+          <div class="upload-success-footer">
+            <a class="button" href="{{ url_for('diagrams.my_diagrams') }}">Ver en Mis diagramas</a>
+            <a class="button secondary" href="{{ url_for('glpi_import.upload_draw') }}">Subir otro draw</a>
+            <a class="button secondary" href="{{ url_for('diagrams.diagrams') }}">Consultar diagramas</a>
+          </div>
+        </div>
+        {% else %}
+        <header class="panel-header upload-panel-header">
+          <h1>Subir draw a GLPI</h1>
+          <p>Asocia un diagrama existente al cliente y sede correctos. Si ya hay otros en la sede, no se sobrescriben: se publica uno nuevo con la fecha actual.</p>
         </header>
 
         {% if upload_error %}
@@ -30,71 +84,76 @@
           </ul>
         </div>
         {% endif %}
-        {% if upload_results %}
-        <div class="message success">
-          <h2>{{ upload_results | length }} diagrama(s) subido(s)</h2>
-          <div class="diagram-table-wrap is-cards">
-            <table class="diagram-table is-cards compact-diagram-table">
-              <thead>
-                <tr><th>Archivo</th><th>ID</th><th>Fecha</th><th>Tecnico</th><th></th></tr>
-              </thead>
-              <tbody>
-                {% for result in upload_results %}
-                <tr>
-                  <td data-label="Archivo">{{ result.filename }}</td>
-                  <td data-label="ID">#{{ result.id }}</td>
-                  <td data-label="Fecha">{{ result.created_label }}</td>
-                  <td data-label="Tecnico">{{ result.technician }}</td>
-                  <td data-label="">
-                    <a class="button glpi" href="{{ result.url }}" target="_blank" rel="noopener">Abrir</a>
-                  </td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </div>
-        {% endif %}
 
-        <form method="post" enctype="multipart/form-data" class="upload-form">
+        <form method="post" enctype="multipart/form-data" class="upload-form upload-form-desktop" id="upload-draw-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" id="upload-entity-id" name="glpi_entity_id">
           <input type="hidden" id="upload-client-name" name="glpi_cliente">
           <input type="hidden" id="upload-site-name" name="glpi_sede">
-          <section class="form-section">
-            <h2>Destino en GLPI</h2>
-            {% if glpi_customers %}
-            <label>Provincia
-              <div class="search-select" id="upload-province" data-placeholder="Selecciona una provincia"></div>
-            </label>
-            <label>Cliente
-              <div class="search-select disabled" id="upload-customer" data-placeholder="Selecciona primero una provincia"></div>
-            </label>
-            <label>Sede
-              <div class="search-select disabled" id="upload-site" data-placeholder="Selecciona primero un cliente"></div>
-            </label>
-            {% else %}
-            <p class="upload-error">{{ glpi_error }}</p>
-            {% endif %}
+
+          <div class="upload-form-grid">
+            <section class="form-section upload-form-section">
+              <h2>Destino en GLPI</h2>
+              {% if glpi_customers %}
+              <div class="upload-field-stack">
+                <label>Provincia
+                  <div class="search-select" id="upload-province" data-placeholder="Selecciona una provincia"></div>
+                </label>
+                <label>Cliente
+                  <div class="search-select disabled" id="upload-customer" data-placeholder="Selecciona primero una provincia"></div>
+                </label>
+                <label>Sede
+                  <div class="search-select disabled" id="upload-site" data-placeholder="Selecciona primero un cliente"></div>
+                </label>
+              </div>
+              {% else %}
+              <p class="upload-error">{{ glpi_error }}</p>
+              {% endif %}
+            </section>
+
+            <section class="form-section upload-form-section">
+              <h2>Archivo .drawio</h2>
+              <label>Seleccionar archivo(s)
+                <input type="file" name="drawio_files" accept=".drawio,.xml,application/xml,text/xml" multiple required>
+              </label>
+              <p class="helper-text">Puedes subir varios a la vez. Cada uno se publica en GLPI con fecha y tecnico actuales.</p>
+            </section>
+          </div>
+
+          <section
+            class="upload-existing-panel message warning"
+            id="upload-existing-panel"
+            hidden
+            aria-live="polite"
+          >
+            <h3 id="upload-existing-title">Diagramas ya publicados en esta sede</h3>
+            <p id="upload-existing-intro" class="helper-text">
+              Revisa si vas a subir el mismo draw. Puedes publicar otro igualmente; no se sobrescribe el anterior.
+            </p>
+            <div class="diagram-table-wrap is-cards">
+              <table class="diagram-table is-cards compact-diagram-table">
+                <thead>
+                  <tr>
+                    <th>Nombre</th>
+                    <th>Fecha</th>
+                    <th>Tecnico</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="upload-existing-body"></tbody>
+              </table>
+            </div>
           </section>
 
-          <section class="form-section">
-            <h2>Archivos existentes</h2>
-            <label>Archivo(s) .drawio
-              <input type="file" name="drawio_files" accept=".drawio,.xml,application/xml,text/xml" multiple required>
-            </label>
-            <p class="helper-text">Puedes seleccionar varios archivos a la vez. Cada uno se valida y se publica en GLPI con fecha y tecnico.</p>
-            <p class="info-callout"><span aria-hidden="true">ⓘ</span> Una sede puede tener varios diagramas. Consulta los existentes en <strong>Diagramas</strong>.</p>
-          </section>
-
-          <div class="actions">
+          <div class="actions upload-form-actions">
             <button type="submit" class="button primary">Subir draw a GLPI</button>
           </div>
         </form>
+        {% endif %}
       </section>
     </main>
-    {% if glpi_customers %}
-    <script type="application/json" id="upload-glpi-config"{% if csp_nonce is defined %} nonce="{{ csp_nonce() }}"{% endif %}>{{ {"catalog": glpi_customers} | tojson }}</script>
+    {% if glpi_customers and not upload_results %}
+    <script type="application/json" id="upload-glpi-config"{% if csp_nonce is defined %} nonce="{{ csp_nonce() }}"{% endif %}>{{ {"catalog": glpi_customers, "siteDiagramsUrl": site_diagrams_url} | tojson }}</script>
     <script src="{{ url_for('static', filename='js/search-select.js') }}?v={{ static_v }}"></script>
     <script src="{{ url_for('static', filename='js/upload-glpi-form.js') }}?v={{ static_v }}"></script>
     {% endif %}

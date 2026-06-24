@@ -5,7 +5,7 @@ import re
 import tempfile
 import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from urllib.error import HTTPError, URLError
 
 from generator.catalog_cache import CatalogCache
@@ -26,6 +26,11 @@ def fake_glpi_client(**overrides):
     client = GlpiClient("http://glpi.test/apirest.php", "app-token", "user-token")
     client.list_network_diagrams = lambda entity_id: []
     client.create_network_diagram = lambda **kwargs: 42
+    client.get_network_diagram = lambda diagram_id: {
+        "id": diagram_id,
+        "entities_id": 7,
+        "name": "Cliente - Sede",
+    }
     client.diagram_url = lambda diagram_id: f"http://glpi.test/diagram/{diagram_id}"
     for key, value in overrides.items():
         setattr(client, key, value)
@@ -427,7 +432,7 @@ class WebAdapterTests(unittest.TestCase):
             app = create_app()
         app.config["AUTH_REQUIRED"] = False
         client = app.test_client()
-        response = client.get("/")
+        response = client.get("/draw")
         self.assertEqual(response.status_code, 200)
         body = response.get_data(as_text=True)
         self.assertIn("Dispositivos", body)
@@ -615,6 +620,31 @@ class WebAppTests(unittest.TestCase):
         self.assertIn(b"<mxfile", download.data)
         self.assertIn(b"attachment;", download.headers["Content-Disposition"].encode())
 
+    def test_preview_returns_to_generation_screen_after_exit(self) -> None:
+        response = self.client.post(
+            "/generate",
+            data={
+                "cliente": "Cliente Demo",
+                "sede": "Bilbao",
+                "direccion": "Gran Via 1",
+                "ont_modelo": "ONT ZTE",
+                "router_modelo": "MikroTik hAP ac2",
+                "library_path": LIBRARY,
+                "equipos_text": "* 1 Fanvil V62, extension 2001",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        token = next(iter(self.stores.downloads))
+        self.assertIn(f"/preview/{token}?next=".encode(), response.data)
+        preview_page = self.client.get(f"/preview/{token}?next=/draw%3Fpending%3D{token}")
+        self.assertEqual(preview_page.status_code, 200)
+        self.assertIn(f"/draw?pending={token}".encode(), preview_page.data)
+        resume_page = self.client.get(f"/draw?pending={token}")
+        self.assertEqual(resume_page.status_code, 200)
+        self.assertIn(b"Generacion completada", resume_page.data)
+        self.assertIn(b'data-download-mode="resume"', resume_page.data)
+        self.assertIn(b"Cliente Demo", resume_page.data)
+
     def test_import_work_order_with_pasted_text(self) -> None:
         response = self.client.post(
             "/api/import-work-order",
@@ -669,10 +699,25 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(response.get_json(), {"status": "ok"})
 
     def test_diagram_query_page_is_available(self) -> None:
-        with patch("catalog_loader.GlpiClient.from_environment", return_value=None):
+        sample_catalog = [
+            {
+                "id": 1,
+                "nombre": "Gipuzkoa",
+                "clientes": [
+                    {
+                        "id": 2,
+                        "nombre": "Cliente Demo",
+                        "sedes": [{"id": 7, "nombre": "Central"}],
+                    }
+                ],
+            }
+        ]
+        with patch("catalog_loader.load_glpi_catalog", return_value=(sample_catalog, "")):
             response = self.client.get("/diagrams")
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Consultar diagramas publicados", response.data)
+        self.assertIn(b"diagram-province", response.data)
+        self.assertIn(b"search-select", response.data)
 
     def test_my_diagrams_page_uses_authenticated_technician(self) -> None:
         self.app.config["AUTH_REQUIRED"] = True
@@ -694,19 +739,159 @@ class WebAppTests(unittest.TestCase):
             }
         ]
         with patch.object(self.stores.activity, "list_for_technician", return_value=rows) as list_activity:
-            with patch("catalog_loader.GlpiClient.from_environment", return_value=None):
+            with patch("web.blueprints.diagrams.GlpiClient.from_environment", return_value=fake_glpi_client()):
                 response = self.client.get("/my-diagrams")
 
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Mis diagramas", response.data)
         self.assertIn(b"Cliente - Sede", response.data)
+        self.assertIn(b"Previsualizar", response.data)
+        self.assertIn(b"source-badge-generated", response.data)
+        self.assertIn(b'data-source-filter="subido"', response.data)
         list_activity.assert_called_once_with("tecnico.uno")
+
+    def test_admin_diagrams_lists_all_with_technician(self) -> None:
+        self.app.config["AUTH_REQUIRED"] = False
+        rows = [
+            {
+                "diagram_id": 101,
+                "entity_id": 7,
+                "diagram_name": "Cliente A - Sede 1",
+                "client_name": "Cliente A",
+                "site_name": "Sede 1",
+                "technician_username": "tecnico.uno",
+                "technician_name": "Tecnico Uno",
+                "source": "Generado",
+                "created_at": time.time(),
+            },
+            {
+                "diagram_id": 202,
+                "entity_id": 8,
+                "diagram_name": "Cliente B - Sede 2",
+                "client_name": "Cliente B",
+                "site_name": "Sede 2",
+                "technician_username": "tecnico.dos",
+                "technician_name": "Tecnico Dos",
+                "source": "Draw subido",
+                "created_at": time.time(),
+            },
+        ]
+        with self.client.session_transaction() as browser_session:
+            browser_session["technician"] = {
+                "username": "admin.user",
+                "name": "Admin User",
+            }
+        with patch("web.blueprints.admin.ADMIN_USERS", {"admin.user"}):
+            with patch.object(self.stores.activity, "list_all", return_value=rows):
+                with patch("web.blueprints.admin.GlpiClient.from_environment", return_value=fake_glpi_client()):
+                    response = self.client.get("/admin/diagrams")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Todos los diagramas", response.data)
+        self.assertIn(b"Tecnico Uno", response.data)
+        self.assertIn(b"Tecnico Dos", response.data)
+        self.assertIn(b"Cliente A", response.data)
+        self.assertIn(b"Cliente B", response.data)
+        self.assertIn(b"Borrar", response.data)
+
+    def test_admin_diagrams_denies_non_admin(self) -> None:
+        self.app.config["AUTH_REQUIRED"] = False
+        with self.client.session_transaction() as browser_session:
+            browser_session["technician"] = {
+                "username": "tecnico.uno",
+                "name": "Tecnico Uno",
+            }
+        with patch("web.blueprints.admin.ADMIN_USERS", {"admin.user"}):
+            response = self.client.get("/admin/diagrams")
+        self.assertEqual(response.status_code, 403)
+
+    def test_admin_delete_diagram_requires_admin(self) -> None:
+        self.app.config["AUTH_REQUIRED"] = False
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        with self.client.session_transaction() as browser_session:
+            browser_session["technician"] = {
+                "username": "tecnico.uno",
+                "name": "Tecnico Uno",
+            }
+        with patch("web.blueprints.admin.ADMIN_USERS", {"admin.user"}):
+            response = self.client.post("/admin/diagrams/delete", data={"diagram_id": "101"})
+        self.assertEqual(response.status_code, 403)
+
+    def test_admin_delete_diagram_removes_from_glpi_and_activity(self) -> None:
+        self.app.config["AUTH_REQUIRED"] = False
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        activity = self.stores.activity
+        activity.add(
+            diagram_id=101,
+            entity_id=7,
+            diagram_name="Cliente - Sede",
+            client_name="Cliente",
+            site_name="Sede",
+            technician={"username": "tecnico.uno", "name": "Tecnico Uno"},
+            source="Generado",
+        )
+        fake_client = fake_glpi_client()
+        fake_client.delete_network_diagram = MagicMock()
+        with self.client.session_transaction() as browser_session:
+            browser_session["technician"] = {
+                "username": "admin.user",
+                "name": "Admin User",
+            }
+        with patch("web.blueprints.admin.ADMIN_USERS", {"admin.user"}):
+            with patch("web.blueprints.admin.GlpiClient.from_environment", return_value=fake_client):
+                response = self.client.post("/admin/diagrams/delete", data={"diagram_id": "101"})
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/admin/diagrams?deleted=101", response.headers["Location"])
+        fake_client.delete_network_diagram.assert_called_once_with(101)
+        self.assertEqual(activity.list_for_technician("tecnico.uno"), [])
 
     def test_authentication_redirects_to_login_when_enabled(self) -> None:
         self.app.config["AUTH_REQUIRED"] = True
         response = self.client.get("/")
         self.assertEqual(response.status_code, 302)
         self.assertIn("/login", response.headers["Location"])
+
+    def test_home_launcher_renders_app_cards(self) -> None:
+        self.app.config["AUTH_REQUIRED"] = False
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        self.assertIn("Pasos tras la instalacion", body)
+        self.assertIn("Paso 1", body)
+        self.assertIn("Paso 2", body)
+        self.assertIn("Paso 3", body)
+        self.assertIn("Zabbix", body)
+        self.assertIn("Passbolt", body)
+        self.assertIn("Pronto", body)
+        self.assertIn("proximamente", body)
+
+    def test_zabbix_page_redirects_to_soon(self) -> None:
+        self.app.config["AUTH_REQUIRED"] = False
+        with patch.dict(
+            os.environ,
+            {"ZABBIX_BASE_URL": "http://zabbix", "ZABBIX_API_TOKEN": "tok"},
+            clear=False,
+        ):
+            response = self.client.get("/zabbix")
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/zabbix-soon", response.headers["Location"])
+
+    def test_zabbix_group_lookup_api(self) -> None:
+        self.app.config["AUTH_REQUIRED"] = False
+        with patch.dict(
+            os.environ,
+            {"ZABBIX_BASE_URL": "http://zabbix", "ZABBIX_API_TOKEN": "tok"},
+            clear=False,
+        ):
+            with patch(
+                "web.blueprints.zabbix.ZabbixClient.resolve_host_group_for_province",
+                return_value={"groupid": "15", "name": "Bizkaia"},
+            ):
+                response = self.client.get("/zabbix/api/group?provincia=Bizkaia")
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["groupid"], "15")
+        self.assertEqual(payload["name"], "Bizkaia")
 
     def test_glpi_login_stores_technician_identity(self) -> None:
         self.app.config["AUTH_REQUIRED"] = True
@@ -733,6 +918,81 @@ class WebAppTests(unittest.TestCase):
         self.assertIn(b'autocomplete="username"', response.data)
         self.assertIn(b'autocomplete="current-password"', response.data)
 
+    def test_preview_glpi_page_loads_archimap_diagram(self) -> None:
+        self.app.config["AUTH_REQUIRED"] = False
+        fake_client = fake_glpi_client()
+        fake_client.get_network_diagram_xml = lambda diagram_id: (
+            "<mxfile><diagram /></mxfile>",
+            "Cliente - Sede",
+        )
+        with patch("web.blueprints.diagrams.GlpiClient.from_environment", return_value=fake_client):
+            response = self.client.get(
+                "/preview/glpi/2267",
+                headers={"X-Forwarded-Proto": "https", "Host": "draw.ausarta.net"},
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"preview-drawio.js", response.data)
+        self.assertIn(b"Cliente - Sede", response.data)
+        self.assertIn(b"Previsualizaci\xc3\xb3n editable", response.data)
+        self.assertIn(b"saveUrl", response.data)
+        self.assertIn(b"/preview/glpi/2267/save", response.data)
+        self.assertIn(b"/preview/glpi/2267/xml", response.data)
+        self.assertIn(b"embedUrl", response.data)
+        self.assertIn(b"https://draw.ausarta.net/drawio-library.xml", response.data)
+        iframe_pos = response.data.find(b'id="drawio-preview"')
+        script_pos = response.data.find(b"preview-drawio.js")
+        self.assertIn(b"preview-editor-shell", response.data)
+        self.assertIn(b"preview-page-root", response.data)
+        iframe_pos = response.data.find(b'id="drawio-preview"')
+        script_pos = response.data.find(b"preview-drawio.js")
+        self.assertGreater(script_pos, iframe_pos)
+        self.assertIn(b"grid=0", response.data)
+        self.assertNotIn(b"pv=0", response.data)
+
+    def test_preview_glpi_xml_endpoint_returns_diagram(self) -> None:
+        self.app.config["AUTH_REQUIRED"] = False
+        fake_client = fake_glpi_client()
+        fake_client.get_network_diagram_xml = lambda diagram_id: (
+            "<mxfile><diagram /></mxfile>",
+            "Cliente - Sede",
+        )
+        with patch("web.blueprints.diagrams.GlpiClient.from_environment", return_value=fake_client):
+            response = self.client.get("/preview/glpi/2267/xml")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"<mxfile>", response.data)
+
+    def test_preview_glpi_xml_endpoint_returns_404_when_missing(self) -> None:
+        self.app.config["AUTH_REQUIRED"] = False
+        fake_client = fake_glpi_client()
+        fake_client.get_network_diagram_xml = MagicMock(side_effect=GlpiError("Diagrama no encontrado."))
+        with patch("web.blueprints.diagrams.GlpiClient.from_environment", return_value=fake_client):
+            response = self.client.get("/preview/glpi/9999/xml")
+        self.assertEqual(response.status_code, 404)
+
+    def test_drawio_library_serves_xml_with_cors(self) -> None:
+        self.app.config["AUTH_REQUIRED"] = False
+        response = self.client.get("/drawio-library.xml")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"<mxlibrary>", response.data)
+        self.assertEqual(
+            response.headers.get("Access-Control-Allow-Origin"),
+            "https://embed.diagrams.net",
+        )
+        gzip_response = self.client.get(
+            "/drawio-library.xml",
+            headers={"Accept-Encoding": "gzip"},
+        )
+        self.assertEqual(gzip_response.status_code, 200)
+        self.assertEqual(gzip_response.headers.get("Content-Encoding"), "gzip")
+        app_origin = self.client.get(
+            "/drawio-library.xml",
+            headers={"Origin": "https://app.diagrams.net"},
+        )
+        self.assertEqual(
+            app_origin.headers.get("Access-Control-Allow-Origin"),
+            "https://app.diagrams.net",
+        )
+
     def test_preview_page_loads_pending_diagram(self) -> None:
         self.stores.downloads["preview-token"] = {
             "filename": "demo.drawio",
@@ -745,10 +1005,57 @@ class WebAppTests(unittest.TestCase):
         response = self.client.get("/preview/preview-token")
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Previsualizaci", response.data)
-        self.assertIn(b"embed.diagrams.net", response.data)
+        self.assertIn(b"embedUrl", response.data)
+        self.assertIn(b"configure=1", response.data)
+        self.assertIn(b"libraryUrl", response.data)
+        self.assertIn(b"/preview/preview-token/xml", response.data)
+        self.assertIn(b"/preview/preview-token/save", response.data)
         self.assertIn(b"preview-drawio.js", response.data)
         self.assertIn(b"drawio-preview-config", response.data)
         self.assertNotIn(b"window.addEventListener", response.data)
+
+    def test_preview_token_save_updates_pending_diagram(self) -> None:
+        self.app.config["AUTH_REQUIRED"] = False
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        self.stores.downloads["preview-token"] = {
+            "filename": "demo.drawio",
+            "xml": "<mxfile />",
+            "entity_id": "",
+            "cliente": "Demo",
+            "sede": "Central",
+            "uploaded": False,
+        }
+        updated_xml = "<mxfile><diagram name='Page-1' /></mxfile>"
+        response = self.client.post(
+            "/preview/preview-token/save",
+            json={"xml": updated_xml},
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertTrue(payload["ok"])
+        self.assertEqual(self.stores.downloads["preview-token"]["xml"], updated_xml)
+
+    def test_preview_glpi_save_updates_archimap(self) -> None:
+        self.app.config["AUTH_REQUIRED"] = False
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        fake_client = fake_glpi_client()
+        fake_client.save_network_diagram_version = MagicMock(
+            return_value=(9901, "Cliente - Sede_20260623_153045")
+        )
+        updated_xml = "<mxfile><diagram name='Page-1' /></mxfile>"
+        with patch("web.blueprints.diagrams.GlpiClient.from_environment", return_value=fake_client):
+            response = self.client.post(
+                "/preview/glpi/2267/save",
+                json={"xml": updated_xml},
+            )
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["version_name"], "Cliente - Sede_20260623_153045")
+        fake_client.save_network_diagram_version.assert_called_once()
+        args, kwargs = fake_client.save_network_diagram_version.call_args
+        self.assertEqual(args[0], 2267)
+        self.assertEqual(args[1], updated_xml)
 
     def test_preview_page_uses_csp_nonce_when_security_headers_enabled(self) -> None:
         env = {
@@ -822,6 +1129,7 @@ class WebAppTests(unittest.TestCase):
                 with patch("catalog_loader.GlpiClient.from_environment", return_value=None):
                     pages = [
                         client.get("/"),
+                        client.get("/draw"),
                         client.get("/diagrams"),
                         client.get("/my-diagrams"),
                         client.get("/upload-draw"),
@@ -836,6 +1144,7 @@ class WebAppTests(unittest.TestCase):
                 with patch("catalog_loader.GlpiClient.from_environment", return_value=None):
                     with patch("web.blueprints.admin.ADMIN_USERS", {"admin.user"}):
                         pages.append(client.get("/admin"))
+                        pages.append(client.get("/admin/diagrams"))
 
         for response in pages:
             self.assertEqual(response.status_code, 200, response.request.path)
@@ -908,7 +1217,29 @@ class WebAppTests(unittest.TestCase):
     def test_upload_draw_page_is_available(self) -> None:
         response = self.client.get("/upload-draw")
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b"Subir draw antiguo a GLPI", response.data)
+        self.assertIn(b"Subir draw a GLPI", response.data)
+
+    def test_upload_draw_site_diagrams_api(self) -> None:
+        with patch("catalog_loader.GlpiClient.from_environment", return_value=fake_glpi_client()):
+            with patch(
+                "web.blueprints.glpi_import._glpi_diagram_rows",
+                return_value=[
+                    {
+                        "id": 12,
+                        "name": "Cliente - Sede",
+                        "created_label": "10/03/2026 09:15",
+                        "technician": "Tecnico Uno",
+                        "source": "Generado",
+                        "url": "http://glpi/diagram/12",
+                    }
+                ],
+            ):
+                response = self.client.get("/upload-draw/site-diagrams?entity_id=7")
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["count"], 1)
+        self.assertEqual(payload["diagrams"][0]["id"], 12)
+        self.assertIn("/preview/glpi/12", payload["diagrams"][0]["preview_url"])
 
     def test_upload_draw_rejects_dtd_and_external_entity(self) -> None:
         dangerous_xml = (

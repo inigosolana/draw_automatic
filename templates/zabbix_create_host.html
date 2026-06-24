@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Paso 2 — Zabbix</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='images/ausarta-drawio-32.png') }}?v={{ static_v }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ static_v }}">
+  </head>
+  <body
+    data-group-lookup-url="{{ group_lookup_url }}"
+    data-plan-lookup-url="{{ plan_lookup_url }}"
+  >
+    <header class="topbar topbar-minimal">
+      <div class="topbar-inner">
+        <a class="topbar-brand" href="{{ url_for('home.index') }}" aria-label="Ausarta">
+          <img src="{{ url_for('static', filename='images/ausarta-transparent.png') }}?v={{ static_v }}" alt="Ausarta">
+        </a>
+        <div class="topbar-actions">
+          <a class="topbar-link" href="{{ url_for('home.index') }}">Pasos instalacion</a>
+          {% if technician %}
+          <span class="technician-pill" title="Técnico conectado">{{ technician.name or technician.username }}</span>
+          {% endif %}
+        </div>
+      </div>
+    </header>
+
+    <main class="page">
+      <section class="panel zabbix-panel">
+        <div class="install-step-banner">Paso 2 de 3</div>
+        <div class="zabbix-panel-header">
+          <img src="{{ url_for('static', filename='images/zabbix-logo.svg') }}?v={{ static_v }}" alt="Zabbix" class="zabbix-panel-logo">
+          <div>
+            <h1>Subir a Zabbix</h1>
+            <p>Responde como en el draw: el sistema crea 1 o 2 hosts con la plantilla correcta.</p>
+          </div>
+        </div>
+
+        {% if not configured %}
+        <div class="alert alert-warning" role="alert">
+          Zabbix no esta configurado. Define <code>ZABBIX_BASE_URL</code> y <code>ZABBIX_API_TOKEN</code> en el servidor.
+        </div>
+        {% endif %}
+
+        {% if success %}
+        <div class="alert alert-success" role="status">
+          {{ success.summary }}
+          {% if success.group_name %}
+          · Grupo: <strong>{{ success.group_name }}</strong>
+          {% endif %}
+        </div>
+        <ul class="zabbix-created-hosts">
+          {% for host in success.hosts %}
+          <li>
+            <strong>{{ host.name }}</strong>
+            {% if host.hostid %}(ID {{ host.hostid }}){% endif %}
+            — {{ host.ip }} · {{ host.template_label }}
+          </li>
+          {% endfor %}
+        </ul>
+        <div class="install-step-next">
+          <p>Siguiente paso: Passbolt (cuando este disponible).</p>
+          <a class="button secondary" href="{{ url_for('home.passbolt_soon') }}">Paso 3: Passbolt</a>
+          <a class="button" href="{{ url_for('home.index') }}">Volver a los pasos</a>
+        </div>
+        {% endif %}
+
+        {% if errors %}
+        <div class="alert alert-error" role="alert">
+          <ul>
+            {% for error in errors %}
+            <li>{{ error }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+
+        {% if not success %}
+        <form method="post" class="zabbix-form" id="zabbix-form" {% if not configured %}data-disabled="true"{% endif %}>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="groupid" id="zabbix-groupid" value="{{ form_data.groupid }}">
+          <input type="hidden" name="proxyid" value="{{ form_data.proxyid }}">
+          <input type="hidden" name="monitored_by" value="{{ form_data.monitored_by }}">
+
+          <div class="form-grid two-col">
+            <label class="full-width">
+              <span>Provincia</span>
+              {% if glpi_customers %}
+              <select name="provincia" id="zabbix-provincia" required>
+                <option value="">Selecciona una provincia</option>
+                {% for province in glpi_customers %}
+                <option value="{{ province.nombre }}" {% if form_data.provincia == province.nombre %}selected{% endif %}>
+                  {{ province.nombre }}
+                </option>
+                {% endfor %}
+              </select>
+              {% else %}
+              <input type="text" name="provincia" id="zabbix-provincia" value="{{ form_data.provincia }}" required autocomplete="off">
+              {% if glpi_error %}
+              <small class="helper-text">{{ glpi_error }}</small>
+              {% endif %}
+              {% endif %}
+              <p id="zabbix-group-status" class="zabbix-group-status" aria-live="polite">
+                Selecciona una provincia para asignar el grupo en Zabbix.
+              </p>
+            </label>
+
+            <label>
+              <span>Cliente</span>
+              <input type="text" name="cliente" id="zabbix-cliente" value="{{ form_data.cliente }}" autocomplete="off">
+            </label>
+            <label>
+              <span>Sede</span>
+              <input type="text" name="sede" id="zabbix-sede" value="{{ form_data.sede }}" autocomplete="off">
+            </label>
+
+            <label>
+              <span>Tipo de conexion</span>
+              <select name="internet_tipo" id="zabbix-internet-tipo" required>
+                <option value="">Selecciona...</option>
+                {% for item in internet_types %}
+                <option value="{{ item }}" {% if form_data.internet_tipo == item %}selected{% endif %}>{{ item }}</option>
+                {% endfor %}
+              </select>
+            </label>
+
+            <label id="zabbix-provider-wrap">
+              <span>Proveedor fibra</span>
+              <select name="internet_proveedor" id="zabbix-internet-proveedor">
+                <option value="">Selecciona...</option>
+                {% for provider in fiber_providers %}
+                <option value="{{ provider }}" {% if form_data.internet_proveedor == provider %}selected{% endif %}>{{ provider }}</option>
+                {% endfor %}
+              </select>
+            </label>
+
+            <label>
+              <span>Router</span>
+              <select name="router_modelo" id="zabbix-router-modelo" required>
+                <option value="">Selecciona...</option>
+                {% for model in router_models %}
+                <option value="{{ model }}" {% if form_data.router_modelo == model %}selected{% endif %}>{{ model }}</option>
+                {% endfor %}
+              </select>
+            </label>
+
+            <label id="zabbix-backup-wrap">
+              <span>Backup (solo hAP)</span>
+              <select name="backup_modelo" id="zabbix-backup-modelo">
+                <option value="">Sin backup externo</option>
+                {% for model in backup_models %}
+                <option value="{{ model }}" {% if form_data.backup_modelo == model %}selected{% endif %}>{{ model }}</option>
+                {% endfor %}
+              </select>
+            </label>
+
+            <label>
+              <span>IP router</span>
+              <input type="text" name="router_ip" id="zabbix-router-ip" value="{{ form_data.router_ip }}" required autocomplete="off" placeholder="192.168.0.1">
+            </label>
+
+            <label id="zabbix-backup-ip-wrap">
+              <span>IP backup (WAP/Teltonika)</span>
+              <input type="text" name="backup_ip" id="zabbix-backup-ip" value="{{ form_data.backup_ip }}" autocomplete="off" placeholder="192.168.88.1">
+            </label>
+
+            <label>
+              <span>Comunidad SNMP</span>
+              <input type="text" name="snmp_community" value="{{ form_data.snmp_community }}" required autocomplete="off">
+            </label>
+          </div>
+
+          <div class="zabbix-plan-preview" id="zabbix-plan-preview" hidden>
+            <h2>Se crearan</h2>
+            <p id="zabbix-plan-summary" class="zabbix-plan-summary"></p>
+            <ul id="zabbix-plan-hosts" class="zabbix-plan-hosts"></ul>
+          </div>
+
+          <details class="zabbix-advanced">
+            <summary>Macros RouterOS (opcional)</summary>
+            <div class="form-grid two-col">
+              <label>
+                <span>{$ROUTEROS_USERNAME}</span>
+                <input type="text" name="router_username" value="{{ form_data.router_username }}" autocomplete="off">
+              </label>
+              <label>
+                <span>{$ROUTEROS_PASSWORD}</span>
+                <input type="password" name="router_password" value="{{ form_data.router_password }}" autocomplete="new-password">
+              </label>
+            </div>
+          </details>
+
+          <div class="form-actions">
+            <a class="button secondary" href="{{ url_for('glpi_import.index') }}">Volver al draw</a>
+            <button type="submit" class="button" {% if not configured %}disabled{% endif %}>Crear en Zabbix</button>
+          </div>
+        </form>
+        {% endif %}
+      </section>
+    </main>
+    {% if not success and configured %}
+    <script src="{{ url_for('static', filename='js/zabbix-form.js') }}?v={{ static_v }}"></script>
+    {% endif %}
+  </body>
+</html>

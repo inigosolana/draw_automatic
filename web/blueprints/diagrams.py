@@ -1,17 +1,139 @@
 from __future__ import annotations
 
 import json
+import os
+import re
+from pathlib import Path
+from urllib.parse import quote
 
-from flask import Blueprint, Response, current_app, render_template, request
+from flask import Blueprint, Response, current_app, render_template, request, send_file, url_for
 from flask_limiter import Limiter
 from flask_wtf.csrf import CSRFProtect
 
-from app_context import current_technician, get_drawio_stores, login_required
+from app_context import current_technician, get_drawio_stores, login_required, security_logger
 from catalog_loader import _glpi_diagram_rows, load_glpi_catalog
-from generator.diagram_metadata import format_activity_timestamp
+from generator.diagram_metadata import enrich_activity_rows
 from generator.glpi_client import GlpiClient, GlpiError
 from generator.safe_errors import public_error_message
-from generator.utils import positive_integer
+from generator.utils import is_safe_redirect, positive_integer
+
+_DRAWIO_CORS_ORIGINS = frozenset(
+    {
+        "https://embed.diagrams.net",
+        "https://app.diagrams.net",
+    }
+)
+
+
+def _validate_drawio_xml(xml: str) -> str:
+    cleaned = (xml or "").strip()
+    if not cleaned.startswith("<") or ("<mxfile" not in cleaned and "<mxGraphModel" not in cleaned):
+        raise ValueError("El XML no parece un diagrama draw.io valido.")
+    return cleaned
+
+
+def _preview_close_url() -> str:
+    next_url = request.args.get("next", "").strip()
+    if is_safe_redirect(next_url):
+        return next_url
+    return url_for("home.index")
+
+
+def _library_cors_response(response: Response) -> Response:
+    origin = request.headers.get("Origin", "").strip()
+    if origin in _DRAWIO_CORS_ORIGINS:
+        response.headers["Access-Control-Allow-Origin"] = origin
+    else:
+        response.headers["Access-Control-Allow-Origin"] = "https://embed.diagrams.net"
+    response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    response.headers["Access-Control-Max-Age"] = "86400"
+    response.headers["Vary"] = "Origin"
+    return response
+
+
+def _external_base_url() -> str:
+    explicit = os.environ.get("DRAWIO_PUBLIC_BASE_URL", "").strip().rstrip("/")
+    if explicit:
+        return explicit
+    if request.is_secure or os.environ.get("DRAWIO_COOKIE_SECURE", "0") == "1":
+        host = (request.host or "").split(":")[0]
+        return f"https://{host}"
+    return request.host_url.rstrip("/")
+
+
+def _preview_library_url() -> str:
+    library_path = Path(current_app.config["DEFAULT_LIBRARY"])
+    library_version = int(library_path.stat().st_mtime) if library_path.is_file() else 0
+    library_path_url = url_for("diagrams.drawio_library", v=library_version)
+    return f"{_external_base_url()}{library_path_url}"
+
+
+def _normalize_preview_xml(xml: str) -> str:
+    """Adapt tall diagrams for preview: fit page size to content and reset scroll offset."""
+    cleaned = (xml or "").strip()
+    if not cleaned:
+        return cleaned
+
+    max_right = 0
+    max_bottom = 0
+    for fragment in re.finditer(r"<mxGeometry\b[^>]*/>", cleaned):
+        block = fragment.group(0)
+        x_match = re.search(r'\bx="(\d+)"', block)
+        y_match = re.search(r'\by="(\d+)"', block)
+        width_match = re.search(r'\bwidth="(\d+)"', block)
+        height_match = re.search(r'\bheight="(\d+)"', block)
+        if x_match and y_match and width_match and height_match:
+            x = int(x_match.group(1))
+            y = int(y_match.group(1))
+            width = int(width_match.group(1))
+            height = int(height_match.group(1))
+            max_right = max(max_right, x + width)
+            max_bottom = max(max_bottom, y + height)
+
+    if max_bottom > 0:
+        padding = 24
+        target_width = max(max_right + padding, 400)
+        target_height = max_bottom + padding
+        if re.search(r'pageWidth="\d+"', cleaned):
+            cleaned = re.sub(
+                r'pageWidth="\d+"',
+                f'pageWidth="{target_width}"',
+                cleaned,
+                count=1,
+            )
+        if re.search(r'pageHeight="\d+"', cleaned):
+            cleaned = re.sub(
+                r'pageHeight="\d+"',
+                f'pageHeight="{target_height}"',
+                cleaned,
+                count=1,
+            )
+
+    cleaned = re.sub(r'(<mxGraphModel\b[^>]*\b)dx="\d+"', r'\1dx="0"', cleaned, count=1)
+    cleaned = re.sub(r'(<mxGraphModel\b[^>]*\b)dy="\d+"', r'\1dy="0"', cleaned, count=1)
+    cleaned = re.sub(r'(<mxGraphModel\b[^>]*\b)grid="1"', r'\1grid="0"', cleaned, count=1)
+    return cleaned
+
+
+def _preview_embed_url(library_clibs: str) -> str:
+    base = current_app.config["PREVIEW_URL"]
+    return (
+        f"{base}/?embed=1&ui=min&spin=1&proto=json&libraries=1&configure=1"
+        f"&grid=0&clibs={library_clibs}"
+    )
+
+
+def _preview_template_context(**extra) -> dict:
+    library_url = _preview_library_url()
+    library_clibs = "U" + quote(library_url, safe="")
+    return {
+        "preview_base_url": current_app.config["PREVIEW_URL"],
+        "preview_embed_url": _preview_embed_url(library_clibs),
+        "library_url": library_url,
+        "library_clibs": library_clibs,
+        **extra,
+    }
 
 
 def create_diagrams_blueprint(limiter: Limiter, csrf: CSRFProtect) -> Blueprint:
@@ -25,6 +147,37 @@ def create_diagrams_blueprint(limiter: Limiter, csrf: CSRFProtect) -> Blueprint:
             json.dumps({"status": "ok"}),
             mimetype="application/json",
         )
+
+    @bp.route("/drawio-library.xml", methods=["GET", "OPTIONS"])
+    @csrf.exempt
+    @limiter.limit("60 per minute")
+    def drawio_library() -> Response:
+        if request.method == "OPTIONS":
+            return _library_cors_response(Response(status=204))
+
+        library_path = Path(current_app.config["DEFAULT_LIBRARY"])
+        if not library_path.is_file():
+            return Response("Biblioteca no encontrada.", status=404, mimetype="text/plain; charset=utf-8")
+
+        raw_bytes = library_path.read_bytes()
+        accept_encoding = request.headers.get("Accept-Encoding", "")
+        if "gzip" in accept_encoding.lower() and len(raw_bytes) > 512_000:
+            import gzip
+
+            payload = gzip.compress(raw_bytes, compresslevel=6)
+            response = Response(payload, mimetype="application/xml")
+            response.headers["Content-Encoding"] = "gzip"
+            response.headers["Content-Length"] = str(len(payload))
+            response.headers["Vary"] = "Accept-Encoding"
+        else:
+            response = send_file(
+                library_path,
+                mimetype="application/xml",
+                download_name=library_path.name,
+                conditional=True,
+                max_age=3600,
+            )
+        return _library_cors_response(response)
 
     @bp.get("/diagrams")
     @login_required
@@ -58,12 +211,10 @@ def create_diagrams_blueprint(limiter: Limiter, csrf: CSRFProtect) -> Blueprint:
         technician = current_technician()
         username = technician.get("username") or technician.get("name") or "local"
         client = GlpiClient.from_environment()
-        rows = []
-        for item in drawio_stores.activity.list_for_technician(username):
-            item["created_label"] = format_activity_timestamp(item["created_at"])
-            item["technician"] = item.get("technician_name") or username
-            item["url"] = client.diagram_url(item["diagram_id"]) if client else ""
-            rows.append(item)
+        rows = enrich_activity_rows(
+            drawio_stores.activity.list_for_technician(username),
+            client,
+        )
         return render_template(
             "my_diagrams.html",
             diagrams=rows,
@@ -96,10 +247,193 @@ def create_diagrams_blueprint(limiter: Limiter, csrf: CSRFProtect) -> Blueprint:
             return Response("Diagrama pendiente no encontrado.", status=404)
         return render_template(
             "preview.html",
-            token=token,
-            filename=payload["filename"],
-            xml=payload["xml"],
-            preview_base_url=current_app.config["PREVIEW_URL"],
+            **_preview_template_context(
+                token=token,
+                filename=payload["filename"],
+                xml=payload["xml"],
+                xml_url=url_for("diagrams.preview_drawio_xml", token=token),
+                save_url=url_for("diagrams.preview_save", token=token),
+                close_url=_preview_close_url(),
+                preview_label="Previsualización editable",
+            ),
+        )
+
+    @bp.get("/preview/<token>/xml")
+    @login_required
+    def preview_drawio_xml(token: str) -> Response:
+        payload = get_drawio_stores().downloads.get(token)
+        if not payload:
+            return Response("Diagrama pendiente no encontrado.", status=404)
+        return Response(
+            _normalize_preview_xml(payload["xml"]),
+            mimetype="application/xml; charset=utf-8",
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @bp.post("/preview/<token>/save")
+    @login_required
+    @limiter.limit("60 per hour")
+    def preview_save(token: str) -> Response:
+        payload = get_drawio_stores().downloads.get(token)
+        if not payload:
+            return Response(
+                json.dumps({"error": "Diagrama pendiente no encontrado."}),
+                status=404,
+                mimetype="application/json",
+            )
+        if payload.get("uploaded"):
+            return Response(
+                json.dumps({"error": "El diagrama ya fue publicado en GLPI."}),
+                status=409,
+                mimetype="application/json",
+            )
+        body = request.get_json(silent=True) or {}
+        try:
+            xml = _validate_drawio_xml(str(body.get("xml", "")))
+        except ValueError as exc:
+            return Response(
+                json.dumps({"error": str(exc)}),
+                status=400,
+                mimetype="application/json",
+            )
+        get_drawio_stores().downloads.update_payload(token, xml=xml)
+        technician = current_technician()
+        tech_name = (technician.get("name") or technician.get("username") or "").strip()
+        security_logger.info(
+            "Preview diagram saved: token=%s user=%s",
+            token,
+            tech_name,
+        )
+        return Response(
+            json.dumps({"ok": True, "message": "Cambios guardados en el diagrama pendiente."}),
+            mimetype="application/json",
+        )
+
+    @bp.get("/preview/glpi/<int:diagram_id>")
+    @login_required
+    def preview_glpi_diagram(diagram_id: int) -> str | Response:
+        client = GlpiClient.from_environment()
+        if not client:
+            return Response(
+                "GLPI no esta configurado.",
+                status=503,
+                mimetype="text/plain; charset=utf-8",
+            )
+        try:
+            xml, name = client.get_network_diagram_xml(diagram_id)
+        except GlpiError as exc:
+            return Response(
+                public_error_message(str(exc), context="carga del diagrama"),
+                status=404,
+                mimetype="text/plain; charset=utf-8",
+            )
+        filename = name if name.lower().endswith(".drawio") else f"{name}.drawio"
+        return render_template(
+            "preview.html",
+            **_preview_template_context(
+                token=str(diagram_id),
+                filename=filename,
+                xml="",
+                xml_url=url_for("diagrams.preview_glpi_xml", diagram_id=diagram_id),
+                save_url=url_for("diagrams.preview_glpi_save", diagram_id=diagram_id),
+                close_url=_preview_close_url(),
+                preview_label="Previsualización editable del diagrama",
+            ),
+        )
+
+    @bp.get("/preview/glpi/<int:diagram_id>/xml")
+    @login_required
+    def preview_glpi_xml(diagram_id: int) -> Response:
+        client = GlpiClient.from_environment()
+        if not client:
+            return Response("GLPI no esta configurado.", status=503)
+        try:
+            xml, _name = client.get_network_diagram_xml(diagram_id)
+        except GlpiError as exc:
+            return Response(
+                public_error_message(str(exc), context="carga del diagrama"),
+                status=404,
+            )
+        return Response(
+            _normalize_preview_xml(xml),
+            mimetype="application/xml; charset=utf-8",
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @bp.post("/preview/glpi/<int:diagram_id>/save")
+    @login_required
+    @limiter.limit("60 per hour")
+    def preview_glpi_save(diagram_id: int) -> Response:
+        client = GlpiClient.from_environment()
+        if not client:
+            return Response(
+                json.dumps({"error": "GLPI no esta configurado."}),
+                status=503,
+                mimetype="application/json",
+            )
+        body = request.get_json(silent=True) or {}
+        try:
+            xml = _validate_drawio_xml(str(body.get("xml", "")))
+        except ValueError as exc:
+            return Response(
+                json.dumps({"error": str(exc)}),
+                status=400,
+                mimetype="application/json",
+            )
+        technician = current_technician()
+        try:
+            version_id, version_name = client.save_network_diagram_version(
+                diagram_id,
+                xml,
+                technician=technician,
+            )
+        except GlpiError as exc:
+            return Response(
+                json.dumps(
+                    {
+                        "error":                         public_error_message(
+                            str(exc),
+                            context="guardado del diagrama en GLPI",
+                        )
+                    }
+                ),
+                status=502,
+                mimetype="application/json",
+            )
+        drawio_stores = get_drawio_stores()
+        diagram = client.get_network_diagram(diagram_id)
+        entity_id = int(diagram.get("entities_id") or 0)
+        activity_rows = drawio_stores.activity.map_for_entity(entity_id) if entity_id else {}
+        source_activity = activity_rows.get(diagram_id) or activity_rows.get(int(diagram_id))
+        if source_activity:
+            drawio_stores.activity.add(
+                diagram_id=version_id,
+                entity_id=entity_id,
+                diagram_name=version_name,
+                client_name=source_activity.get("client_name", ""),
+                site_name=source_activity.get("site_name", ""),
+                technician=technician,
+                source="Version",
+            )
+        tech_name = (technician.get("name") or technician.get("username") or "").strip()
+        security_logger.info(
+            "GLPI diagram saved from preview: diagram_id=%s version_id=%s version_name=%s user=%s",
+            diagram_id,
+            version_id,
+            version_name,
+            tech_name,
+        )
+        return Response(
+            json.dumps(
+                {
+                    "ok": True,
+                    "message": f"Diagrama guardado. Copia de version: {version_name}.",
+                    "version_id": version_id,
+                    "version_name": version_name,
+                    "version_url": client.diagram_url(version_id),
+                }
+            ),
+            mimetype="application/json",
         )
 
     return bp

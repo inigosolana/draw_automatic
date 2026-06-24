@@ -1,0 +1,70 @@
+{% macro diagram_card(diagram, admin_delete=false, preview_return=none) -%}
+  {% set diagram_id = diagram.diagram_id | default(diagram.id) %}
+  {% set title = diagram.diagram_name | default(diagram.name) %}
+  {% set client = diagram.client_name | default('') %}
+  {% set site = diagram.site_name | default('') %}
+  {% set technician = diagram.technician | default('') %}
+  {% set source_key = diagram.source_key | default('generado') %}
+  {% set source_badge = diagram.source_badge_class | default('source-badge-generated') %}
+  {% set source_desc = diagram.source_description | default('') %}
+  {% set source_label = diagram.source_label | default(diagram.source | default('GLPI')) %}
+  {% set back_url = preview_return if preview_return is not none else request.full_path %}
+  <article class="diagram-card diagram-row" data-source="{{ source_key }}">
+    <div class="diagram-card-main">
+      <div class="diagram-card-head">
+        <div class="diagram-card-title-wrap">
+          <h3 class="diagram-card-title">{{ title }}</h3>
+          <p class="diagram-card-subtitle">
+            <span class="diagram-id-pill">#{{ diagram_id }}</span>
+            {% if diagram.created_label %}
+            <span class="diagram-card-date">{{ diagram.created_label }}</span>
+            {% endif %}
+          </p>
+        </div>
+        <span class="source-badge {{ source_badge }}" title="{{ source_desc }}">{{ source_label }}</span>
+      </div>
+      <dl class="diagram-card-details">
+        {% if client or site %}
+        <div class="diagram-card-detail">
+          <dt>Ubicación</dt>
+          <dd>{{ client }}{% if client and site %} · {% endif %}{{ site }}</dd>
+        </div>
+        {% endif %}
+        {% if technician %}
+        <div class="diagram-card-detail">
+          <dt>Técnico</dt>
+          <dd>
+            <strong>{{ technician }}</strong>
+            {% if diagram.technician_username and diagram.technician_username != technician %}
+            <span class="diagram-tech-user">{{ diagram.technician_username }}</span>
+            {% endif %}
+          </dd>
+        </div>
+        {% endif %}
+      </dl>
+    </div>
+    {% if diagram.url %}
+    <div class="diagram-card-actions">
+      <a
+        class="button secondary diagram-action-preview"
+        href="{{ url_for('diagrams.preview_glpi_diagram', diagram_id=diagram_id, next=back_url) }}"
+        target="_blank"
+        rel="noopener"
+      >Previsualizar</a>
+      <a class="button glpi diagram-action-glpi" href="{{ diagram.url }}" target="_blank" rel="noopener">Abrir en GLPI</a>
+      {% if admin_delete %}
+      <form
+        method="post"
+        action="{{ url_for('admin.admin_delete_diagram') }}"
+        class="admin-delete-form"
+        onsubmit="return confirm('¿Eliminar el diagrama #{{ diagram_id }} de GLPI? Esta accion no se puede deshacer.');"
+      >
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="diagram_id" value="{{ diagram_id }}">
+        <button type="submit" class="button danger quiet">Borrar</button>
+      </form>
+      {% endif %}
+    </div>
+    {% endif %}
+  </article>
+{%- endmacro %}

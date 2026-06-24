@@ -1,28 +1,33 @@
 <header class="topbar">
   <div class="topbar-inner">
-    <a class="topbar-brand" href="{{ url_for('glpi_import.index') }}" aria-label="Ausarta Draw.io">
+    <a class="topbar-brand" href="{{ url_for('home.index') }}" aria-label="Ausarta">
       <img src="{{ url_for('static', filename='images/ausarta-transparent.png') }}?v={{ static_v }}" alt="Ausarta">
     </a>
     <nav class="topbar-nav" aria-label="Navegación principal">
+      <a class="topbar-link" href="{{ url_for('home.index') }}">Apps</a>
       <a class="topbar-link {{ 'active' if request.endpoint in ('glpi_import.index', 'glpi_import.generate') else '' }}" href="{{ url_for('glpi_import.index') }}">Crear diagrama</a>
-      <a class="topbar-link {{ 'active' if request.endpoint == 'glpi_import.upload_draw' else '' }}" href="{{ url_for('glpi_import.upload_draw') }}">Subir draw antiguo</a>
+      <a class="topbar-link {{ 'active' if request.endpoint == 'glpi_import.upload_draw' else '' }}" href="{{ url_for('glpi_import.upload_draw') }}">Subir draw</a>
       <a class="topbar-link {{ 'active' if request.endpoint == 'diagrams.diagrams' else '' }}" href="{{ url_for('diagrams.diagrams') }}">Consultar diagramas</a>
       <a class="topbar-link {{ 'active' if request.endpoint == 'diagrams.my_diagrams' else '' }}" href="{{ url_for('diagrams.my_diagrams') }}">Mis diagramas</a>
       {% if technician_is_admin %}
-      <a class="topbar-link {{ 'active' if request.endpoint == 'admin.admin_dashboard' else '' }}"
+      <a class="topbar-link {{ 'active' if request.endpoint in ('admin.admin_dashboard', 'admin.admin_diagrams') else '' }}"
          href="{{ url_for('admin.admin_dashboard') }}">
         Admin
         {% if warn_count is defined and warn_count > 0 %}
         <span class="admin-badge">{{ warn_count }}</span>
         {% endif %}
       </a>
+      <a class="topbar-link {{ 'active' if request.endpoint == 'admin.admin_diagrams' else '' }}"
+         href="{{ url_for('admin.admin_diagrams') }}">
+        Todos los diagramas
+      </a>
       {% endif %}
     </nav>
     <div class="topbar-actions">
-      {% if request.endpoint == 'diagrams.my_diagrams' %}
+      {% if request.endpoint in ('diagrams.my_diagrams', 'admin.admin_diagrams') %}
       <label class="topbar-search">
         <span aria-hidden="true">&#128269;</span>
-        <input id="diagram-filter" type="search" placeholder="Buscar..." aria-label="Buscar en mis diagramas">
+        <input id="diagram-filter" type="search" placeholder="Buscar..." aria-label="Buscar en diagramas">
       </label>
       {% endif %}
       {% if technician %}

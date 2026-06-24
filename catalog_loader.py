@@ -76,7 +76,7 @@ def index_context(**extra):
             "glpiCustomers": glpi_customers or [],
             "deviceCatalog": device_catalog,
             "importWorkOrderUrl": url_for("glpi_import.import_work_order"),
-            "homeUrl": url_for("glpi_import.index"),
+            "homeUrl": url_for("home.index"),
             "crmConfigured": crm_configured(),
         },
     }

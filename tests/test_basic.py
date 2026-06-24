@@ -533,6 +533,19 @@ class BasicTests(unittest.TestCase):
         self.assertTrue(any(edge.label == "ETH3-LAN" and edge.target == "switch" for edge in edges))
         self.assertTrue(any(edge.label == "ETH2-BACKUP" and edge.target == "backup" for edge in edges))
 
+    def test_summary_includes_backup_in_routers_column(self) -> None:
+        data = {
+            "cliente": "Demo",
+            "sede": "Central",
+            "direccion": "Bilbao",
+            "internet": {"tipo": "FIBRA + BACK UP", "velocidad": "600 MB", "backup": "WAP LTE"},
+            "ont": {"modelo": "ONT ZTE"},
+            "router": {"modelo": "MikroTik hAP ac2"},
+            "equipos": [{"tipo": "telefono", "modelo": "T-33", "cantidad": 4}],
+        }
+        summary = summarize_equipment(data)
+        self.assertIn("Microtik_hAPc<br>ONT ZTE<br>Mikrotik wAP LTE", summary)
+
     def test_switch_devices_use_vertical_columns_without_shared_bus(self) -> None:
         data = {
             "cliente": "Demo",

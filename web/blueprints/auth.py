@@ -35,7 +35,7 @@ def create_auth_blueprint(limiter: Limiter) -> Blueprint:
                     session.permanent = True
                     security_logger.info(f"Login successful: user={username}, IP={client_ip}")
                     next_url = request.args.get("next", "")
-                    return redirect(next_url if is_safe_redirect(next_url) else url_for("glpi_import.index"))
+                    return redirect(next_url if is_safe_redirect(next_url) else url_for("home.index"))
                 except GlpiError:
                     error = "Usuario o clave incorrectos."
                     security_logger.warning(

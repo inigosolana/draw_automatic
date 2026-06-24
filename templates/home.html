@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Pasos tras la instalacion — Ausarta</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='images/ausarta-drawio-32.png') }}?v={{ static_v }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ static_v }}">
+  </head>
+  <body class="home-launcher-page">
+    <header class="topbar topbar-minimal">
+      <div class="topbar-inner">
+        <a class="topbar-brand" href="{{ url_for('home.index') }}" aria-label="Ausarta">
+          <img src="{{ url_for('static', filename='images/ausarta-transparent.png') }}?v={{ static_v }}" alt="Ausarta">
+        </a>
+        <div class="topbar-actions">
+          {% if technician %}
+          <span class="technician-pill" title="Técnico conectado">{{ technician.name or technician.username }}</span>
+          <form method="post" action="{{ url_for('auth.logout') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="icon-button" title="Cerrar sesión" aria-label="Cerrar sesión">&#10140;</button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+    </header>
+
+    <main class="app-launcher">
+      <div class="app-launcher-intro">
+        <h1>Pasos tras la instalacion</h1>
+        <p>Despues de instalar, el tecnico debe completar estos tres pasos en orden.</p>
+      </div>
+
+      <div class="app-launcher-grid">
+        <a class="app-card app-card-draw" href="{{ url_for('glpi_import.index') }}">
+          <span class="app-card-step">Paso 1</span>
+          <span class="app-card-logo">
+            <img src="{{ url_for('static', filename='images/ausarta-drawio-180.png') }}?v={{ static_v }}" alt="" width="88" height="88">
+          </span>
+          <span class="app-card-title">Draw.io</span>
+          <span class="app-card-desc">Generar y subir el diagrama de red a GLPI</span>
+        </a>
+
+        <a class="app-card app-card-zabbix app-card-soon" href="{{ url_for('home.zabbix_soon') }}">
+          <span class="app-card-step">Paso 2</span>
+          <span class="app-card-logo">
+            <img src="{{ url_for('static', filename='images/zabbix-logo.svg') }}?v={{ static_v }}" alt="" width="88" height="88">
+          </span>
+          <span class="app-card-title">Zabbix</span>
+          <span class="app-card-desc">Dar de alta el host SNMP en el grupo de su provincia (proximamente)</span>
+          <span class="app-card-badge">Pronto</span>
+        </a>
+
+        <a class="app-card app-card-passbolt app-card-soon" href="{{ url_for('home.passbolt_soon') }}">
+          <span class="app-card-step">Paso 3</span>
+          <span class="app-card-logo">
+            <img src="{{ url_for('static', filename='images/passbolt-logo.svg') }}?v={{ static_v }}" alt="" width="88" height="88">
+          </span>
+          <span class="app-card-title">Passbolt</span>
+          <span class="app-card-desc">Subir credenciales al gestor (proximamente)</span>
+          <span class="app-card-badge">Pronto</span>
+        </a>
+      </div>
+    </main>
+  </body>
+</html>

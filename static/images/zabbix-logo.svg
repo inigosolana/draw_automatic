@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120" role="img" aria-label="Zabbix">
+  <rect width="120" height="120" rx="24" fill="#D40000"/>
+  <path fill="#fff" d="M30 32h60v13H45l45 30v13H30V75h45L30 45V32z"/>
+</svg>

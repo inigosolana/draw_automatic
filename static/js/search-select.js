@@ -73,6 +73,19 @@
         element.classList.toggle("disabled", !newItems.length);
         render("");
       },
+      selectItem: function (item, options) {
+        if (!item) {
+          return;
+        }
+        selected = item;
+        label.textContent = item.nombre;
+        element.classList.remove("open");
+        element.classList.remove("disabled");
+        filter.value = "";
+        if (!options || !options.silent) {
+          onSelect(item);
+        }
+      },
     };
   }
 

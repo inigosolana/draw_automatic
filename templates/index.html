@@ -44,7 +44,11 @@
         {% endif %}
 
         {% if preview %}
-        <div class="message success" id="generation-result">
+        <div
+          class="message success"
+          id="generation-result"
+          data-download-mode="{{ 'saved' if request.args.get('saved') == '1' else ('resume' if request.args.get('pending') else 'fresh') }}"
+        >
           <h2>Generacion completada</h2>
           <p>Se ha preparado <strong>{{ preview.filename }}</strong>.</p>
           <div class="preview-grid">
@@ -86,7 +90,11 @@
                     <td data-label="Tecnico">{{ diagram.technician or '—' }}</td>
                     <td data-label="Origen">{{ diagram.source or '—' }}</td>
                     <td data-label="">
-                      <a href="{{ diagram.url }}" target="_blank" rel="noopener">Abrir</a>
+                      {% if diagram.id %}
+                      <a href="{{ url_for('diagrams.preview_glpi_diagram', diagram_id=diagram.id, next=url_for('glpi_import.index', pending=preview.token)) }}" target="_blank" rel="noopener">Previsualizar</a>
+                      ·
+                      {% endif %}
+                      <a href="{{ diagram.url }}" target="_blank" rel="noopener">Abrir en GLPI</a>
                     </td>
                   </tr>
                   {% endfor %}
@@ -130,6 +138,9 @@
               Abrir diagrama en GLPI
             </a>
             {% endif %}
+            {% if preview.zabbix_url %}
+            <a class="button" href="{{ preview.zabbix_url }}">Paso 2: Subir a Zabbix</a>
+            {% endif %}
             {% if preview.confirm_url %}
             <button
               type="button"
@@ -158,6 +169,7 @@
         <form method="post" action="{{ url_for('glpi_import.generate') }}" class="creation-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" id="glpi-entity-id" name="glpi_entity_id" value="{{ form_data.get('glpi_entity_id', '') }}">
+          <input type="hidden" id="glpi-provincia" name="glpi_provincia" value="{{ form_data.get('glpi_provincia', '') }}">
 
           <div class="creation-top-grid">
           <section class="form-section destination-card">

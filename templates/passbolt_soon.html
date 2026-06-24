@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Paso 3 — Passbolt</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='images/ausarta-drawio-32.png') }}?v={{ static_v }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ static_v }}">
+  </head>
+  <body class="home-launcher-page">
+    <header class="topbar topbar-minimal">
+      <div class="topbar-inner">
+        <a class="topbar-brand" href="{{ url_for('home.index') }}" aria-label="Ausarta">
+          <img src="{{ url_for('static', filename='images/ausarta-transparent.png') }}?v={{ static_v }}" alt="Ausarta">
+        </a>
+        <div class="topbar-actions">
+          <a class="topbar-link" href="{{ url_for('home.index') }}">Pasos instalacion</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="page">
+      <section class="panel app-soon-panel">
+        <div class="install-step-banner">Paso 3 de 3</div>
+        <img class="app-soon-logo" src="{{ url_for('static', filename='images/passbolt-logo.svg') }}?v={{ static_v }}" alt="Passbolt">
+        <h1>Passbolt</h1>
+        <p>Lo activaremos en una fase posterior del despliegue.</p>
+        <a class="button" href="{{ url_for('home.index') }}">Volver a los pasos</a>
+      </section>
+    </main>
+  </body>
+</html>

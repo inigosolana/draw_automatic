@@ -297,12 +297,16 @@ def summarize_equipment(data: dict) -> str:
     router_lines: list[str] = []
     network_lines: list[str] = []
 
+    internet = data.get("internet", {})
     router_model = _display_model(_safe(data.get("router", {}).get("modelo", "")))
     ont_model = _display_model(_safe(data.get("ont", {}).get("modelo", "")))
+    backup_model = _safe(internet.get("backup", ""))
     if router_model:
         router_lines.append(router_model)
     if ont_model:
         router_lines.append(ont_model)
+    if backup_model and router_model != "CHATEAU":
+        router_lines.append(_display_model(backup_model))
 
     for team in data.get("equipos", []):
         qty = team.get("cantidad", 1)

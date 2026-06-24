@@ -123,3 +123,12 @@ class DiagramActivity:
                 """
             ).fetchall()
         return [dict(r) for r in rows]
+
+    def delete_by_diagram_id(self, diagram_id: int) -> int:
+        with closing(self._connect()) as connection:
+            with connection:
+                cursor = connection.execute(
+                    "DELETE FROM diagram_activity WHERE diagram_id = ?",
+                    (int(diagram_id),),
+                )
+                return int(cursor.rowcount or 0)

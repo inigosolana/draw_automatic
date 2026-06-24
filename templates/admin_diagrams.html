@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Todos los diagramas — Admin</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='images/ausarta-drawio-32.png') }}?v={{ static_v }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='images/ausarta-drawio-180.png') }}?v={{ static_v }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ static_v }}">
+  </head>
+  <body class="my-diagrams-page admin-diagrams-page diagram-list-page">
+    {% include "_app_header.html" %}
+    <main class="page page-wide">
+      <section class="panel my-diagrams-panel">
+        <header class="panel-header my-diagrams-header">
+          <div>
+            <h1>Todos los diagramas</h1>
+            <p>Historial completo de diagramas publicados en GLPI desde la aplicacion, con el tecnico que los creo o subio.</p>
+          </div>
+          <div class="admin-diagrams-actions">
+            <a class="button secondary quiet" href="{{ url_for('admin.admin_dashboard') }}">Volver a Admin</a>
+            {% if diagrams %}
+            <div class="diagram-list-toolbar">
+              <span class="diagram-count-badge" id="diagram-visible-count">{{ diagrams | length }} diagrama{{ 's' if diagrams | length != 1 else '' }}</span>
+              <div class="my-diagrams-filters" role="tablist" aria-label="Filtrar por origen">
+                <button type="button" class="my-diagrams-filter active" data-source-filter="all">Todos</button>
+                <button type="button" class="my-diagrams-filter" data-source-filter="generado">Generados</button>
+                <button type="button" class="my-diagrams-filter" data-source-filter="subido">Subidos</button>
+              </div>
+            </div>
+            {% endif %}
+          </div>
+        </header>
+
+        <section class="form-section full diagram-results">
+          {% if deleted_id %}
+          <div class="message success">
+            <strong>Diagrama #{{ deleted_id }} eliminado de GLPI.</strong>
+          </div>
+          {% endif %}
+          {% if delete_error %}
+          <div class="message error">
+            <strong>{{ delete_error }}</strong>
+          </div>
+          {% endif %}
+          {% if diagrams %}
+          <div class="diagram-card-grid" id="diagram-card-grid">
+            {% from '_diagram_macros.html' import diagram_card %}
+            {% for diagram in diagrams %}
+            {{ diagram_card(diagram, admin_delete=true) }}
+            {% endfor %}
+          </div>
+          <p class="diagram-list-empty-filter" id="diagram-filter-empty" hidden>No hay diagramas con ese filtro.</p>
+          {% else %}
+          <div class="diagram-empty-state">
+            <strong>No hay diagramas registrados todavia.</strong>
+            <p>Apareceran aqui cuando los tecnicos publiquen diagramas en GLPI desde la app.</p>
+          </div>
+          {% endif %}
+        </section>
+      </section>
+    </main>
+    <script src="{{ url_for('static', filename='js/my-diagrams-filter.js') }}?v={{ static_v }}"></script>
+    {% include "_app_footer.html" %}
+  </body>
+</html>

@@ -1,7 +1,7 @@
 import os
 import ssl
 import unittest
-from io import BytesIO
+from urllib.parse import quote
 from unittest.mock import MagicMock, patch
 
 from generator.glpi_client import GlpiClient, GlpiEndpoints, GlpiError
@@ -68,6 +68,110 @@ class GlpiClientRefactorTests(unittest.TestCase):
 
         _, kwargs = mock_urlopen.call_args
         self.assertIsNone(kwargs["context"])
+
+    def test_get_network_diagram_xml_decodes_graph_payload(self) -> None:
+        client = GlpiClient("https://glpi.test/apirest.php", "app", "user")
+        encoded = quote("<mxfile><diagram /></mxfile>")
+
+        class FakeSession:
+            def __enter__(self):
+                return {"Session-Token": "session"}
+
+            def __exit__(self, exc_type, exc_value, traceback):
+                return False
+
+        client.session = lambda: FakeSession()
+        client._request = MagicMock(
+            return_value={
+                "id": 2267,
+                "name": "Cliente - Sede",
+                "graph": encoded,
+            }
+        )
+
+        xml, name = client.get_network_diagram_xml(2267)
+        self.assertEqual(xml, "<mxfile><diagram /></mxfile>")
+        self.assertEqual(name, "Cliente - Sede")
+
+    def test_delete_network_diagram_calls_glpi_delete(self) -> None:
+        client = GlpiClient("https://glpi.test/apirest.php", "app", "user")
+
+        class FakeSession:
+            def __enter__(self):
+                return {"Session-Token": "session"}
+
+            def __exit__(self, exc_type, exc_value, traceback):
+                return False
+
+        client.session = lambda: FakeSession()
+        client._request = MagicMock(return_value=True)
+
+        client.delete_network_diagram(2267)
+
+        client._request.assert_called_once_with(
+            "PluginArchimapGraph/2267",
+            {"Session-Token": "session"},
+            method="DELETE",
+        )
+
+    def test_save_network_diagram_version_updates_and_creates_copy(self) -> None:
+        client = GlpiClient("https://glpi.test/apirest.php", "app", "user")
+        diagram = {
+            "id": 2267,
+            "entities_id": 7,
+            "name": "Cliente - Sede",
+            "shortdescription": "Diagrama demo",
+        }
+
+        class FakeSession:
+            def __enter__(self):
+                return {"Session-Token": "session"}
+
+            def __exit__(self, exc_type, exc_value, traceback):
+                return False
+
+        client.session = lambda: FakeSession()
+        client.get_network_diagram = MagicMock(return_value=diagram)
+        client.update_network_diagram_graph = MagicMock()
+        client.create_network_diagram = MagicMock(return_value=9901)
+
+        version_id, version_name = client.save_network_diagram_version(
+            2267,
+            "<mxfile><diagram /></mxfile>",
+            technician={"name": "Ana", "username": "ana"},
+        )
+
+        self.assertEqual(version_id, 9901)
+        self.assertRegex(version_name, r"^Cliente - Sede_\d{8}_\d{6}$")
+        client.update_network_diagram_graph.assert_called_once_with(
+            2267,
+            "<mxfile><diagram /></mxfile>",
+        )
+        client.create_network_diagram.assert_called_once()
+        create_kwargs = client.create_network_diagram.call_args.kwargs
+        self.assertEqual(create_kwargs["entity_id"], 7)
+        self.assertEqual(create_kwargs["name"], version_name)
+
+    def test_update_network_diagram_graph_calls_glpi_put(self) -> None:
+        client = GlpiClient("https://glpi.test/apirest.php", "app", "user")
+
+        class FakeSession:
+            def __enter__(self):
+                return {"Session-Token": "session"}
+
+            def __exit__(self, exc_type, exc_value, traceback):
+                return False
+
+        client.session = lambda: FakeSession()
+        client._request = MagicMock(return_value={"id": 2267})
+
+        client.update_network_diagram_graph(2267, "<mxfile><diagram /></mxfile>")
+
+        client._request.assert_called_once()
+        args, kwargs = client._request.call_args
+        self.assertEqual(args[0], "PluginArchimapGraph/2267")
+        self.assertEqual(kwargs["method"], "PUT")
+        self.assertIn("graph", kwargs["payload"]["input"])
 
 
 if __name__ == "__main__":

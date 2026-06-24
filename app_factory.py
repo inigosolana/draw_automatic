@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from flask import Flask, session
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app_context import ADMIN_USERS, PROJECT_ROOT, get_drawio_stores, security_logger
 from generator.catalog_cache import CatalogCache
@@ -105,7 +106,7 @@ def create_app(stores: DrawioStores | None = None) -> Flask:
                 "Rate limiting en memoria (aceptable para desarrollo o worker unico)."
             )
 
-    static_asset_version = os.environ.get("DRAWIO_STATIC_VERSION", "20260619b")
+    static_asset_version = os.environ.get("DRAWIO_STATIC_VERSION", "20260625j")
 
     @app.before_request
     def _maybe_cleanup() -> None:
@@ -113,6 +114,8 @@ def create_app(stores: DrawioStores | None = None) -> Flask:
             get_drawio_stores().downloads.cleanup()
 
     force_https = os.environ.get("DRAWIO_FORCE_HTTPS", "0") == "1"
+    if os.environ.get("DRAWIO_COOKIE_SECURE", "0") == "1" or force_https:
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
     configure_talisman(app, force_https=force_https)
     register_cache_headers(app)
 
@@ -125,6 +128,7 @@ def create_app(stores: DrawioStores | None = None) -> Flask:
     def inject_admin_flag() -> dict:
         tech = session.get("technician")
         return {
+            "technician": tech,
             "technician_is_admin": technician_is_admin(tech, ADMIN_USERS) if tech else False,
             "static_v": static_asset_version,
         }
@@ -133,10 +137,14 @@ def create_app(stores: DrawioStores | None = None) -> Flask:
     from web.blueprints.auth import create_auth_blueprint
     from web.blueprints.diagrams import create_diagrams_blueprint
     from web.blueprints.glpi_import import create_glpi_import_blueprint
+    from web.blueprints.home import create_home_blueprint
+    from web.blueprints.zabbix import create_zabbix_blueprint
 
+    app.register_blueprint(create_home_blueprint())
     app.register_blueprint(create_auth_blueprint(limiter))
     app.register_blueprint(create_diagrams_blueprint(limiter, csrf))
-    app.register_blueprint(create_admin_blueprint())
+    app.register_blueprint(create_admin_blueprint(limiter))
     app.register_blueprint(create_glpi_import_blueprint(limiter))
+    app.register_blueprint(create_zabbix_blueprint(limiter))
 
     return app

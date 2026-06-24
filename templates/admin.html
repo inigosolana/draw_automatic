@@ -19,6 +19,8 @@
             <span>Técnico: <strong>{{ technician.name or technician.username }}</strong></span>
             <span class="ctx-dot" aria-hidden="true">•</span>
             <span>Actualizado: {{ now_label }}</span>
+            <span class="ctx-dot" aria-hidden="true">•</span>
+            <a href="{{ url_for('admin.admin_diagrams') }}">Ver todos los diagramas</a>
           </div>
         </header>
 
@@ -212,7 +214,7 @@
           {% endif %}
 
           <p class="admin-back-link">
-            <a class="button" href="{{ url_for('glpi_import.index') }}">Volver al inicio</a>
+            <a class="button" href="{{ url_for('home.index') }}">Volver al inicio</a>
           </p>
         </section>
       </section>

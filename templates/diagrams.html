@@ -8,65 +8,54 @@
     <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='images/ausarta-drawio-180.png') }}?v={{ static_v }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ static_v }}">
   </head>
-  <body>
+  <body class="diagrams-page diagram-list-page">
     {% include "_app_header.html" %}
-    <main class="page">
-      <section class="panel">
-        <header class="panel-header">
+    <main class="page page-wide">
+      <section class="panel diagrams-panel">
+        <header class="panel-header diagrams-panel-header">
           <h1>Consultar diagramas publicados</h1>
-          <p>Consulta todos los diagramas de una sede en GLPI, con fecha, tecnico y origen cuando se subieron desde esta app.</p>
+          <p>Busca la sede en GLPI y revisa todos sus diagramas con fecha, tecnico y enlace directo.</p>
         </header>
 
-        {% if glpi_error %}
+        {% if glpi_error and not selected_entity %}
         <div class="message error"><strong>{{ glpi_error }}</strong></div>
         {% endif %}
 
         {% if glpi_customers %}
-        <form method="get" class="upload-form" id="diagram-search-form">
+        <form method="get" class="diagram-search-form" id="diagram-search-form">
           <input type="hidden" id="diagram-entity-id" name="entity_id" value="{{ selected_entity }}">
-          <section class="form-section">
+          <section class="form-section diagram-search-section">
             <h2>Seleccionar sede</h2>
-            <label>Provincia
-              <select id="diagram-province">
-                <option value="">Selecciona una provincia</option>
-              </select>
-            </label>
-            <label>Cliente
-              <select id="diagram-customer" disabled>
-                <option value="">Selecciona primero una provincia</option>
-              </select>
-            </label>
-            <label>Sede
-              <select id="diagram-site" disabled>
-                <option value="">Selecciona primero un cliente</option>
-              </select>
-            </label>
-            <button class="button primary" type="submit">Consultar en GLPI</button>
+            <div class="diagram-search-grid">
+              <label>Provincia
+                <div class="search-select" id="diagram-province" data-placeholder="Selecciona una provincia"></div>
+              </label>
+              <label>Cliente
+                <div class="search-select disabled" id="diagram-customer" data-placeholder="Selecciona primero una provincia"></div>
+              </label>
+              <label>Sede
+                <div class="search-select disabled" id="diagram-site" data-placeholder="Selecciona primero un cliente"></div>
+              </label>
+            </div>
+            <div class="diagram-search-actions">
+              <button class="button primary" type="submit">Consultar en GLPI</button>
+            </div>
           </section>
         </form>
         {% endif %}
 
         {% if selected_entity %}
-        <section class="form-section full diagram-results">
+        <section class="form-section diagram-results">
           <h2>Resultados</h2>
-          {% if diagrams %}
-          <div class="diagram-table-wrap is-cards">
-            <table class="diagram-table is-cards">
-              <thead><tr><th>ID</th><th>Nombre</th><th>Fecha</th><th>Tecnico</th><th>Origen</th><th>Descripcion</th><th></th></tr></thead>
-              <tbody>
-                {% for diagram in diagrams %}
-                <tr>
-                  <td data-label="ID">#{{ diagram.id }}</td>
-                  <td data-label="Nombre">{{ diagram.name }}</td>
-                  <td data-label="Fecha">{{ diagram.created_label or '—' }}</td>
-                  <td data-label="Tecnico">{{ diagram.technician or '—' }}</td>
-                  <td data-label="Origen">{{ diagram.source or '—' }}</td>
-                  <td data-label="Descripcion">{{ diagram.description }}</td>
-                  <td data-label=""><a class="button glpi" href="{{ diagram.url }}" target="_blank" rel="noopener">Abrir</a></td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
+          {% if glpi_error %}
+          <div class="message error"><strong>{{ glpi_error }}</strong></div>
+          {% elif diagrams %}
+          <p class="helper-text">{{ diagrams | length }} diagrama(s) encontrado(s) en esta sede.</p>
+          <div class="diagram-card-grid">
+            {% from '_diagram_macros.html' import diagram_card %}
+            {% for diagram in diagrams %}
+            {{ diagram_card(diagram) }}
+            {% endfor %}
           </div>
           {% else %}
           <div class="message">
@@ -78,7 +67,8 @@
       </section>
     </main>
     {% if glpi_customers %}
-    <script type="application/json" id="diagram-glpi-config"{% if csp_nonce is defined %} nonce="{{ csp_nonce() }}"{% endif %}>{{ {"catalog": glpi_customers} | tojson }}</script>
+    <script type="application/json" id="diagram-glpi-config"{% if csp_nonce is defined %} nonce="{{ csp_nonce() }}"{% endif %}>{{ {"catalog": glpi_customers, "selectedEntityId": selected_entity} | tojson }}</script>
+    <script src="{{ url_for('static', filename='js/search-select.js') }}?v={{ static_v }}"></script>
     <script src="{{ url_for('static', filename='js/diagram-glpi-cascade.js') }}?v={{ static_v }}"></script>
     {% endif %}
     {% include "_app_footer.html" %}

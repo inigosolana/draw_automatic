@@ -12,19 +12,111 @@
   }
 
   const catalog = config.catalog || [];
+  const siteDiagramsUrl = config.siteDiagramsUrl || "";
   const createSearchSelect = window.__drawioCreateSearchSelect;
+  const existingPanel = document.getElementById("upload-existing-panel");
+  const existingTitle = document.getElementById("upload-existing-title");
+  const existingBody = document.getElementById("upload-existing-body");
+
+  function clearExistingDiagrams() {
+    if (!existingPanel || !existingBody) {
+      return;
+    }
+    existingBody.innerHTML = "";
+    existingPanel.hidden = true;
+  }
+
+  async function loadExistingDiagrams(entityId) {
+    if (!existingPanel || !existingBody || !siteDiagramsUrl || !entityId) {
+      clearExistingDiagrams();
+      return;
+    }
+
+    existingPanel.hidden = false;
+    existingBody.innerHTML = '<tr><td colspan="4">Cargando diagramas...</td></tr>';
+
+    try {
+      const response = await fetch(
+        siteDiagramsUrl + "?entity_id=" + encodeURIComponent(entityId),
+        { credentials: "same-origin" }
+      );
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || "No se pudieron cargar los diagramas.");
+      }
+
+      const diagrams = payload.diagrams || [];
+      if (!diagrams.length) {
+        clearExistingDiagrams();
+        return;
+      }
+
+      if (existingTitle) {
+        const latest = diagrams[0];
+        if (diagrams.length === 1) {
+          existingTitle.textContent =
+            "Ya hay un draw en esta sede (fecha " + latest.created_label + ")";
+        } else {
+          existingTitle.textContent =
+            "Ya hay " + diagrams.length + " draws en esta sede (ultimo: " + latest.created_label + ")";
+        }
+      }
+
+      existingBody.innerHTML = "";
+      diagrams.forEach(function (diagram) {
+        const row = document.createElement("tr");
+        row.innerHTML =
+          '<td data-label="Nombre">' + escapeHtml(diagram.name || "Diagrama") + "</td>" +
+          '<td data-label="Fecha">' + escapeHtml(diagram.created_label || "—") + "</td>" +
+          '<td data-label="Tecnico">' + escapeHtml(diagram.technician || "—") + "</td>" +
+          '<td data-label="">' +
+          (diagram.preview_url
+            ? '<a class="button secondary quiet" href="' +
+              escapeHtml(diagram.preview_url) +
+              '" target="_blank" rel="noopener">Previsualizar</a>'
+            : diagram.url
+            ? '<a class="button secondary quiet" href="' +
+              escapeHtml(diagram.url) +
+              '" target="_blank" rel="noopener">Previsualizar</a>'
+            : "") +
+          "</td>";
+        existingBody.appendChild(row);
+      });
+      existingPanel.hidden = false;
+    } catch (error) {
+      existingBody.innerHTML =
+        '<tr><td colspan="4">' + escapeHtml(error.message || "Error al consultar diagramas.") + "</td></tr>";
+      existingPanel.hidden = false;
+    }
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
   const siteControl = createSearchSelect(document.getElementById("upload-site"), function (site) {
     document.getElementById("upload-entity-id").value = site.id;
     document.getElementById("upload-site-name").value = site.nombre;
+    loadExistingDiagrams(site.id);
   });
   const customerControl = createSearchSelect(document.getElementById("upload-customer"), function (customer) {
     document.getElementById("upload-client-name").value = customer.nombre;
     document.getElementById("upload-entity-id").value = "";
+    document.getElementById("upload-site-name").value = "";
     siteControl.setItems(customer.sedes, "Selecciona una sede");
+    clearExistingDiagrams();
   });
   const provinceControl = createSearchSelect(document.getElementById("upload-province"), function (province) {
     customerControl.setItems(province.clientes, "Selecciona un cliente");
     siteControl.setItems([], "Selecciona primero un cliente");
+    document.getElementById("upload-entity-id").value = "";
+    document.getElementById("upload-client-name").value = "";
+    document.getElementById("upload-site-name").value = "";
+    clearExistingDiagrams();
   });
   provinceControl.setItems(catalog, "Selecciona una provincia");
 

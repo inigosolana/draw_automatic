@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es">
+<html lang="es" class="preview-page-root">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -7,22 +7,33 @@
     <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='images/ausarta-drawio-32.png') }}?v={{ static_v }}">
     <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='images/ausarta-drawio-180.png') }}?v={{ static_v }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ static_v }}">
+    <script type="application/json" id="drawio-preview-config"{% if csp_nonce is defined %} nonce="{{ csp_nonce() }}"{% endif %}>{{ {
+      "xml": xml | default(''),
+      "xmlUrl": xml_url | default(''),
+      "embedUrl": preview_embed_url,
+      "libraryUrl": library_url,
+      "saveUrl": save_url,
+      "closeUrl": close_url,
+      "csrfToken": csrf_token()
+    } | tojson }}</script>
   </head>
-  <body>
-    <main class="preview-page">
-      <header class="preview-toolbar">
-        <img class="preview-logo" src="{{ url_for('static', filename='images/ausarta-logo-light.png') }}?v={{ static_v }}" alt="Ausarta">
-        <strong>{{ filename }}</strong>
-        <span>Previsualización previa a GLPI</span>
-      </header>
+  <body class="preview-page-body">
+    <header class="preview-toolbar">
+      <img class="preview-logo" src="{{ url_for('static', filename='images/ausarta-logo-light.png') }}?v={{ static_v }}" alt="Ausarta">
+      <strong>{{ filename }}</strong>
+      <span>{{ preview_label | default('Previsualización editable') }}</span>
+      <div class="preview-toolbar-actions">
+        <button type="button" class="button secondary quiet" id="preview-close">Salir</button>
+      </div>
+    </header>
+    <div id="preview-status" class="preview-status" hidden role="status" aria-live="polite"></div>
+    <div class="preview-editor-shell">
       <iframe
         id="drawio-preview"
         class="drawio-preview"
-        src="{{ preview_base_url }}/?embed=1&ui=min&spin=1&proto=json&libraries=1"
         title="Previsualización del diagrama"
       ></iframe>
-    </main>
-    <script type="application/json" id="drawio-preview-config"{% if csp_nonce is defined %} nonce="{{ csp_nonce() }}"{% endif %}>{{ {"xml": xml} | tojson }}</script>
+    </div>
     <script src="{{ url_for('static', filename='js/preview-drawio.js') }}?v={{ static_v }}"></script>
   </body>
 </html>

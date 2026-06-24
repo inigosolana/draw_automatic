@@ -11,6 +11,7 @@
             direccion: document.getElementById("direccion")
           };
           const glpiEntityId = document.getElementById("glpi-entity-id");
+          const glpiProvincia = document.getElementById("glpi-provincia");
 
           function createSearchSelect(element, onSelect) {
             let items = [];
@@ -115,6 +116,9 @@
 
           provinceControl = createSearchSelect(document.getElementById("glpi-province"), function (province) {
             glpiEntityId.value = "";
+            if (glpiProvincia) {
+              glpiProvincia.value = province.nombre || "";
+            }
             customerControl.setItems(province.clientes, "Selecciona un cliente");
             siteControl.setItems([], "Selecciona primero un cliente");
           });
@@ -123,6 +127,9 @@
 
           window.__drawioGlpiReset = function () {
             glpiEntityId.value = "";
+            if (glpiProvincia) {
+              glpiProvincia.value = "";
+            }
             provinceControl.setItems(glpiCustomers, "Selecciona una provincia");
             customerControl.setItems([], "Selecciona primero una provincia");
             siteControl.setItems([], "Selecciona primero un cliente");
@@ -148,6 +155,9 @@
                     continue;
                   }
                   provinceControl.selectItem(province);
+                  if (glpiProvincia) {
+                    glpiProvincia.value = province.nombre || "";
+                  }
                   customerControl.selectItem(customer);
                   siteControl.selectItem(site);
                   fields.cliente.value = customer.nombre || "";
@@ -235,6 +245,9 @@
                 });
 
                 provinceControl.selectItem(province);
+                if (glpiProvincia) {
+                  glpiProvincia.value = province.nombre || "";
+                }
                 customerControl.selectItem(customer);
                 if (bestSite) {
                   siteControl.selectItem(bestSite);

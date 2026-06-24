@@ -88,10 +88,10 @@ def configure_talisman(app: Flask, *, force_https: bool) -> None:
     """Aplica headers de seguridad HTTP en producción."""
     csp = {
         "default-src": "'self'",
-        "script-src": ["'self'", "embed.diagrams.net"],
-        "style-src": ["'self'"],
-        "img-src": ["'self'", "data:", "embed.diagrams.net"],
-        "frame-src": ["'self'", "embed.diagrams.net"],
+        "script-src": ["'self'", "embed.diagrams.net", "app.diagrams.net"],
+        "style-src": ["'self'", "embed.diagrams.net", "app.diagrams.net"],
+        "img-src": ["'self'", "data:", "embed.diagrams.net", "app.diagrams.net"],
+        "frame-src": ["'self'", "embed.diagrams.net", "app.diagrams.net"],
         "frame-ancestors": "'self'",
         "connect-src": ["'self'"],
     }

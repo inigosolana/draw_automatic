@@ -7,10 +7,10 @@ import ssl
 from base64 import b64encode
 from contextlib import contextmanager
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 from urllib.request import Request, urlopen
 
-from .address_formatter import to_glpi_ascii
+from .diagram_metadata import build_diagram_description, diagram_base_name, versioned_diagram_name
 
 
 class GlpiError(RuntimeError):
@@ -267,6 +267,85 @@ class GlpiClient:
         if not web_url:
             web_url = self.url.removesuffix("/apirest.php")
         return f"{web_url}{GlpiEndpoints.ARCHIMAP_GRAPH_FORM}?id={int(diagram_id)}"
+
+    def get_network_diagram(self, diagram_id: int) -> dict:
+        with self.session() as headers:
+            payload = self._request(
+                f"{GlpiEndpoints.PLUGIN_ARCHIMAP_GRAPH}/{int(diagram_id)}",
+                headers,
+            )
+        if not isinstance(payload, dict) or not payload.get("id"):
+            raise GlpiError("Diagrama no encontrado.")
+        return payload
+
+    def get_network_diagram_xml(self, diagram_id: int) -> tuple[str, str]:
+        diagram = self.get_network_diagram(diagram_id)
+        raw_graph = str(diagram.get("graph") or "").strip()
+        if not raw_graph:
+            raise GlpiError("El diagrama no tiene contenido draw.io.")
+        xml = unquote(raw_graph) if raw_graph.startswith("%") else raw_graph
+        if not xml.lstrip().startswith("<"):
+            raise GlpiError("El diagrama no contiene un mxfile valido.")
+        name = str(diagram.get("name") or f"Diagrama-{diagram_id}").strip()
+        return xml, name
+
+    def delete_network_diagram(self, diagram_id: int) -> None:
+        with self.session() as headers:
+            self._request(
+                f"{GlpiEndpoints.PLUGIN_ARCHIMAP_GRAPH}/{int(diagram_id)}",
+                headers,
+                method="DELETE",
+            )
+
+    def update_network_diagram_graph(self, diagram_id: int, graph_xml: str) -> None:
+        with self.session() as headers:
+            self._request(
+                f"{GlpiEndpoints.PLUGIN_ARCHIMAP_GRAPH}/{int(diagram_id)}",
+                headers,
+                method="PUT",
+                payload={
+                    "input": {
+                        "id": int(diagram_id),
+                        "graph": quote(graph_xml, safe=""),
+                    }
+                },
+            )
+
+    def save_network_diagram_version(
+        self,
+        diagram_id: int,
+        graph_xml: str,
+        *,
+        technician: dict | None = None,
+    ) -> tuple[int, str]:
+        """Persist changes on the edited diagram and create a dated copy in GLPI."""
+        diagram = self.get_network_diagram(diagram_id)
+        entity_id = diagram.get("entities_id")
+        if not isinstance(entity_id, int) or entity_id <= 0:
+            raise GlpiError("No se pudo determinar la sede del diagrama.")
+        source_name = str(diagram.get("name") or f"Diagrama-{diagram_id}").strip()
+        base_name = diagram_base_name(source_name)
+        version_name = versioned_diagram_name(base_name)
+        tech = technician or {}
+        if " - " in base_name:
+            client_name, site_name = base_name.split(" - ", 1)
+        else:
+            client_name, site_name = base_name, ""
+        description = build_diagram_description(
+            client_name=client_name,
+            site_name=site_name,
+            technician=tech,
+            source="Version",
+            filename=f"{version_name}.drawio",
+        )
+        self.update_network_diagram_graph(diagram_id, graph_xml)
+        version_id = self.create_network_diagram(
+            entity_id=entity_id,
+            name=version_name,
+            description=description,
+            graph_xml=graph_xml,
+        )
+        return int(version_id), version_name
 
 
 def format_address(entity: dict) -> str:
