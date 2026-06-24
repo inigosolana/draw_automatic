@@ -141,6 +141,7 @@
               {% if preview.existing_diagrams %}Publicar otro en GLPI{% else %}Confirmar y subir a GLPI{% endif %}
             </button>
             {% endif %}
+            <button type="button" class="button quiet" id="reset-generation">Nuevo diagrama</button>
           </div>
           {% if preview.confirm_url %}
           <p class="helper-text">Primero revisa el archivo descargado. Solo se publicara en GLPI cuando pulses confirmar.</p>
@@ -320,7 +321,7 @@
           </details>
 
           <div class="creation-actions">
-            <button type="reset" class="button quiet">Limpiar formulario</button>
+            <button type="button" class="button quiet" id="reset-form">Reset</button>
             <button type="submit" class="button primary"><span aria-hidden="true">⌘</span> Generar diagrama</button>
           </div>
         </form>

@@ -217,7 +217,7 @@ def crm_configured() -> bool:
 
 
 def index_context(**extra):
-    from flask import current_app
+    from flask import current_app, url_for
 
     glpi_customers, glpi_error = load_glpi_catalog()
     device_catalog = build_device_catalog(current_app.config["DEFAULT_LIBRARY"])
@@ -232,6 +232,7 @@ def index_context(**extra):
             "glpiCustomers": glpi_customers or [],
             "deviceCatalog": device_catalog,
             "importWorkOrderUrl": url_for("glpi_import.import_work_order"),
+            "homeUrl": url_for("glpi_import.index"),
             "crmConfigured": crm_configured(),
         },
     }

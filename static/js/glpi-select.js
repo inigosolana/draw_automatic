@@ -121,6 +121,21 @@
 
           provinceControl.setItems(glpiCustomers, "Selecciona una provincia");
 
+          window.__drawioGlpiReset = function () {
+            glpiEntityId.value = "";
+            provinceControl.setItems(glpiCustomers, "Selecciona una provincia");
+            customerControl.setItems([], "Selecciona primero una provincia");
+            siteControl.setItems([], "Selecciona primero un cliente");
+            fields.cliente.value = "";
+            fields.cif.value = "";
+            fields.sede.value = "";
+            fields.direccion.value = "";
+            const source = document.getElementById("address-source");
+            if (source) {
+              source.textContent = "Puedes corregir la calle. Al generar el draw se guardará para esta sede y se reutilizará la próxima vez.";
+            }
+          };
+
           window.__drawioGlpiSelectByEntityId = function (entityId) {
             if (!entityId || !glpiCustomers.length) {
               return false;

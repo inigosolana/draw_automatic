@@ -695,4 +695,75 @@
               });
             }
           }
+
+          function resetCreationForm(options) {
+            const settings = options || {};
+            const homeUrl = (window.__DRAWIO_PAGE_CONFIG && window.__DRAWIO_PAGE_CONFIG.homeUrl) || "/";
+            if (settings.reload || document.getElementById("generation-result")) {
+              window.location.assign(homeUrl);
+              return;
+            }
+
+            const form = document.querySelector(".creation-form");
+            if (form) {
+              form.reset();
+            }
+
+            const entityField = document.getElementById("glpi-entity-id");
+            if (entityField) {
+              entityField.value = "";
+            }
+            if (window.__drawioGlpiReset) {
+              window.__drawioGlpiReset();
+            }
+
+            internetType.value = "";
+            internetProveedor.dataset.selected = "";
+            internetVelocidad.dataset.selected = "";
+            updateInternetFields();
+
+            const switchTelefonia = document.getElementById("switch-telefonia");
+            if (switchTelefonia) {
+              switchTelefonia.checked = true;
+            }
+
+            if (window.__drawioDevices) {
+              window.__drawioDevices.clear();
+              window.__drawioDevices.addRow({ category: "switch" });
+              window.__drawioDevices.sync();
+            }
+            if (window.__drawioTerminals) {
+              window.__drawioTerminals.clear();
+              window.__drawioTerminals.addRow();
+              window.__drawioTerminals.sync();
+            }
+
+            if (workOrderPaste) {
+              workOrderPaste.value = "";
+              workOrderPaste.style.height = "";
+            }
+            if (importStatus) {
+              importStatus.textContent = "";
+            }
+            if (importGlpiStatus) {
+              importGlpiStatus.textContent = "";
+              importGlpiStatus.classList.remove("is-warn");
+            }
+            renderImportWarnings([]);
+            renderGlpiSuggestions([]);
+
+            const clienteField = document.getElementById("cliente");
+            if (clienteField) {
+              clienteField.focus();
+            }
+          }
+
+          window.__drawioResetForm = resetCreationForm;
+
+          const resetFormButton = document.getElementById("reset-form");
+          if (resetFormButton) {
+            resetFormButton.addEventListener("click", function () {
+              resetCreationForm();
+            });
+          }
 })();

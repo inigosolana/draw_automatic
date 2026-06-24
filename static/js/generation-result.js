@@ -69,5 +69,17 @@
               triggerDownload().catch(function () {
                 console.warn("La descarga automatica no se ha podido completar.");
               });
+
+              const resetButton = document.getElementById("reset-generation");
+              if (resetButton) {
+                resetButton.addEventListener("click", function () {
+                  if (window.__drawioResetForm) {
+                    window.__drawioResetForm({ reload: true });
+                    return;
+                  }
+                  const homeUrl = (window.__DRAWIO_PAGE_CONFIG && window.__DRAWIO_PAGE_CONFIG.homeUrl) || "/";
+                  window.location.assign(homeUrl);
+                });
+              }
             });
 })();
