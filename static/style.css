@@ -1652,6 +1652,7 @@ textarea {
   border: 1px solid #e6c85d;
 }
 
+html.preview-page-root,
 .preview-page-root,
 .preview-page-body {
   height: 100%;
@@ -1660,10 +1661,12 @@ textarea {
 .preview-page-body {
   display: flex;
   flex-direction: column;
+  width: 100%;
   min-height: 100vh;
   min-height: 100dvh;
+  height: 100dvh;
   overflow: hidden;
-  background: #eef4fb;
+  background: #ffffff;
 }
 
 .preview-page {

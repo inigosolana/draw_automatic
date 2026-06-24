@@ -79,8 +79,8 @@
       });
     }
 
-    function fitDiagramToView() {
-      postToFrame({ action: "fit", border: 8, maxScale: 1.25 });
+    function setDiagramZoom100() {
+      postToFrame({ action: "zoom", scale: 1 });
     }
 
     function markDiagramSaved(xml) {
@@ -122,9 +122,7 @@
             xml: xml,
             autosave: 1,
             modified: false,
-            fit: 1,
-            maxFitScale: 1.25,
-            border: 8,
+            zoom: 1,
             background: "#ffffff",
             exportProtocol: true,
           });
@@ -258,8 +256,8 @@
         if (statusBanner && statusBanner.className.indexOf("preview-status-error") === -1) {
           statusBanner.hidden = true;
         }
-        window.setTimeout(fitDiagramToView, 200);
-        window.setTimeout(fitDiagramToView, 900);
+        window.setTimeout(setDiagramZoom100, 200);
+        window.setTimeout(setDiagramZoom100, 900);
         return;
       }
 
@@ -299,21 +297,6 @@
       frame.src = config.embedUrl;
     }
 
-    const editorShell = document.querySelector(".preview-editor-shell");
-    if (editorShell && window.ResizeObserver) {
-      const resizeObserver = new ResizeObserver(function () {
-        if (diagramReady) {
-          window.setTimeout(fitDiagramToView, 120);
-        }
-      });
-      resizeObserver.observe(editorShell);
-    }
-
-    window.addEventListener("resize", function () {
-      if (diagramReady) {
-        fitDiagramToView();
-      }
-    });
   }
 
   if (document.readyState === "loading") {

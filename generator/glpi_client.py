@@ -10,6 +10,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote, unquote
 from urllib.request import Request, urlopen
 
+from .address_formatter import to_glpi_ascii
 from .diagram_metadata import build_diagram_description, diagram_base_name, versioned_diagram_name
 
 

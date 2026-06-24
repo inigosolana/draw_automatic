@@ -73,11 +73,11 @@
           (diagram.preview_url
             ? '<a class="button secondary quiet" href="' +
               escapeHtml(diagram.preview_url) +
-              '" target="_blank" rel="noopener">Previsualizar</a>'
+              '">Previsualizar</a>'
             : diagram.url
             ? '<a class="button secondary quiet" href="' +
               escapeHtml(diagram.url) +
-              '" target="_blank" rel="noopener">Previsualizar</a>'
+              '" target="_blank" rel="noopener">Abrir en GLPI</a>'
             : "") +
           "</td>";
         existingBody.appendChild(row);

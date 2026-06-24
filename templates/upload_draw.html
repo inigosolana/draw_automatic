@@ -47,7 +47,7 @@
               </p>
               <p class="upload-success-id">Diagrama #{{ result.id }} en GLPI</p>
               <div class="upload-success-actions">
-                <a class="button secondary quiet" href="{{ url_for('diagrams.preview_glpi_diagram', diagram_id=result.id, next=url_for('glpi_import.upload_draw')) }}" target="_blank" rel="noopener">Previsualizar</a>
+                <a class="button secondary quiet" href="{{ url_for('diagrams.preview_glpi_diagram', diagram_id=result.id, next=url_for('glpi_import.upload_draw')) }}">Previsualizar</a>
                 <a class="button glpi" href="{{ result.url }}" target="_blank" rel="noopener">Abrir diagrama en GLPI</a>
               </div>
               {% if result.url %}
