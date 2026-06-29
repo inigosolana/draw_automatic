@@ -62,7 +62,8 @@ def create_admin_blueprint(limiter: Limiter) -> Blueprint:
                         coverage_data = cached
                     else:
                         coverage_data = build_coverage_data(catalog_for_coverage, glpi_client, all_rows)
-                        drawio_stores.catalog.set("admin_coverage", coverage_data)
+                        if coverage_data and not coverage_data.get("error"):
+                            drawio_stores.catalog.set("admin_coverage", coverage_data)
         except Exception:
             pass
 

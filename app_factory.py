@@ -78,7 +78,9 @@ def create_app(stores: DrawioStores | None = None) -> Flask:
 
     app.config["SECRET_KEY"] = resolve_secret_key()
 
-    app.config["AUTH_REQUIRED"] = os.environ.get("DRAWIO_AUTH_REQUIRED", "0") == "1"
+    # Seguro por defecto: la auth solo se desactiva poniendo explicitamente
+    # DRAWIO_AUTH_REQUIRED=0 (uso local de desarrollo).
+    app.config["AUTH_REQUIRED"] = os.environ.get("DRAWIO_AUTH_REQUIRED", "1") != "0"
 
     configure_session(app)
     csrf = configure_csrf(app)

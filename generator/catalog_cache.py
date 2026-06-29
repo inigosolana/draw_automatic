@@ -30,7 +30,7 @@ class CatalogCache:
         connection.execute("PRAGMA journal_mode=WAL")
         return connection
 
-    def get(self, key: str) -> list[dict] | None:
+    def get(self, key: str) -> list | dict | None:
         now = time.time()
         with closing(self._connect()) as connection:
             row = connection.execute(
@@ -45,9 +45,9 @@ class CatalogCache:
                     )
                 return None
         payload = json.loads(row[0])
-        return payload if isinstance(payload, list) else None
+        return payload if isinstance(payload, (list, dict)) else None
 
-    def set(self, key: str, payload: list[dict]) -> None:
+    def set(self, key: str, payload: list | dict) -> None:
         now = time.time()
         with closing(self._connect()) as connection:
             with connection:

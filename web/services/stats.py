@@ -151,6 +151,55 @@ def build_admin_chart_periods(all_rows: list[dict], now: datetime) -> dict:
     }
 
 
+def find_catalog_sede(catalog: list[dict], entity_id: int) -> dict | None:
+    for province in catalog:
+        for cliente in province.get("clientes", []):
+            for sede in cliente.get("sedes", []):
+                if sede.get("id") == entity_id:
+                    return sede
+    return None
+
+
+def glpi_street(sede: dict) -> str:
+    """Street address as stored in GLPI (ignores technician overrides)."""
+    return sede.get("direccion_glpi") or sede.get("direccion", "")
+
+
+def covered_entity_ids_from_diagrams(all_diagrams: list[dict]) -> set[int]:
+    covered: set[int] = set()
+    for diagram in all_diagrams:
+        entity_id = diagram.get("entities_id")
+        if entity_id and str(entity_id).isdigit():
+            covered.add(int(entity_id))
+    return covered
+
+
+def build_missing_sites_rows(catalog: list[dict], covered_entity_ids: set[int]) -> list[dict]:
+    """Flat list of sedes without a diagram: cliente, sede, calle, provincia."""
+    rows: list[dict] = []
+    for province in catalog:
+        province_name = province.get("nombre", "?")
+        for cliente in province.get("clientes", []):
+            client_name = cliente.get("nombre", "?")
+            for sede in cliente.get("sedes", []):
+                entity_id = sede.get("id")
+                if entity_id is None:
+                    continue
+                if int(entity_id) in covered_entity_ids:
+                    continue
+                rows.append(
+                    {
+                        "cliente": client_name,
+                        "sede": sede.get("nombre", "?"),
+                        "calle": glpi_street(sede),
+                        "provincia": province_name,
+                        "entity_id": int(entity_id),
+                    }
+                )
+    rows.sort(key=lambda item: (item["provincia"], item["cliente"], item["sede"]))
+    return rows
+
+
 def build_coverage_data(
     catalog: list[dict],
     client,
@@ -161,7 +210,7 @@ def build_coverage_data(
         return None
 
     try:
-        all_diagrams = client.list_network_diagrams()
+        covered_entity_ids = client.list_covered_entity_ids()
     except GlpiError as exc:
         return {
             "provinces": [],
@@ -170,12 +219,6 @@ def build_coverage_data(
             "missing_sites": 0,
             "error": public_error_message(str(exc), context="consulta de diagramas GLPI"),
         }
-
-    covered_entity_ids: set[int] = set()
-    for diagram in all_diagrams:
-        entity_id = diagram.get("entities_id")
-        if entity_id and str(entity_id).isdigit():
-            covered_entity_ids.add(int(entity_id))
 
     entity_to_province: dict[int, str] = {}
     total_sites = 0

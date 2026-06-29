@@ -69,6 +69,9 @@
         <header class="panel-header upload-panel-header">
           <h1>Subir draw a GLPI</h1>
           <p>Asocia un diagrama existente al cliente y sede correctos. Si ya hay otros en la sede, no se sobrescriben: se publica uno nuevo con la fecha actual.</p>
+          <p class="upload-panel-tools">
+            <a class="button secondary quiet" href="{{ missing_sites_xlsx_url }}">Descargar clientes_con_sedes_sin_diagrama.xlsx</a>
+          </p>
         </header>
 
         {% if upload_error %}
@@ -105,6 +108,18 @@
                 <label>Sede
                   <div class="search-select disabled" id="upload-site" data-placeholder="Selecciona primero un cliente"></div>
                 </label>
+                <div class="upload-glpi-address" id="upload-glpi-address" hidden>
+                  <label for="upload-direccion">Calle / direccion
+                    <input type="text" id="upload-direccion" name="glpi_direccion" autocomplete="street-address">
+                  </label>
+                  <p class="upload-glpi-address-reference" id="upload-glpi-address-reference" hidden>
+                    <span class="upload-glpi-address-label">En GLPI ahora:</span>
+                    <span id="upload-glpi-address-original">—</span>
+                  </p>
+                  <p class="helper-text" id="upload-glpi-address-hint">
+                    Revisa la calle antes de subir. Si la corriges, se actualizara en GLPI y quedara guardada para esta sede.
+                  </p>
+                </div>
               </div>
               {% else %}
               <p class="upload-error">{{ glpi_error }}</p>
@@ -112,11 +127,11 @@
             </section>
 
             <section class="form-section upload-form-section">
-              <h2>Archivo .drawio</h2>
+              <h2>Archivo .drawio o .pdf</h2>
               <label>Seleccionar archivo(s)
-                <input type="file" name="drawio_files" accept=".drawio,.xml,application/xml,text/xml" multiple required>
+                <input type="file" name="drawio_files" accept=".drawio,.xml,.pdf,application/xml,text/xml,application/pdf" multiple required>
               </label>
-              <p class="helper-text">Puedes subir varios a la vez. Cada uno se publica en GLPI con fecha y tecnico actuales.</p>
+              <p class="helper-text">Puedes subir varios a la vez. Cada uno se publica en GLPI con fecha y tecnico actuales. Si subes un PDF exportado desde draw.io, se extrae el diagrama automaticamente.</p>
             </section>
           </div>
 

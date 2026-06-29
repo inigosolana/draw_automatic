@@ -94,7 +94,7 @@ def create_zabbix_blueprint(limiter: Limiter) -> Blueprint:
         try:
             group = client.resolve_host_group_for_province(provincia)
         except ZabbixError as exc:
-            return jsonify({"error": public_error_message(str(exc), fallback=str(exc))}), 404
+            return jsonify({"error": public_error_message(str(exc), context="grupo Zabbix")}), 404
         return jsonify(
             {
                 "groupid": str(group.get("groupid", "")),
