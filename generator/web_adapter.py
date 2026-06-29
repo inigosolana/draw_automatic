@@ -1,3 +1,19 @@
+"""Adaptador entre el formulario web y el motor de dibujado.
+
+Conviven DOS formatos de datos a propósito:
+
+- **structured** (`form_to_structured_data`): refleja el formulario tal cual, con
+  bloques separados por equipo (terminales, dispositivos, internet…). Es el que
+  consume el frontend y el preview JSON.
+- **legacy / generator** (`structured_to_generator_data`): la forma plana que
+  espera `layout_engine.build_layout` (`data["equipos"]`, `data["router"]`, …).
+
+`form_to_data` hace structured → generator porque el motor de layout solo
+entiende el formato legacy, mientras que el resto de la app (preview, edición,
+importación de OT) trabaja con el structured. Mantener ambos evita reescribir el
+motor de layout; el coste es esta conversión explícita en un único sitio.
+"""
+
 from __future__ import annotations
 
 import re

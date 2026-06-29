@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
-from .aliases import resolve_alias
 from .dect_layout import (
     DECT_BASE_MODELS,
     DECT_HANDSET_BASE,
@@ -34,6 +32,18 @@ from .geometry import (
     row_layout as _row_layout,
 )
 from .parser import ValidatedEquipment, validate_input_schema
+from .layout_labels import (
+    SWITCH_FALLBACK_ICON,
+    display_model as _display_model,
+    equipment_label as _equipment_label,
+    internet_metric_label as _internet_metric_label,
+    is_4g_monitored as _is_4g_monitored,
+    normalized_model as _normalized_model,
+    ownership as _ownership,
+    router_label as _router_label,
+    safe as _safe,
+    switch_icon_model as _switch_icon_model,
+)
 
 
 SUMMARY_WIDTH = 380
@@ -45,7 +55,6 @@ DECT_HANDSET_STACK_STEP = 168
 DECT_HANDSET_FAN_STEP = 170
 DECT_ROW_EXTRA = 110
 DECT_ROW_CLEARANCE = 28
-SWITCH_FALLBACK_ICON = "TP-Link 8P"
 SWITCH_ANCHOR_KEYS = frozenset({"switch", "switch_datos"})
 DUAL_SWITCH_GAP = 90
 ROUTER_BACKUP_GAP = 70
@@ -211,65 +220,6 @@ class EdgeSpec:
     label_offset_y: int = -14
 
 
-def _safe(value: object) -> str:
-    return "" if value is None else str(value)
-
-
-def _normalized_model(team: dict) -> str:
-    return _safe(team.get("modelo", team.get("tipo", ""))).strip().lower()
-
-
-def _display_model(value: str) -> str:
-    return resolve_alias(value or "")
-
-
-def _switch_icon_model(model: str) -> str:
-    without_prefix = re.sub(r"^switch\s+", "", _safe(model).strip(), flags=re.IGNORECASE)
-    resolved = _display_model(without_prefix)
-    return resolved or SWITCH_FALLBACK_ICON
-
-
-def _router_label(router: dict, internet: dict | None = None) -> str:
-    alias = _display_model(_safe(router.get("modelo", "Router")))
-    ip_value = _safe(router.get("ip", ""))
-    if alias == "CHATEAU":
-        label = f"<b>CHATEAU</b><br>LAN {ip_value}" if ip_value else "<b>CHATEAU</b>"
-    else:
-        label = f"<b>{alias or 'Router'}</b><br>{ip_value}"
-    if internet and _is_4g_monitored(internet):
-        label += (
-            f"<br><b>{_safe(internet.get('tipo', ''))} "
-            f"{_internet_metric_label(internet)}</b>"
-            f"<br>{_safe(internet.get('proveedor', ''))}"
-        )
-    return label
-
-
-def _is_4g_monitored(internet: dict) -> bool:
-    return "4G MONITORIZADO" in _safe(internet.get("tipo", "")).upper()
-
-
-def _equipment_label(team: dict, extension: str = "", port_label: str = "") -> str:
-    display_model = _display_model(_safe(team.get("modelo", team.get("tipo", "Equipo"))))
-    parts: list[str] = []
-    if port_label:
-        parts.append(f"<b>{_safe(port_label)}</b>")
-    parts.append(f"<b>{display_model}</b>")
-    if extension:
-        parts.append(f"EXT {_safe(extension)}")
-    if team.get("serial_number"):
-        parts.append(f"SN {_safe(team.get('serial_number'))}")
-    if team.get("mac"):
-        parts.append(f"MAC {_safe(team.get('mac'))}")
-    if team.get("ip"):
-        parts.append(f"IP {_safe(team.get('ip'))}")
-    return "<br>".join(parts)
-
-
-def _ownership(team: dict) -> str:
-    return "ajeno" if _safe(team.get("propiedad", "propio")).lower() in {"ajeno", "no", "externo"} else "propio"
-
-
 def validate_input_data(data: dict) -> list[str]:
     validate_input_schema(data)
     warnings: list[str] = []
@@ -342,13 +292,6 @@ def build_layout(data: dict) -> tuple[list[NodeSpec], list[EdgeSpec]]:
     if template == "multisede":
         return build_multisite_layout(data)
     return build_office_layout(data, include_switch=(template == "con_switch"))
-
-
-def _internet_metric_label(internet: dict) -> str:
-    tipo = _safe(internet.get("tipo", ""))
-    if "4G MONITORIZADO" in tipo.upper():
-        return _safe(internet.get("capacidad", ""))
-    return _safe(internet.get("velocidad", ""))
 
 
 def _init_office_nodes(data: dict) -> tuple[list[NodeSpec], list[EdgeSpec]]:
