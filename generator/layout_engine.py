@@ -32,6 +32,20 @@ from .geometry import (
     row_layout as _row_layout,
 )
 from .parser import ValidatedEquipment, validate_input_schema
+from .cable_routing import (
+    BUS_LANE_SPACING,
+    CABLE_CLEARANCE_ABOVE_DEVICE,
+    CABLE_GAP_BELOW_ANCHOR,
+    ROUTER_SWITCH_LANE_BASE,
+    SWITCH_ANCHOR_KEYS,
+    _anchor_exit_point,
+    _anchor_exit_x,
+    _bus_waypoints,
+    _cable_label_offset,
+    _device_bus_y,
+    _router_switch_waypoints,
+    _target_entry_point,
+)
 from .layout_labels import (
     display_model as _display_model,
     equipment_label as _equipment_label,
@@ -54,14 +68,9 @@ DECT_HANDSET_STACK_STEP = 168
 DECT_HANDSET_FAN_STEP = 170
 DECT_ROW_EXTRA = 110
 DECT_ROW_CLEARANCE = 28
-SWITCH_ANCHOR_KEYS = frozenset({"switch", "switch_datos"})
 DUAL_SWITCH_GAP = 90
 ROUTER_BACKUP_GAP = 70
 ROUTER_SWITCH_GAP = 90
-CABLE_CLEARANCE_ABOVE_DEVICE = 40
-CABLE_GAP_BELOW_ANCHOR = 40
-BUS_LANE_SPACING = 24
-ROUTER_SWITCH_LANE_BASE = 18
 TELEPHONY_TYPES = {"telefono", "terminal_dect", "base_dect", "ata"}
 
 
@@ -111,84 +120,6 @@ def _count_layout_slots(equipos: list) -> int:
             continue
         total += qty
     return total
-
-
-def _anchor_exit_x(anchor: NodeSpec, target: NodeSpec) -> float:
-    target_center = target.x + target.width / 2
-    ratio = (target_center - anchor.x) / anchor.width
-    return max(0.06, min(0.94, ratio))
-
-
-def _anchor_exit_point(anchor: NodeSpec, exit_x: float) -> tuple[int, int]:
-    return int(anchor.x + exit_x * anchor.width), int(anchor.y + anchor.height)
-
-
-def _target_entry_point(target: NodeSpec) -> tuple[int, int]:
-    return int(target.x + target.width / 2), int(target.y)
-
-
-def _bus_waypoints(
-    anchor: NodeSpec,
-    target: NodeSpec,
-    *,
-    exit_x: float,
-    bus_y: int,
-) -> tuple[tuple[int, int], ...]:
-    exit_x_abs, _ = _anchor_exit_point(anchor, exit_x)
-    target_center, _ = _target_entry_point(target)
-    if abs(exit_x_abs - target_center) <= 6:
-        return ((target_center, bus_y),)
-    return ((exit_x_abs, bus_y), (target_center, bus_y))
-
-
-def _cable_label_offset(
-    label: str,
-    *,
-    anchor_key: str,
-    lane_index: int = 0,
-    anchor: NodeSpec | None = None,
-    target: NodeSpec | None = None,
-) -> tuple[int, int]:
-    if not label:
-        return 0, -14
-    if anchor_key in SWITCH_ANCHOR_KEYS and label.startswith("ETH") and not label.endswith("-LAN"):
-        return lane_index * 10, -36 - lane_index * 4
-    if label.endswith("-LAN") and anchor_key == "router":
-        offset_x = 10
-        if anchor is not None and target is not None:
-            offset_x += int((target.x + target.width / 2) - (anchor.x + anchor.width / 2)) // 4
-        return offset_x, -32 - lane_index * 4
-    offset_x = 10 if label.endswith("-LAN") and anchor_key == "router" else 0
-    offset_y = -30 if label.endswith("-LAN") and anchor_key == "router" else -24
-    return offset_x, offset_y - lane_index * 2
-
-
-def _device_bus_y(
-    anchor: NodeSpec,
-    target: NodeSpec,
-    row_top_y: int | None = None,
-    *,
-    lane_index: int = 0,
-) -> int:
-    if row_top_y is not None:
-        return row_top_y - CABLE_CLEARANCE_ABOVE_DEVICE - lane_index * BUS_LANE_SPACING
-    midpoint = (anchor.y + anchor.height + target.y) // 2
-    base = max(anchor.y + anchor.height + CABLE_GAP_BELOW_ANCHOR, midpoint)
-    return base - lane_index * BUS_LANE_SPACING
-
-
-def _router_switch_waypoints(
-    router: NodeSpec,
-    switch: NodeSpec,
-    *,
-    lane_index: int = 0,
-) -> tuple[tuple[int, int], ...] | None:
-    router_center = int(router.x + router.width / 2)
-    switch_center = int(switch.x + switch.width / 2)
-    joint_y = router.y + router.height + ROUTER_SWITCH_LANE_BASE + lane_index * BUS_LANE_SPACING
-    if abs(router_center - switch_center) <= 8:
-        return ((switch_center, joint_y),)
-    return ((router_center, joint_y), (switch_center, joint_y))
 
 
 @dataclass
