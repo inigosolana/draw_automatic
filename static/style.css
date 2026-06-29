@@ -3270,6 +3270,42 @@ label[hidden],
   }
 }
 
+/* Iconos de marca en filas de terminal y dispositivo */
+.model-with-brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.model-with-brand select {
+  flex: 1;
+  min-width: 0;
+}
+.brand-badge {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  display: inline-grid;
+  place-items: center;
+  color: #fff;
+  font-weight: 900;
+  font-size: 10px;
+  letter-spacing: -0.02em;
+  flex: none;
+}
+.brand-badge.b-empty {
+  background: #e3eaf1;
+}
+.b-fanvil { background: #e2231a; }
+.b-yealink { background: #2bb673; }
+.b-grandstream { background: linear-gradient(135deg, #2e6fb6, #1b3c66 60%, #7a8794); }
+.b-tplink { background: #4acbd6; color: #08323a; }
+.b-dlink { background: #0a7bbf; }
+.b-ruijie { background: #c0202e; }
+.b-tenda { background: #0a8f4a; }
+.b-mikrotik { background: #2b3440; }
+.b-generic { background: #6b7c89; }
+
 /* Dark mode desactivado: solo redefinía variables pero la mayoría del CSS usa
    colores hardcodeados, así que en SO oscuro la UI quedaba ilegible (paneles
    blancos con texto claro). Mejor un tema claro consistente hasta migrar todo

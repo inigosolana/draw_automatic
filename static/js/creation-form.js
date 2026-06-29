@@ -194,6 +194,26 @@
           const terminalDetails = document.getElementById("terminal-details");
           const terminalEquipmentText = document.getElementById("terminal-equipment-text");
           const terminalModels = ["FANVIL V62", "FANVIL V64", "FANVIL X303G", "T-30", "T-31", "T-33", "T-43", "T-44", "T-73", "W71H", "W72H", "W53H", "W73H"];
+          function brandOf(model) {
+            const m = (model || "").toLowerCase();
+            if (/fanvil/.test(m)) return { cls: "b-fanvil", txt: "F" };
+            if (/yealink|sip-t|\bt-?3\d|\bt-?4\d|\bt-?7\d|^w\d/.test(m)) return { cls: "b-yealink", txt: "Y" };
+            if (/grandstream|gwn|gxp|grp/.test(m)) return { cls: "b-grandstream", txt: "G" };
+            if (/tp-?link|deco/.test(m)) return { cls: "b-tplink", txt: "TP" };
+            if (/d-?link|dgs/.test(m)) return { cls: "b-dlink", txt: "DL" };
+            if (/ruijie/.test(m)) return { cls: "b-ruijie", txt: "RJ" };
+            if (/tenda/.test(m)) return { cls: "b-tenda", txt: "TD" };
+            if (/mikrotik|microtik|hap|chateau/.test(m)) return { cls: "b-mikrotik", txt: "MT" };
+            return null;
+          }
+          function setRowBrand(row) {
+            const badge = row.querySelector("[data-brand]");
+            if (!badge) return;
+            const sel = row.querySelector('[data-field="model"]');
+            const br = brandOf(sel ? sel.value : "");
+            badge.className = "brand-badge " + (br ? br.cls : "b-empty");
+            badge.textContent = br ? br.txt : "";
+          }
           const DECT_HANDSET_MODELS = ["W71H", "W72H", "W53H", "W73H"];
           const DECT_BASE_MODELS = ["W60B", "W70B", "W80B", "YEALINK W90DM"];
           const DEFAULT_DECT_BASE = {
@@ -281,7 +301,7 @@
             row.innerHTML = `
               <label class="row-field">
                 <span class="field-mobile-label">Modelo</span>
-                <select data-field="model" aria-label="Modelo de terminal">${modelOptions}</select>
+                <span class="model-with-brand"><span class="brand-badge b-empty" data-brand aria-hidden="true"></span><select data-field="model" aria-label="Modelo de terminal">${modelOptions}</select></span>
               </label>
               <label class="row-field">
                 <span class="field-mobile-label">Base DECT</span>
@@ -317,8 +337,10 @@
             });
             row.querySelector('[data-field="model"]').addEventListener("change", function () {
               updateDectBaseField(row);
+              setRowBrand(row);
               syncTerminalRows();
             });
+            setRowBrand(row);
             if (values.dectBase) {
               row.querySelector('[data-field="dect-base"]').value = values.dectBase;
             }

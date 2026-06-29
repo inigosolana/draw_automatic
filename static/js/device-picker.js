@@ -31,6 +31,26 @@
             return options.join("");
           }
 
+          function brandOf(model) {
+            const m = (model || "").toLowerCase();
+            if (/fanvil/.test(m)) return { cls: "b-fanvil", txt: "F" };
+            if (/grandstream|gwn|gxp|grp/.test(m)) return { cls: "b-grandstream", txt: "G" };
+            if (/tp-?link|deco/.test(m)) return { cls: "b-tplink", txt: "TP" };
+            if (/d-?link|dgs/.test(m)) return { cls: "b-dlink", txt: "DL" };
+            if (/ruijie/.test(m)) return { cls: "b-ruijie", txt: "RJ" };
+            if (/tenda/.test(m)) return { cls: "b-tenda", txt: "TD" };
+            if (/mikrotik|microtik|hap|chateau/.test(m)) return { cls: "b-mikrotik", txt: "MT" };
+            if (/firebox|watchguard/.test(m)) return { cls: "b-generic", txt: "FW" };
+            return null;
+          }
+          function setDeviceBrand(row, modelo) {
+            const badge = row.querySelector("[data-brand]");
+            if (!badge) return;
+            const br = brandOf(modelo);
+            badge.className = "brand-badge " + (br ? br.cls : "b-empty");
+            badge.textContent = br ? br.txt : "";
+          }
+
           function syncDeviceRows() {
             const payload = [];
             deviceRows.querySelectorAll(".device-row").forEach(function (row) {
@@ -41,6 +61,7 @@
               const modelo = category.custom
                 ? (customField ? customField.value.trim() : "")
                 : modelField.value.trim();
+              setDeviceBrand(row, modelo);
               const cantidad = Math.max(1, parseInt(row.querySelector('[data-field="quantity"]').value || "1", 10));
               const propiedad = row.querySelector('[data-field="ownership"]').value;
               if (!modelo) return;
@@ -106,7 +127,7 @@
               </label>
               <div class="row-field device-model-field">
                 <span class="field-mobile-label">Modelo</span>
-                <select data-field="model" aria-label="Modelo de dispositivo"></select>
+                <span class="model-with-brand"><span class="brand-badge b-empty" data-brand aria-hidden="true"></span><select data-field="model" aria-label="Modelo de dispositivo"></select></span>
                 <input data-field="custom-model" type="text" placeholder="Modelo personalizado" value="${escapeAttribute(values.modelo)}" aria-label="Modelo personalizado" hidden disabled>
               </div>
               <label class="row-field">
