@@ -405,7 +405,9 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
 
     @bp.route("/upload-draw", methods=["GET", "POST"])
     @login_required
-    @limiter.limit("50 per hour")
+    # Limite alto: el flujo de subida en lote hace muchas peticiones (cada
+    # subida y cada carga de pagina cuentan). 50/h era demasiado bajo.
+    @limiter.limit("500 per hour")
     def upload_draw() -> str:
         drawio_stores = get_drawio_stores()
         glpi_customers, glpi_error = load_glpi_catalog()
