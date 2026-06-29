@@ -7,7 +7,7 @@ from pathlib import Path
 
 from defusedxml import ElementTree as DefusedET
 from defusedxml.common import DefusedXmlException
-from flask import Blueprint, Response, current_app, jsonify, render_template, request, url_for
+from flask import Blueprint, Response, current_app, jsonify, redirect, render_template, request, url_for
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
@@ -28,10 +28,18 @@ from generator.diagram_metadata import (
 )
 from generator.glpi_merge import merge_import_with_glpi
 from generator.knowledge_base import learn_from_drawio
+from generator.pdf_drawio import PdfDrawioError, extract_drawio_from_pdf
 from generator.safe_errors import public_error_message
 from generator.utils import positive_integer
 from generator.web_adapter import build_drawio_from_data, form_to_data, form_to_structured_data
 from generator.work_order_text_parser import parse_work_order_paste
+from generator.address_formatter import addresses_equivalent
+from web.services.export import MISSING_SITES_EXPORT_FILENAME, missing_sites_to_xlsx
+from web.services.stats import (
+    build_missing_sites_rows,
+    find_catalog_sede,
+    glpi_street,
+)
 
 
 def _pending_generation_url(token: str) -> str:
@@ -107,7 +115,7 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
 
     @bp.post("/generate")
     @login_required
-    @limiter.limit("30 per hour")
+    @limiter.limit("50 per hour")
     def generate() -> str:
         drawio_stores = get_drawio_stores()
         form_data = request.form.to_dict()
@@ -196,30 +204,31 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
         try:
             entity_id = positive_integer(payload.get("entity_id"), "entity_id")
             technician = payload.get("technician") or current_technician()
-            existing = client.list_network_diagrams(entity_id)
-            allow_duplicate = request.form.get("allow_duplicate") == "1"
-            if existing and not allow_duplicate:
-                return Response(
-                    "Esta sede ya tiene un diagrama en GLPI. Confirma de nuevo para publicar otro.",
-                    status=409,
-                    mimetype="text/plain; charset=utf-8",
+            with client.batch_session():
+                existing = client.list_network_diagrams(entity_id)
+                allow_duplicate = request.form.get("allow_duplicate") == "1"
+                if existing and not allow_duplicate:
+                    return Response(
+                        "Esta sede ya tiene un diagrama en GLPI. Confirma de nuevo para publicar otro.",
+                        status=409,
+                        mimetype="text/plain; charset=utf-8",
+                    )
+                diagram_name = unique_diagram_name(
+                    f"{payload['cliente']} - {payload['sede']}",
+                    existing,
                 )
-            diagram_name = unique_diagram_name(
-                f"{payload['cliente']} - {payload['sede']}",
-                existing,
-            )
-            diagram_id = client.create_network_diagram(
-                entity_id=entity_id,
-                name=diagram_name,
-                description=build_diagram_description(
-                    client_name=payload["cliente"],
-                    site_name=payload["sede"],
-                    technician=technician,
-                    source="Generado",
-                    filename=payload.get("filename", ""),
-                ),
-                graph_xml=payload["xml"],
-            )
+                diagram_id = client.create_network_diagram(
+                    entity_id=entity_id,
+                    name=diagram_name,
+                    description=build_diagram_description(
+                        client_name=payload["cliente"],
+                        site_name=payload["sede"],
+                        technician=technician,
+                        source="Generado",
+                        filename=payload.get("filename", ""),
+                    ),
+                    graph_xml=payload["xml"],
+                )
             drawio_stores.activity.add(
                 diagram_id=diagram_id,
                 entity_id=entity_id,
@@ -385,9 +394,43 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
             }
         )
 
+    @bp.get("/upload-draw/clientes_con_sedes_sin_diagrama.xlsx")
+    @login_required
+    @limiter.limit("10 per hour")
+    def upload_draw_missing_sites_xlsx() -> Response:
+        catalog, catalog_error = load_glpi_catalog()
+        if not catalog:
+            return Response(
+                public_error_message(catalog_error, context="catalogo GLPI"),
+                status=503,
+                mimetype="text/plain; charset=utf-8",
+            )
+        client = GlpiClient.from_environment()
+        if not client:
+            return Response("GLPI no esta configurado.", status=503, mimetype="text/plain; charset=utf-8")
+        try:
+            covered = client.list_covered_entity_ids()
+        except GlpiError as exc:
+            return Response(
+                public_error_message(str(exc), context="consulta de diagramas GLPI"),
+                status=502,
+                mimetype="text/plain; charset=utf-8",
+            )
+        rows = build_missing_sites_rows(catalog, covered)
+        return Response(
+            missing_sites_to_xlsx(rows),
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f'attachment; filename="{MISSING_SITES_EXPORT_FILENAME}"'},
+        )
+
+    @bp.get("/upload-draw/missing-sites.xlsx")
+    @login_required
+    def upload_draw_missing_sites_xlsx_legacy() -> Response:
+        return redirect(url_for("glpi_import.upload_draw_missing_sites_xlsx"))
+
     @bp.route("/upload-draw", methods=["GET", "POST"])
     @login_required
-    @limiter.limit("20 per hour")
+    @limiter.limit("50 per hour")
     def upload_draw() -> str:
         drawio_stores = get_drawio_stores()
         glpi_customers, glpi_error = load_glpi_catalog()
@@ -398,6 +441,7 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
             entity_id = request.form.get("glpi_entity_id", "").strip()
             client_name = request.form.get("glpi_cliente", "").strip()
             site_name = request.form.get("glpi_sede", "").strip()
+            corrected_address = request.form.get("glpi_direccion", "").strip()
             uploaded_files = request.files.getlist("drawio_files")
             if not uploaded_files or not uploaded_files[0].filename:
                 legacy_file = request.files.get("drawio_file")
@@ -408,21 +452,46 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
             if not entity_id:
                 upload_error = "Selecciona una sede de GLPI."
             elif not uploaded_files:
-                upload_error = "Selecciona uno o varios archivos .drawio."
+                upload_error = "Selecciona uno o varios archivos .drawio o .pdf."
             else:
                 try:
                     validated_entity_id = positive_integer(entity_id, "glpi_entity_id")
                     client = GlpiClient.from_environment()
                     if not client:
                         raise GlpiError("GLPI no esta configurado.")
-                    existing_diagrams = client.list_network_diagrams(validated_entity_id)
                     technician = current_technician()
+                    technician_label = (
+                        technician.get("name") or technician.get("username") or "desconocido"
+                    )
+                    if corrected_address:
+                        drawio_stores.sites.set(
+                            validated_entity_id,
+                            corrected_address,
+                            technician_label,
+                        )
+                        catalog_sede = find_catalog_sede(glpi_customers, validated_entity_id)
+                        glpi_original = glpi_street(catalog_sede) if catalog_sede else ""
+                        if glpi_original and not addresses_equivalent(
+                            corrected_address, glpi_original
+                        ):
+                            try:
+                                client.update_entity_address(
+                                    validated_entity_id, corrected_address
+                                )
+                                drawio_stores.catalog.clear("glpi_customer_catalog")
+                                drawio_stores.catalog.clear("admin_coverage")
+                            except GlpiError as exc:
+                                upload_errors.append(
+                                    "La calle se guardo localmente, pero no se pudo actualizar en GLPI: "
+                                    + public_error_message(str(exc), context="actualizacion de direccion GLPI")
+                                )
+                    existing_diagrams = client.list_network_diagrams(validated_entity_id)
                     for uploaded_file in uploaded_files:
                         if not uploaded_file or not uploaded_file.filename:
                             continue
-                        if not uploaded_file.filename.lower().endswith((".drawio", ".xml")):
+                        if not uploaded_file.filename.lower().endswith((".drawio", ".xml", ".pdf")):
                             upload_errors.append(
-                                f"{uploaded_file.filename}: extension no valida (.drawio o .xml)."
+                                f"{uploaded_file.filename}: extension no valida (.drawio, .xml o .pdf)."
                             )
                             security_logger.warning(
                                 f"Upload attempt with invalid file type: {uploaded_file.filename}, "
@@ -431,7 +500,21 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
                             continue
                         try:
                             raw = uploaded_file.read()
-                            xml = raw.decode("utf-8-sig")
+                            if uploaded_file.filename.lower().endswith(".pdf"):
+                                try:
+                                    _debug_dir = Path("/app/data/pdf_debug")
+                                    _debug_dir.mkdir(parents=True, exist_ok=True)
+                                    _debug_path = _debug_dir / f"{uuid.uuid4().hex}.pdf"
+                                    _debug_path.write_bytes(raw)
+                                    security_logger.info(
+                                        f"PDF debug saved: {_debug_path} ({len(raw)} bytes), "
+                                        f"file={uploaded_file.filename}"
+                                    )
+                                except Exception:  # noqa: BLE001 - best-effort debug capture
+                                    pass
+                                xml = extract_drawio_from_pdf(raw)
+                            else:
+                                xml = raw.decode("utf-8-sig")
                             root = DefusedET.fromstring(xml)
                             if root.tag != "mxfile":
                                 raise ValueError("El documento no contiene un mxfile de Draw.io.")
@@ -482,6 +565,7 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
                             UnicodeDecodeError,
                             DefusedET.ParseError,
                             DefusedXmlException,
+                            PdfDrawioError,
                             ValueError,
                             GlpiError,
                         ) as exc:
@@ -510,6 +594,7 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
             upload_results=upload_results,
             technician=current_technician(),
             site_diagrams_url=url_for("glpi_import.upload_draw_site_diagrams"),
+            missing_sites_xlsx_url=url_for("glpi_import.upload_draw_missing_sites_xlsx"),
         )
 
     return bp

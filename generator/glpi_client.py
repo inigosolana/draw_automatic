@@ -34,10 +34,37 @@ class GlpiEndpoints:
         end = start + page_size - 1
         return f"{cls.ENTITY}?range={start}-{end}&with_inheritance=true"
 
+    # Search fields for PluginArchimapGraph (from listSearchOptions). Using the
+    # search API avoids pulling the heavy `graph` blob that makes getAllItems
+    # return multi-MB rows and crash GLPI (HTTP 500) on large ranges.
+    ARCHIMAP_SEARCH_FIELDS = {
+        "id": 72,
+        "name": 1,
+        "shortdescription": 2,
+        "plugin_archimap_graphstates_id": 6,
+        "entities_id": 81,
+    }
+
     @classmethod
-    def archimap_graph_page(cls, start: int, page_size: int) -> str:
+    def archimap_search_page(
+        cls, start: int, page_size: int, entity_id: int | None = None
+    ) -> str:
         end = start + page_size - 1
-        return f"{cls.PLUGIN_ARCHIMAP_GRAPH}?range={start}-{end}"
+        parts = [f"range={start}-{end}"]
+        for index, field in enumerate(cls.ARCHIMAP_SEARCH_FIELDS.values()):
+            parts.append(f"forcedisplay[{index}]={field}")
+        if entity_id is not None:
+            parts.append(f"criteria[0][field]={cls.ARCHIMAP_SEARCH_FIELDS['entities_id']}")
+            parts.append("criteria[0][searchtype]=equals")
+            parts.append(f"criteria[0][value]={int(entity_id)}")
+        return f"search/{cls.PLUGIN_ARCHIMAP_GRAPH}?" + "&".join(parts)
+
+    @classmethod
+    def archimap_entities_page(cls, start: int, page_size: int) -> str:
+        """Pagina pidiendo SOLO el campo entities_id (cobertura ligera)."""
+        end = start + page_size - 1
+        field = cls.ARCHIMAP_SEARCH_FIELDS["entities_id"]
+        return f"search/{cls.PLUGIN_ARCHIMAP_GRAPH}?range={start}-{end}&forcedisplay[0]={field}"
 
 
 def _env_bool(name: str, *, default: bool) -> bool:
@@ -78,6 +105,9 @@ class GlpiClient:
                 "No uses esta opcion en produccion."
             )
         self._ssl_context = ssl_context
+        # Cuando batch_session() esta activo, todas las operaciones reutilizan
+        # esta sesion en vez de hacer initSession/killSession en cada llamada.
+        self._active_headers: dict[str, str] | None = None
 
     @classmethod
     def from_environment(cls) -> GlpiClient | None:
@@ -87,7 +117,14 @@ class GlpiClient:
         if not all((url, app_token, user_token)):
             return None
         verify_ssl = _env_bool("GLPI_VERIFY_SSL", default=True)
-        return cls(url, app_token, user_token, verify_ssl=verify_ssl)
+        ssl_context = None
+        ca_bundle = os.environ.get("GLPI_CA_BUNDLE", "").strip()
+        if verify_ssl and ca_bundle:
+            # Verificar contra un CA propio (cert autofirmado) sin desactivar TLS.
+            ssl_context = ssl.create_default_context(cafile=ca_bundle)
+        return cls(
+            url, app_token, user_token, verify_ssl=verify_ssl, ssl_context=ssl_context
+        )
 
     def _urlopen_context(self) -> ssl.SSLContext | None:
         if self._ssl_context is not None:
@@ -168,8 +205,38 @@ class GlpiClient:
             except GlpiError:
                 pass
 
-    def list_entities(self) -> list[dict]:
+    @contextmanager
+    def _session_or_active(self):
+        """Reutiliza la sesion abierta por batch_session() si la hay; si no,
+        abre (y cierra) una propia. Mantiene el comportamiento anterior."""
+        if self._active_headers is not None:
+            yield self._active_headers
+        else:
+            with self.session() as headers:
+                yield headers
+
+    @contextmanager
+    def batch_session(self):
+        """Abre UNA sesion GLPI para varias operaciones del mismo request,
+        evitando un par initSession/killSession por cada llamada.
+
+            with client.batch_session():
+                client.list_network_diagrams(entity_id)
+                client.create_network_diagram(...)
+        """
+        if self._active_headers is not None:
+            # Ya hay una sesion batch activa: anidar no abre otra.
+            yield self
+            return
         with self.session() as headers:
+            self._active_headers = headers
+            try:
+                yield self
+            finally:
+                self._active_headers = None
+
+    def list_entities(self) -> list[dict]:
+        with self._session_or_active() as headers:
             entities: list[dict] = []
             page_size = 1000
             start = 0
@@ -185,27 +252,74 @@ class GlpiClient:
         return entities
 
     def list_network_diagrams(self, entity_id: int | None = None) -> list[dict]:
-        with self.session() as headers:
-            diagrams: list[dict] = []
-            page_size = 1000
+        """List network diagrams via the GLPI search API.
+
+        We deliberately avoid the getAllItems endpoint: it returns the full
+        `graph` XML for every diagram (~1 MB each), so a page of 50+ diagrams
+        overflows GLPI's PHP memory and the server answers HTTP 500. The search
+        API lets us request only the lightweight columns we need and filter by
+        entity server-side.
+        """
+        fields = GlpiEndpoints.ARCHIMAP_SEARCH_FIELDS
+        diagrams: list[dict] = []
+        with self._session_or_active() as headers:
+            page_size = 200
             start = 0
             while True:
-                payload = self._request(GlpiEndpoints.archimap_graph_page(start, page_size), headers)
-                page = payload.get("value", []) if isinstance(payload, dict) else payload
-                if not isinstance(page, list):
+                payload = self._request(
+                    GlpiEndpoints.archimap_search_page(
+                        start, page_size, entity_id if entity_id is not None else None
+                    ),
+                    headers,
+                )
+                rows = payload.get("data") if isinstance(payload, dict) else None
+                if not isinstance(rows, list) or not rows:
                     break
-                diagrams.extend(page)
-                if len(page) < page_size:
+                for row in rows:
+                    diagrams.append(
+                        {
+                            "id": row.get(str(fields["id"])),
+                            "name": row.get(str(fields["name"])) or "",
+                            "shortdescription": row.get(str(fields["shortdescription"])) or "",
+                            "plugin_archimap_graphstates_id": row.get(
+                                str(fields["plugin_archimap_graphstates_id"])
+                            )
+                            or "",
+                            "entities_id": row.get(str(fields["entities_id"])),
+                        }
+                    )
+                if len(rows) < page_size:
                     break
                 start += page_size
-        if entity_id is not None:
-            diagrams = [
-                diagram
-                for diagram in diagrams
-                if str(diagram.get("entities_id", "")).isdigit()
-                and int(diagram["entities_id"]) == int(entity_id)
-            ]
         return diagrams
+
+    def list_covered_entity_ids(self) -> set[int]:
+        """Conjunto de entities_id con al menos un diagrama.
+
+        Mucho mas ligero que list_network_diagrams(): pide solo el campo
+        entities_id, sin nombre/descripcion/estado. Usado por la cobertura del
+        admin y el export de sedes sin diagrama.
+        """
+        field_key = str(GlpiEndpoints.ARCHIMAP_SEARCH_FIELDS["entities_id"])
+        covered: set[int] = set()
+        with self._session_or_active() as headers:
+            page_size = 500
+            start = 0
+            while True:
+                payload = self._request(
+                    GlpiEndpoints.archimap_entities_page(start, page_size), headers
+                )
+                rows = payload.get("data") if isinstance(payload, dict) else None
+                if not isinstance(rows, list) or not rows:
+                    break
+                for row in rows:
+                    value = row.get(field_key)
+                    if value is not None and str(value).isdigit():
+                        covered.add(int(value))
+                if len(rows) < page_size:
+                    break
+                start += page_size
+        return covered
 
     def create_network_diagram(
         self,
@@ -224,7 +338,7 @@ class GlpiClient:
             "graph": quote(graph_xml, safe=""),
             "is_helpdesk_visible": 1,
         }
-        with self.session() as headers:
+        with self._session_or_active() as headers:
             response = self._request(
                 GlpiEndpoints.PLUGIN_ARCHIMAP_GRAPH,
                 headers,
@@ -270,7 +384,7 @@ class GlpiClient:
         return f"{web_url}{GlpiEndpoints.ARCHIMAP_GRAPH_FORM}?id={int(diagram_id)}"
 
     def get_network_diagram(self, diagram_id: int) -> dict:
-        with self.session() as headers:
+        with self._session_or_active() as headers:
             payload = self._request(
                 f"{GlpiEndpoints.PLUGIN_ARCHIMAP_GRAPH}/{int(diagram_id)}",
                 headers,
@@ -291,15 +405,34 @@ class GlpiClient:
         return xml, name
 
     def delete_network_diagram(self, diagram_id: int) -> None:
-        with self.session() as headers:
+        with self._session_or_active() as headers:
             self._request(
                 f"{GlpiEndpoints.PLUGIN_ARCHIMAP_GRAPH}/{int(diagram_id)}",
                 headers,
                 method="DELETE",
             )
 
+    def update_entity_address(self, entity_id: int, address: str) -> None:
+        from .address_formatter import normalize_street_address
+
+        clean_address = normalize_street_address(address)
+        if not clean_address:
+            raise GlpiError("La direccion no es valida.")
+        with self._session_or_active() as headers:
+            self._request(
+                f"{GlpiEndpoints.ENTITY}/{int(entity_id)}",
+                headers,
+                method="PUT",
+                payload={
+                    "input": {
+                        "id": int(entity_id),
+                        "address": to_glpi_ascii(clean_address),
+                    }
+                },
+            )
+
     def update_network_diagram_graph(self, diagram_id: int, graph_xml: str) -> None:
-        with self.session() as headers:
+        with self._session_or_active() as headers:
             self._request(
                 f"{GlpiEndpoints.PLUGIN_ARCHIMAP_GRAPH}/{int(diagram_id)}",
                 headers,

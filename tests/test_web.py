@@ -1218,6 +1218,80 @@ class WebAppTests(unittest.TestCase):
         response = self.client.get("/upload-draw")
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Subir draw a GLPI", response.data)
+        self.assertIn(b"Descargar clientes_con_sedes_sin_diagrama.xlsx", response.data)
+        self.assertIn(b"Calle / direccion", response.data)
+
+    def test_upload_draw_saves_corrected_address(self) -> None:
+        sample_catalog = [
+            {
+                "id": 1,
+                "nombre": "Bizkaia",
+                "clientes": [
+                    {
+                        "id": 10,
+                        "nombre": "Cliente Demo",
+                        "sedes": [{"id": 7, "nombre": "Central", "direccion": "Calle Vieja 1"}],
+                    }
+                ],
+            }
+        ]
+        valid_xml = b"<mxfile><diagram /></mxfile>"
+        glpi_client = fake_glpi_client()
+        glpi_client.update_entity_address = MagicMock()
+        with patch("web.blueprints.glpi_import.load_glpi_catalog", return_value=(sample_catalog, "")):
+            with patch("web.blueprints.glpi_import.GlpiClient.from_environment", return_value=glpi_client):
+                response = self.client.post(
+                    "/upload-draw",
+                    data={
+                        "glpi_entity_id": "7",
+                        "glpi_cliente": "Cliente Demo",
+                        "glpi_sede": "Central",
+                        "glpi_direccion": "Calle Nueva 5",
+                        "drawio_file": (BytesIO(valid_xml), "antiguo.drawio"),
+                    },
+                    content_type="multipart/form-data",
+                )
+        self.assertEqual(response.status_code, 200)
+        saved = self.stores.sites.get(7)
+        self.assertIsNotNone(saved)
+        self.assertEqual(saved["address"], "Calle Nueva 5")
+        glpi_client.update_entity_address.assert_called_once_with(7, "Calle Nueva 5")
+
+    def test_upload_draw_missing_sites_xlsx(self) -> None:
+        sample_catalog = [
+            {
+                "id": 1,
+                "nombre": "Bizkaia",
+                "clientes": [
+                    {
+                        "id": 10,
+                        "nombre": "Cliente Demo",
+                        "sedes": [
+                            {"id": 100, "nombre": "Sede 1", "direccion": "Calle 1"},
+                            {"id": 101, "nombre": "Sede 2", "direccion": "Calle 2"},
+                        ],
+                    }
+                ],
+            }
+        ]
+        with patch("web.blueprints.glpi_import.load_glpi_catalog", return_value=(sample_catalog, "")):
+            with patch(
+                "web.blueprints.glpi_import.GlpiClient.from_environment",
+                return_value=fake_glpi_client(
+                    list_network_diagrams=lambda entity_id=None: [{"entities_id": 100}],
+                ),
+            ):
+                    response = self.client.get("/upload-draw/clientes_con_sedes_sin_diagrama.xlsx")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            response.content_type,
+        )
+        self.assertTrue(response.data.startswith(b"PK"))
+        self.assertIn(
+            b"clientes_con_sedes_sin_diagrama.xlsx",
+            response.headers.get("Content-Disposition", "").encode(),
+        )
 
     def test_upload_draw_site_diagrams_api(self) -> None:
         with patch("catalog_loader.GlpiClient.from_environment", return_value=fake_glpi_client()):

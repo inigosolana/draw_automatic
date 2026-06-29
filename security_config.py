@@ -20,7 +20,7 @@ PLACEHOLDER_SECRET_KEYS = {
 
 def _production_requires_secret_key() -> bool:
     return (
-        os.environ.get("DRAWIO_AUTH_REQUIRED", "0") == "1"
+        os.environ.get("DRAWIO_AUTH_REQUIRED", "1") != "0"
         or os.environ.get("DRAWIO_COOKIE_SECURE", "0") == "1"
     )
 
@@ -94,6 +94,8 @@ def configure_talisman(app: Flask, *, force_https: bool) -> None:
         "frame-src": ["'self'", "embed.diagrams.net", "app.diagrams.net"],
         "frame-ancestors": "'self'",
         "connect-src": ["'self'"],
+        "object-src": "'none'",
+        "base-uri": "'self'",
     }
     use_security_headers = (
         os.environ.get("DRAWIO_ENABLE_SECURITY_HEADERS", "1") == "1"
@@ -123,7 +125,12 @@ def register_cache_headers(app: Flask) -> None:
             response.headers.pop("X-Frame-Options", None)
             response.headers.pop("Referrer-Policy", None)
             response.headers.pop("Permissions-Policy", None)
-        elif response.content_type and "text/html" in response.content_type:
+            return response
+        # Cabeceras base siempre (incluso sin Talisman / fuera de modo seguro).
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        if response.content_type and "text/html" in response.content_type:
             response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
             response.headers.pop("Expires", None)
         return response

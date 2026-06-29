@@ -17,6 +17,86 @@
   const existingPanel = document.getElementById("upload-existing-panel");
   const existingTitle = document.getElementById("upload-existing-title");
   const existingBody = document.getElementById("upload-existing-body");
+  const addressPanel = document.getElementById("upload-glpi-address");
+  const addressInput = document.getElementById("upload-direccion");
+  const addressHint = document.getElementById("upload-glpi-address-hint");
+  const addressReference = document.getElementById("upload-glpi-address-reference");
+  const addressOriginal = document.getElementById("upload-glpi-address-original");
+
+  function glpiOriginalStreet(siteOrCustomer) {
+    if (!siteOrCustomer) {
+      return "";
+    }
+    return siteOrCustomer.direccion_glpi || siteOrCustomer.direccion || "";
+  }
+
+  function effectiveStreet(site, customer) {
+    if (site) {
+      return site.direccion || customer.direccion || "";
+    }
+    return customer ? customer.direccion || "" : "";
+  }
+
+  function clearGlpiAddress() {
+    if (!addressPanel || !addressInput) {
+      return;
+    }
+    addressInput.value = "";
+    if (addressOriginal) {
+      addressOriginal.textContent = "—";
+    }
+    if (addressReference) {
+      addressReference.hidden = true;
+    }
+    addressPanel.hidden = true;
+  }
+
+  function showGlpiAddress(site, customer, context) {
+    if (!addressPanel || !addressInput) {
+      return;
+    }
+
+    const original = glpiOriginalStreet(site || customer);
+    const current = effectiveStreet(site, customer);
+
+    if (context === "cliente") {
+      addressInput.value = current;
+      if (addressReference && addressOriginal) {
+        if (original) {
+          addressOriginal.textContent = original;
+          addressReference.hidden = false;
+        } else {
+          addressReference.hidden = true;
+        }
+      }
+      if (addressHint) {
+        addressHint.textContent =
+          "Direccion del cliente en GLPI. Al elegir la sede podras corregir la calle concreta.";
+      }
+      addressPanel.hidden = false;
+      return;
+    }
+
+    addressInput.value = current;
+    if (addressReference && addressOriginal) {
+      if (original) {
+        addressOriginal.textContent = original;
+        addressReference.hidden = false;
+      } else {
+        addressReference.hidden = true;
+      }
+    }
+    if (addressHint) {
+      if (site && site.direccion_guardada) {
+        addressHint.textContent =
+          "Hay una calle guardada por un tecnico. Si la cambias, se actualizara en GLPI al subir el draw.";
+      } else {
+        addressHint.textContent =
+          "Revisa la calle antes de subir. Si la corriges, se actualizara en GLPI y quedara guardada para esta sede.";
+      }
+    }
+    addressPanel.hidden = false;
+  }
 
   function clearExistingDiagrams() {
     if (!existingPanel || !existingBody) {
@@ -98,24 +178,31 @@
       .replace(/"/g, "&quot;");
   }
 
+  let selectedCustomer = null;
+
   const siteControl = createSearchSelect(document.getElementById("upload-site"), function (site) {
     document.getElementById("upload-entity-id").value = site.id;
     document.getElementById("upload-site-name").value = site.nombre;
+    showGlpiAddress(site, selectedCustomer, "sede");
     loadExistingDiagrams(site.id);
   });
   const customerControl = createSearchSelect(document.getElementById("upload-customer"), function (customer) {
+    selectedCustomer = customer;
     document.getElementById("upload-client-name").value = customer.nombre;
     document.getElementById("upload-entity-id").value = "";
     document.getElementById("upload-site-name").value = "";
     siteControl.setItems(customer.sedes, "Selecciona una sede");
+    showGlpiAddress(null, customer, "cliente");
     clearExistingDiagrams();
   });
   const provinceControl = createSearchSelect(document.getElementById("upload-province"), function (province) {
+    selectedCustomer = null;
     customerControl.setItems(province.clientes, "Selecciona un cliente");
     siteControl.setItems([], "Selecciona primero un cliente");
     document.getElementById("upload-entity-id").value = "";
     document.getElementById("upload-client-name").value = "";
     document.getElementById("upload-site-name").value = "";
+    clearGlpiAddress();
     clearExistingDiagrams();
   });
   provinceControl.setItems(catalog, "Selecciona una provincia");

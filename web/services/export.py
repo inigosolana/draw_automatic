@@ -1,0 +1,46 @@
+from __future__ import annotations
+
+from io import BytesIO
+
+from openpyxl import Workbook
+from openpyxl.styles import Font
+from openpyxl.utils import get_column_letter
+
+MISSING_SITES_EXPORT_FILENAME = "clientes_con_sedes_sin_diagrama.xlsx"
+
+MISSING_SITES_COLUMNS = ("cliente", "sede", "calle", "provincia")
+MISSING_SITES_HEADERS = {
+    "cliente": "Cliente",
+    "sede": "Sede",
+    "calle": "Calle",
+    "provincia": "Provincia",
+}
+
+
+def missing_sites_to_xlsx(rows: list[dict]) -> bytes:
+    """Build an Excel workbook listing sedes without a published diagram."""
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Sin diagrama"
+
+    header_font = Font(bold=True)
+    for column_index, key in enumerate(MISSING_SITES_COLUMNS, start=1):
+        cell = sheet.cell(row=1, column=column_index, value=MISSING_SITES_HEADERS[key])
+        cell.font = header_font
+
+    for row_index, row in enumerate(rows, start=2):
+        for column_index, key in enumerate(MISSING_SITES_COLUMNS, start=1):
+            sheet.cell(row=row_index, column=column_index, value=row.get(key, ""))
+
+    for column_index, key in enumerate(MISSING_SITES_COLUMNS, start=1):
+        letter = get_column_letter(column_index)
+        max_length = len(MISSING_SITES_HEADERS[key])
+        for row in rows:
+            max_length = max(max_length, len(str(row.get(key, ""))))
+        sheet.column_dimensions[letter].width = min(max(max_length + 2, 12), 60)
+
+    sheet.freeze_panes = "A2"
+
+    buffer = BytesIO()
+    workbook.save(buffer)
+    return buffer.getvalue()

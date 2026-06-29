@@ -161,6 +161,9 @@
                 de {{ coverage_data.total_sites }} sedes
                 ({{ ((coverage_data.covered_sites / (coverage_data.total_sites or 1)) * 100) | int }}% cobertura)
               </span>
+              <a class="button secondary quiet" href="{{ url_for('glpi_import.upload_draw_missing_sites_xlsx') }}">
+                Descargar clientes_con_sedes_sin_diagrama.xlsx
+              </a>
             </div>
             {% endif %}
           </div>
