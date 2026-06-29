@@ -3283,23 +3283,28 @@ label[hidden],
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --primary: #4da6c8;
-    --primary-dark: #3a8fab;
-    --accent: #2ab3ba;
-    --accent-soft: #0f2f31;
-    --ink: #e8f0f7;
-    --muted: #8faabb;
-    --border: #2a3f52;
-    --panel-bg: #0f1d28;
-  }
+/* Dark mode desactivado: solo redefinía variables pero la mayoría del CSS usa
+   colores hardcodeados, así que en SO oscuro la UI quedaba ilegible (paneles
+   blancos con texto claro). Mejor un tema claro consistente hasta migrar todo
+   a variables. */
 
-  body {
-    background:
-      radial-gradient(circle at 1px 1px, rgba(77,166,200,0.06) 1px, transparent 1px),
-      linear-gradient(135deg, #0a1520 0%, #0d1e2e 100%);
-    background-size: 18px 18px, auto;
-    color: #e8f0f7;
-  }
+/* Foco de teclado visible en todos los controles (accesibilidad WCAG 2.4.7). */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.button:focus-visible,
+.add-row-button:focus-visible,
+.topbar-link:focus-visible,
+.bottom-nav-item:focus-visible,
+.icon-button:focus-visible,
+.search-select-trigger:focus-visible,
+.app-card:focus-visible,
+.csv-button:focus-visible,
+.my-diagrams-filter:focus-visible,
+.sec-filter:focus-visible,
+.period-filter:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }

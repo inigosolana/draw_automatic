@@ -24,7 +24,7 @@ from web.services.stats import build_admin_chart_periods, build_coverage_data
 
 def _admin_access_denied(technician: dict | None) -> Response | None:
     if not technician_is_admin(technician, ADMIN_USERS):
-        tech_name = (technician.get("name") or technician.get("username") or "").strip().lower()
+        tech_name = ((technician or {}).get("name") or (technician or {}).get("username") or "").strip().lower()
         security_logger.warning(
             f"Acceso denegado a admin: user={tech_name}, IP={get_remote_address()}"
         )

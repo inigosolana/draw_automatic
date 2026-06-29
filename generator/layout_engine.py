@@ -33,7 +33,6 @@ from .geometry import (
 )
 from .parser import ValidatedEquipment, validate_input_schema
 from .layout_labels import (
-    SWITCH_FALLBACK_ICON,
     display_model as _display_model,
     equipment_label as _equipment_label,
     internet_metric_label as _internet_metric_label,

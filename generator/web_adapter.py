@@ -118,13 +118,21 @@ def _parse_terminal_details(details_text: str) -> list[dict]:
     return details
 
 
+def _as_qty(value: object) -> int:
+    """Cantidad tolerante: None / texto no numérico → 1 (mínimo 1)."""
+    try:
+        return max(1, int(value))
+    except (TypeError, ValueError):
+        return 1
+
+
 def _expand_terminal_equipment(equipos: list[dict], details: list[dict]) -> list[dict]:
     expanded: list[dict] = []
     detail_index = 0
     terminal_types = {"telefono", "terminal_dect"}
     for team in equipos:
         tipo = team.get("tipo", "pc")
-        qty = max(1, int(team.get("cantidad", 1)))
+        qty = _as_qty(team.get("cantidad", 1))
         if tipo not in terminal_types:
             clean_team = {key: value for key, value in team.items() if key != "extensiones" or value}
             clean_team["cantidad"] = qty
@@ -353,7 +361,7 @@ def build_drawio_from_data(data: dict, library_path: str | Path) -> WebGeneratio
     warnings.extend(validate_library_file(resolved_library))
     nodes, edges = build_layout(data)
     result = build_drawio(nodes, edges, library, warnings=warnings)
-    total_equipment = sum(int(team.get("cantidad", 1)) for team in data.get("equipos", []))
+    total_equipment = sum(_as_qty(team.get("cantidad", 1)) for team in data.get("equipos", []))
     return WebGenerationResult(
         result=result,
         data=data,

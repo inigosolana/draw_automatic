@@ -44,4 +44,10 @@ def publish_diagram(
         technician=technician,
         source=source,
     )
+    # La sede pasa a estar cubierta: invalida la cobertura cacheada del admin
+    # (igual que hace el borrado), si no seguiría apareciendo como "sin diagrama".
+    try:
+        stores.catalog.clear("admin_coverage")
+    except Exception:  # noqa: BLE001 - invalidar caché nunca debe romper la publicación
+        pass
     return diagram_id, client.diagram_url(diagram_id)
