@@ -754,7 +754,7 @@ svg {
 
 .topbar-inner {
   display: flex;
-  width: min(1180px, calc(100% - 32px));
+  width: min(1500px, calc(100% - 40px));
   min-height: 66px;
   margin: 0 auto;
   align-items: center;
@@ -945,7 +945,7 @@ svg {
 }
 
 .upload-panel {
-  width: min(1180px, calc(100% - 48px));
+  width: min(1500px, calc(100% - 48px));
   margin: 0 auto;
   padding: 36px 40px;
 }
@@ -1086,7 +1086,7 @@ svg {
 }
 
 .diagrams-panel {
-  width: min(1180px, calc(100% - 48px));
+  width: min(1500px, calc(100% - 48px));
   margin: 0 auto;
   padding: 36px 40px;
 }
