@@ -237,6 +237,8 @@ def _normalize_terminal_model(name: str) -> str:
     if sip:
         digits = sip.group(1) or sip.group(2)
         return f"T-{digits}"
+    if re.search(r"\bx303g?\b", name, re.IGNORECASE):
+        return "FANVIL X303G"
     fanvil = FANVIL_PATTERN.search(name)
     if fanvil:
         version = fanvil.group(1)

@@ -193,7 +193,7 @@
           const terminalRows = document.getElementById("terminal-rows");
           const terminalDetails = document.getElementById("terminal-details");
           const terminalEquipmentText = document.getElementById("terminal-equipment-text");
-          const terminalModels = ["FANVIL V62", "FANVIL V64", "T-30", "T-31", "T-33", "T-43", "T-44", "T-73", "W71H", "W72H", "W53H", "W73H"];
+          const terminalModels = ["FANVIL V62", "FANVIL V64", "FANVIL X303G", "T-30", "T-31", "T-33", "T-43", "T-44", "T-73", "W71H", "W72H", "W53H", "W73H"];
           const DECT_HANDSET_MODELS = ["W71H", "W72H", "W53H", "W73H"];
           const DECT_BASE_MODELS = ["W60B", "W70B", "W80B", "YEALINK W90DM"];
           const DEFAULT_DECT_BASE = {

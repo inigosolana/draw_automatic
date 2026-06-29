@@ -30,6 +30,8 @@ class BasicTests(unittest.TestCase):
         self.assertEqual(resolve_alias("Yealink T73W"), "T-73")
         self.assertEqual(resolve_alias("Fanvil V64"), "FANVIL_V64")
         self.assertEqual(resolve_alias("V64"), "FANVIL V64")
+        self.assertEqual(resolve_alias("FANVIL X303G"), "FANVIL_X303G")
+        self.assertEqual(resolve_alias("x303g"), "FANVIL_X303G")
         self.assertEqual(resolve_alias("TP-Link TL-SG108"), "TP-Link 8P")
         self.assertEqual(resolve_alias("TL-SG1005D"), "TP-LINK-5_PORTS")
         self.assertEqual(resolve_alias("switch TP-LINK-5_PORTS"), "TP-LINK-5_PORTS")
