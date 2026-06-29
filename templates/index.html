@@ -54,7 +54,7 @@
           <div class="preview-grid">
             <div><strong>Cliente:</strong> {{ preview.cliente }}</div>
             <div><strong>Sede:</strong> {{ preview.sede }}</div>
-            <div><strong>Direccion:</strong> {{ preview.direccion }}</div>
+            <div><strong>Dirección:</strong> {{ preview.direccion }}</div>
             <div><strong>Plantilla:</strong> {{ preview.template }}</div>
             <div><strong>Total equipos:</strong> {{ preview.total_equipment }}</div>
             <div><strong>Técnico:</strong> {{ preview.technician.name or preview.technician.username }}</div>
@@ -201,7 +201,7 @@
             <label>Sede
               <input type="text" id="sede" name="sede" value="{{ form_data.get('sede', '') }}" required>
             </label>
-            <label>Direccion / calle
+            <label>Dirección / calle
               <input type="text" id="direccion" name="direccion" value="{{ form_data.get('direccion', '') }}" required>
             </label>
               </div>

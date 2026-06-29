@@ -442,11 +442,6 @@ svg {
   margin-top: 16px;
 }
 
-.import-offer-card {
-  border: 2px solid #b8d4e8;
-  background: linear-gradient(180deg, #f7fbff 0%, #ffffff 100%);
-}
-
 .paste-bar-wrap {
   margin-bottom: 18px;
   padding: 12px;
@@ -1241,7 +1236,7 @@ svg {
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #7a8f9c;
+  color: #5e7280;
 }
 
 .diagram-card-detail dd {
@@ -1578,7 +1573,7 @@ textarea {
 
 .search-select.disabled .search-select-trigger {
   background: #f4f6f8;
-  color: #7b8791;
+  color: #5e6f7b;
   cursor: not-allowed;
 }
 
