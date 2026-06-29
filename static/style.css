@@ -447,10 +447,12 @@ svg {
 
 .paste-bar-wrap {
   margin-bottom: 18px;
-  padding: 12px;
-  border: 2px solid #146c94;
-  border-radius: 12px;
-  background: #eef7ff;
+  padding: 16px 18px;
+  border: 1px solid #d8e2ec;
+  border-left: 4px solid #01696f;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 29, 40, 0.04), 0 10px 26px -16px rgba(15, 29, 40, 0.16);
 }
 
 .paste-bar {
@@ -467,7 +469,7 @@ svg {
   max-height: 120px;
   margin: 0;
   padding: 10px 14px;
-  border: 2px solid #7eb8dc;
+  border: 1px solid #d3dde8;
   border-radius: 10px;
   background: #fff;
   font: inherit;
@@ -489,15 +491,16 @@ svg {
   padding: 0 24px;
   border: none;
   border-radius: 10px;
-  background: #146c94;
+  background: linear-gradient(135deg, #146c94, #0f5878);
   color: #fff;
   font-size: 1rem;
   font-weight: 700;
   cursor: pointer;
+  box-shadow: 0 8px 18px -8px rgba(20, 108, 148, 0.6);
 }
 
 .paste-bar-button:hover {
-  background: #0f5878;
+  filter: brightness(1.06);
 }
 
 .paste-bar-button:disabled {
@@ -774,9 +777,9 @@ svg {
   display: flex;
   min-width: 0;
   flex: 1 1 auto;
-  align-self: stretch;
-  align-items: stretch;
-  gap: 4px;
+  align-self: center;
+  align-items: center;
+  gap: 2px;
   overflow-x: auto;
   scrollbar-width: thin;
 }
@@ -785,24 +788,23 @@ svg {
   display: flex;
   align-items: center;
   white-space: nowrap;
-  padding: 0 12px;
-  border-bottom: 3px solid transparent;
-  color: #405563;
+  padding: 8px 12px;
+  border-radius: 8px;
+  color: #526572;
   font-size: 0.82rem;
   font-weight: 700;
   text-decoration: none;
-  white-space: nowrap;
-  transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
+  transition: background 160ms ease, color 160ms ease;
 }
 
 .topbar-link:hover {
-  background: #e8f0f6;
-  color: #005374;
+  background: #e6f3f4;
+  color: #0f1d28;
 }
 
 .topbar-link.active {
-  border-bottom-color: #005374;
-  color: #005374;
+  background: #e6f3f4;
+  color: #146c94;
 }
 
 .topbar-actions {
