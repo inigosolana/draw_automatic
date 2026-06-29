@@ -869,14 +869,14 @@ class WebAppTests(unittest.TestCase):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
         body = response.get_data(as_text=True)
-        self.assertIn("Pasos tras la instalacion", body)
+        self.assertIn("Pasos tras la instalación", body)
         self.assertIn("Paso 1", body)
         self.assertIn("Paso 2", body)
         self.assertIn("Paso 3", body)
         self.assertIn("Zabbix", body)
         self.assertIn("Passbolt", body)
         self.assertIn("Pronto", body)
-        self.assertIn("proximamente", body)
+        self.assertIn("próximamente", body)
 
     def test_zabbix_page_redirects_to_soon(self) -> None:
         self.app.config["AUTH_REQUIRED"] = False

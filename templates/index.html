@@ -139,12 +139,12 @@
             </a>
             {% endif %}
             {% if preview.zabbix_url %}
-            <a class="button" href="{{ preview.zabbix_url }}">Paso 2: Subir a Zabbix</a>
+            <a class="button secondary" href="{{ preview.zabbix_url }}">Paso 2: Subir a Zabbix</a>
             {% endif %}
             {% if preview.confirm_url %}
             <button
               type="button"
-              class="button glpi"
+              class="button primary"
               id="confirm-glpi"
               data-confirm-url="{{ preview.confirm_url }}"
               data-allow-duplicate="1"
@@ -155,7 +155,7 @@
             <button type="button" class="button quiet" id="reset-generation">Nuevo diagrama</button>
           </div>
           {% if preview.confirm_url %}
-          <p class="helper-text">Primero revisa el archivo descargado. Solo se publicara en GLPI cuando pulses confirmar.</p>
+          <p class="helper-text">Primero revisa el archivo descargado. Solo se publicará en GLPI cuando pulses confirmar.</p>
           <p id="glpi-confirm-result" class="helper-text"></p>
           {% endif %}
           <p class="helper-text">

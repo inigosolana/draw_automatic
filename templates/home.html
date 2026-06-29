@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Pasos tras la instalacion — Ausarta</title>
+    <title>Pasos tras la instalación — Ausarta</title>
     <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='images/ausarta-drawio-32.png') }}?v={{ static_v }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ static_v }}">
   </head>
@@ -27,8 +27,8 @@
 
     <main class="app-launcher">
       <div class="app-launcher-intro">
-        <h1>Pasos tras la instalacion</h1>
-        <p>Despues de instalar, el tecnico debe completar estos tres pasos en orden.</p>
+        <h1>Pasos tras la instalación</h1>
+        <p>Después de instalar, el técnico debe completar estos tres pasos en orden.</p>
       </div>
 
       <div class="app-launcher-grid">
@@ -47,7 +47,7 @@
             <img src="{{ url_for('static', filename='images/zabbix-logo.svg') }}?v={{ static_v }}" alt="" width="88" height="88">
           </span>
           <span class="app-card-title">Zabbix</span>
-          <span class="app-card-desc">Dar de alta el host SNMP en el grupo de su provincia (proximamente)</span>
+          <span class="app-card-desc">Dar de alta el host SNMP en el grupo de su provincia (próximamente)</span>
           <span class="app-card-badge">Pronto</span>
         </a>
 
@@ -57,10 +57,11 @@
             <img src="{{ url_for('static', filename='images/passbolt-logo.svg') }}?v={{ static_v }}" alt="" width="88" height="88">
           </span>
           <span class="app-card-title">Passbolt</span>
-          <span class="app-card-desc">Subir credenciales al gestor (proximamente)</span>
+          <span class="app-card-desc">Subir credenciales al gestor (próximamente)</span>
           <span class="app-card-badge">Pronto</span>
         </a>
       </div>
     </main>
+    {% include "_app_footer.html" %}
   </body>
 </html>

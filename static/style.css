@@ -1794,17 +1794,6 @@ html.preview-page-root,
   text-align: left;
 }
 
-@media (max-width: 640px) {
-  .app-brand img {
-    width: 145px;
-    max-width: 75%;
-  }
-
-  .app-tabs {
-    overflow-x: auto;
-  }
-}
-
 @media (max-width: 900px) {
   .topbar-inner {
     width: calc(100% - 20px);
