@@ -257,8 +257,12 @@ class GlpiClient:
         We deliberately avoid the getAllItems endpoint: it returns the full
         `graph` XML for every diagram (~1 MB each), so a page of 50+ diagrams
         overflows GLPI's PHP memory and the server answers HTTP 500. The search
-        API lets us request only the lightweight columns we need and filter by
-        entity server-side.
+        API lets us request only the lightweight columns we need.
+
+        El filtro por entidad se hace en Python tras recibir: el criteria
+        server-side sobre el campo de entidad del plugin Archimap NO filtra de
+        forma fiable, y al ser pocos diagramas (decenas) traerlos todos sin el
+        blob `graph` es barato y correcto.
         """
         fields = GlpiEndpoints.ARCHIMAP_SEARCH_FIELDS
         diagrams: list[dict] = []
@@ -267,9 +271,7 @@ class GlpiClient:
             start = 0
             while True:
                 payload = self._request(
-                    GlpiEndpoints.archimap_search_page(
-                        start, page_size, entity_id if entity_id is not None else None
-                    ),
+                    GlpiEndpoints.archimap_search_page(start, page_size),
                     headers,
                 )
                 rows = payload.get("data") if isinstance(payload, dict) else None
@@ -291,6 +293,13 @@ class GlpiClient:
                 if len(rows) < page_size:
                     break
                 start += page_size
+        if entity_id is not None:
+            diagrams = [
+                diagram
+                for diagram in diagrams
+                if str(diagram.get("entities_id", "")).isdigit()
+                and int(diagram["entities_id"]) == int(entity_id)
+            ]
         return diagrams
 
     def list_covered_entity_ids(self) -> set[int]:

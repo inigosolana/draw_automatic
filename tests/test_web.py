@@ -23,8 +23,18 @@ LIBRARY = str(ROOT / "tests" / "fixtures" / "test_library.xml")
 
 
 def fake_glpi_client(**overrides):
+    from contextlib import contextmanager
+
     client = GlpiClient("http://glpi.test/apirest.php", "app-token", "user-token")
-    client.list_network_diagrams = lambda entity_id: []
+
+    @contextmanager
+    def _fake_session():
+        yield {"Session-Token": "fake"}
+
+    # Evita conexiones reales: session()/batch_session() sin red.
+    client.session = _fake_session
+    client.list_network_diagrams = lambda entity_id=None: []
+    client.list_covered_entity_ids = lambda: set()
     client.create_network_diagram = lambda **kwargs: 42
     client.get_network_diagram = lambda diagram_id: {
         "id": diagram_id,
@@ -73,10 +83,13 @@ class WebAdapterTests(unittest.TestCase):
                 return False
 
         client.session = lambda: FakeSession()
-        client._request = lambda *args, **kwargs: [
-            {"id": 10, "entities_id": 7, "name": "Sede 7"},
-            {"id": 11, "entities_id": 8, "name": "Sede 8"},
-        ]
+        # Formato de la search API: claves por numero de columna (72=id, 81=entities_id).
+        client._request = lambda *args, **kwargs: {
+            "data": [
+                {"72": 10, "81": 7, "1": "Sede 7"},
+                {"72": 11, "81": 8, "1": "Sede 8"},
+            ]
+        }
         diagrams = client.list_network_diagrams(7)
         self.assertEqual([diagram["id"] for diagram in diagrams], [10])
 
@@ -1278,7 +1291,7 @@ class WebAppTests(unittest.TestCase):
             with patch(
                 "web.blueprints.glpi_import.GlpiClient.from_environment",
                 return_value=fake_glpi_client(
-                    list_network_diagrams=lambda entity_id=None: [{"entities_id": 100}],
+                    list_covered_entity_ids=lambda: {100},
                 ),
             ):
                     response = self.client.get("/upload-draw/clientes_con_sedes_sin_diagrama.xlsx")

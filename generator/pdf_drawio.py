@@ -121,10 +121,6 @@ def _from_pdf_objects(raw: bytes) -> str | None:
         pass
 
     # Every indirect object: decode stream data when present.
-    try:
-        num_objects = len(reader.xref.get(0, {})) if reader.xref else 0  # noqa: F841
-    except Exception:
-        pass
     seen = set()
     try:
         candidates = list(reader._objects)

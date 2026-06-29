@@ -64,8 +64,8 @@ def create_admin_blueprint(limiter: Limiter) -> Blueprint:
                         coverage_data = build_coverage_data(catalog_for_coverage, glpi_client, all_rows)
                         if coverage_data and not coverage_data.get("error"):
                             drawio_stores.catalog.set("admin_coverage", coverage_data)
-        except Exception:
-            pass
+        except Exception as exc:  # noqa: BLE001 - la cobertura es opcional; no debe tumbar /admin
+            security_logger.warning(f"No se pudo calcular la cobertura del admin: {exc}")
 
         recent_events = drawio_stores.seclog.recent(limit=200)
         warn_count = 0
