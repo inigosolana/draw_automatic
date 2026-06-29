@@ -1671,8 +1671,14 @@ textarea {
 }
 
 .button.secondary {
-  background: #dcecf6;
-  color: #10384f;
+  background: #ffffff;
+  border: 1px solid #d8e2ec;
+  color: #0f1d28;
+}
+
+.button.secondary:hover {
+  border-color: #146c94;
+  color: #146c94;
 }
 
 .button.glpi {
@@ -1695,18 +1701,21 @@ textarea {
 }
 
 .message.error {
-  background: #fff0f0;
-  border: 1px solid #efb0b0;
+  background: #fdeaea;
+  border: 1px solid #f1c4c4;
+  border-left: 4px solid #dc2626;
 }
 
 .message.success {
-  background: #eef9f1;
-  border: 1px solid #afd8bb;
+  background: #e7f4ec;
+  border: 1px solid #b9ddc6;
+  border-left: 4px solid #15803d;
 }
 
 .message.warning {
-  background: #fff8df;
-  border: 1px solid #e6c85d;
+  background: #fbf0e2;
+  border: 1px solid #ecd3a8;
+  border-left: 4px solid #b45309;
 }
 
 html.preview-page-root,
