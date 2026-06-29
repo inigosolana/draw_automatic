@@ -21,7 +21,6 @@ from urllib.parse import unquote
 # The diagram may appear verbatim, URL-encoded ("%3Cmxfile") or base64-wrapped.
 _MXFILE_RE = re.compile(rb"<mxfile\b[\s\S]*?</mxfile>", re.IGNORECASE)
 _MXGRAPH_RE = re.compile(rb"<mxGraphModel\b[\s\S]*?</mxGraphModel>", re.IGNORECASE)
-_MXFILE_ENCODED_RE = re.compile(rb"%3[Cc]mxfile\b[\s\S]*?%3[Cc]/mxfile%3[Ee]")
 _BASE64_MXFILE_RE = re.compile(rb"PG14ZmlsZ[0-9A-Za-z+/=]+")  # b64 of "<mxfile"
 
 # Bound decompression so a malicious PDF cannot inflate to gigabytes (zip-bomb).
@@ -42,11 +41,13 @@ def _search_mxfile(blob: bytes) -> str | None:
     match = _MXFILE_RE.search(blob)
     if match:
         return match.group(0).decode("utf-8", "ignore")
-    encoded = _MXFILE_ENCODED_RE.search(blob)
-    if encoded:
-        decoded = unquote(encoded.group(0).decode("latin-1"))
-        if "<mxfile" in decoded:
-            return decoded
+    # draw.io desktop (Electron) guarda el diagrama URL-encoded en el metadato
+    # /Subject del PDF: "%3Cmxfile...%3C%2Fmxfile%3E". Des-encodeamos y buscamos.
+    if b"%3cmxfile" in blob.lower():
+        decoded = unquote(blob.decode("latin-1"))
+        m = re.search(r"<mxfile[\s\S]*?</mxfile>", decoded, re.IGNORECASE)
+        if m:
+            return m.group(0)
     b64 = _BASE64_MXFILE_RE.search(blob)
     if b64:
         try:

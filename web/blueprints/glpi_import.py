@@ -501,17 +501,6 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
                         try:
                             raw = uploaded_file.read()
                             if uploaded_file.filename.lower().endswith(".pdf"):
-                                try:
-                                    _debug_dir = Path("/app/data/pdf_debug")
-                                    _debug_dir.mkdir(parents=True, exist_ok=True)
-                                    _debug_path = _debug_dir / f"{uuid.uuid4().hex}.pdf"
-                                    _debug_path.write_bytes(raw)
-                                    security_logger.info(
-                                        f"PDF debug saved: {_debug_path} ({len(raw)} bytes), "
-                                        f"file={uploaded_file.filename}"
-                                    )
-                                except Exception:  # noqa: BLE001 - best-effort debug capture
-                                    pass
                                 xml = extract_drawio_from_pdf(raw)
                             else:
                                 xml = raw.decode("utf-8-sig")

@@ -27,6 +27,17 @@ class PdfDrawioExtractionTests(unittest.TestCase):
         pdf = self._pdf_with_attachment("cumcum_sede1.drawio", MXFILE.encode("utf-8"))
         self.assertEqual(extract_drawio_from_pdf(pdf), MXFILE)
 
+    def test_extracts_mxfile_from_url_encoded_subject_metadata(self) -> None:
+        # draw.io desktop (Electron) guarda el diagrama URL-encoded en /Subject.
+        from urllib.parse import quote
+
+        writer = PdfWriter()
+        writer.add_blank_page(width=200, height=200)
+        writer.add_metadata({"/Subject": quote(MXFILE)})
+        buffer = io.BytesIO()
+        writer.write(buffer)
+        self.assertEqual(extract_drawio_from_pdf(buffer.getvalue()), MXFILE)
+
     def test_raises_when_pdf_has_no_diagram(self) -> None:
         writer = PdfWriter()
         writer.add_blank_page(width=200, height=200)
