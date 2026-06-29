@@ -26,6 +26,12 @@ class CatalogCacheTests(unittest.TestCase):
     def test_missing_key_returns_none(self) -> None:
         self.assertIsNone(self.cache.get("nope"))
 
+    def test_corrupt_payload_returns_none(self) -> None:
+        # Un payload que no es list/dict (p.ej. un número) no debe romper ni reusarse.
+        self.cache.set("raro", 12345)  # type: ignore[arg-type]
+        self.assertIsNone(self.cache.get("raro"))
+        self.assertIsNone(self.cache.get("raro"))
+
 
 if __name__ == "__main__":
     unittest.main()

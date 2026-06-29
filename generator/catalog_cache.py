@@ -44,8 +44,17 @@ class CatalogCache:
                         (key, now),
                     )
                 return None
-        payload = json.loads(row[0])
-        return payload if isinstance(payload, (list, dict)) else None
+        try:
+            payload = json.loads(row[0])
+        except (ValueError, TypeError):
+            payload = None
+        if isinstance(payload, (list, dict)):
+            return payload
+        # Payload corrupto/inesperado: bórralo para no releerlo indefinidamente.
+        with closing(self._connect()) as connection:
+            with connection:
+                connection.execute("DELETE FROM catalog_cache WHERE cache_key = ?", (key,))
+        return None
 
     def set(self, key: str, payload: list | dict) -> None:
         now = time.time()

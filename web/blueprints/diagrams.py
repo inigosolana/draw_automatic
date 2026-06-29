@@ -76,7 +76,9 @@ def _normalize_preview_xml(xml: str) -> str:
 
     max_right = 0
     max_bottom = 0
-    for fragment in re.finditer(r"<mxGeometry\b[^>]*/>", cleaned):
+    # Casa la etiqueta de apertura tanto autocerrada (<mxGeometry .../>) como con
+    # hijos (<mxGeometry ...> ... </mxGeometry>, que draw.io emite con waypoints).
+    for fragment in re.finditer(r"<mxGeometry\b[^>]*>", cleaned):
         block = fragment.group(0)
         x_match = re.search(r'\bx="(\d+)"', block)
         y_match = re.search(r'\by="(\d+)"', block)
