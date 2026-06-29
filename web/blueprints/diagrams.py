@@ -1,17 +1,16 @@
 from __future__ import annotations
 
-import json
 import os
 import re
 from pathlib import Path
 from urllib.parse import quote
 
-from flask import Blueprint, Response, current_app, render_template, request, send_file, url_for
+from flask import Blueprint, Response, current_app, jsonify, render_template, request, send_file, url_for
 from flask_limiter import Limiter
 from flask_wtf.csrf import CSRFProtect
 
 from app_context import current_technician, get_drawio_stores, login_required, security_logger
-from catalog_loader import _glpi_diagram_rows, load_glpi_catalog
+from web.services.glpi_catalog import glpi_diagram_rows, load_glpi_catalog
 from generator.diagram_metadata import enrich_activity_rows
 from generator.glpi_client import GlpiClient, GlpiError
 from generator.safe_errors import public_error_message
@@ -143,10 +142,7 @@ def create_diagrams_blueprint(limiter: Limiter, csrf: CSRFProtect) -> Blueprint:
     @csrf.exempt
     @limiter.limit("30 per minute")
     def health() -> Response:
-        return Response(
-            json.dumps({"status": "ok"}),
-            mimetype="application/json",
-        )
+        return jsonify({"status": "ok"})
 
     @bp.route("/drawio-library.xml", methods=["GET", "OPTIONS"])
     @csrf.exempt
@@ -192,7 +188,7 @@ def create_diagrams_blueprint(limiter: Limiter, csrf: CSRFProtect) -> Blueprint:
                 client = GlpiClient.from_environment()
                 if not client:
                     raise GlpiError("GLPI no esta configurado.")
-                diagram_rows = _glpi_diagram_rows(client, entity_id, drawio_stores.activity)
+                diagram_rows = glpi_diagram_rows(client, entity_id, drawio_stores.activity)
             except (ValueError, GlpiError) as exc:
                 glpi_error = public_error_message(str(exc), context="consulta de diagramas GLPI")
         return render_template(
@@ -276,26 +272,14 @@ def create_diagrams_blueprint(limiter: Limiter, csrf: CSRFProtect) -> Blueprint:
     def preview_save(token: str) -> Response:
         payload = get_drawio_stores().downloads.get(token)
         if not payload:
-            return Response(
-                json.dumps({"error": "Diagrama pendiente no encontrado."}),
-                status=404,
-                mimetype="application/json",
-            )
+            return jsonify({"error": "Diagrama pendiente no encontrado."}), 404
         if payload.get("uploaded"):
-            return Response(
-                json.dumps({"error": "El diagrama ya fue publicado en GLPI."}),
-                status=409,
-                mimetype="application/json",
-            )
+            return jsonify({"error": "El diagrama ya fue publicado en GLPI."}), 409
         body = request.get_json(silent=True) or {}
         try:
             xml = _validate_drawio_xml(str(body.get("xml", "")))
         except ValueError as exc:
-            return Response(
-                json.dumps({"error": str(exc)}),
-                status=400,
-                mimetype="application/json",
-            )
+            return jsonify({"error": str(exc)}), 400
         get_drawio_stores().downloads.update_payload(token, xml=xml)
         technician = current_technician()
         tech_name = (technician.get("name") or technician.get("username") or "").strip()
@@ -304,10 +288,7 @@ def create_diagrams_blueprint(limiter: Limiter, csrf: CSRFProtect) -> Blueprint:
             token,
             tech_name,
         )
-        return Response(
-            json.dumps({"ok": True, "message": "Cambios guardados en el diagrama pendiente."}),
-            mimetype="application/json",
-        )
+        return jsonify({"ok": True, "message": "Cambios guardados en el diagrama pendiente."})
 
     @bp.get("/preview/glpi/<int:diagram_id>")
     @login_required
@@ -366,42 +347,27 @@ def create_diagrams_blueprint(limiter: Limiter, csrf: CSRFProtect) -> Blueprint:
     def preview_glpi_save(diagram_id: int) -> Response:
         client = GlpiClient.from_environment()
         if not client:
-            return Response(
-                json.dumps({"error": "GLPI no esta configurado."}),
-                status=503,
-                mimetype="application/json",
-            )
+            return jsonify({"error": "GLPI no esta configurado."}), 503
         body = request.get_json(silent=True) or {}
         try:
             xml = _validate_drawio_xml(str(body.get("xml", "")))
         except ValueError as exc:
-            return Response(
-                json.dumps({"error": str(exc)}),
-                status=400,
-                mimetype="application/json",
-            )
+            return jsonify({"error": str(exc)}), 400
         technician = current_technician()
         try:
-            version_id, version_name = client.save_network_diagram_version(
-                diagram_id,
-                xml,
-                technician=technician,
-            )
+            # Una sola sesion GLPI para guardar la version y releer el diagrama.
+            with client.batch_session():
+                version_id, version_name = client.save_network_diagram_version(
+                    diagram_id,
+                    xml,
+                    technician=technician,
+                )
+                diagram = client.get_network_diagram(diagram_id)
         except GlpiError as exc:
-            return Response(
-                json.dumps(
-                    {
-                        "error":                         public_error_message(
-                            str(exc),
-                            context="guardado del diagrama en GLPI",
-                        )
-                    }
-                ),
-                status=502,
-                mimetype="application/json",
-            )
+            return jsonify(
+                {"error": public_error_message(str(exc), context="guardado del diagrama en GLPI")}
+            ), 502
         drawio_stores = get_drawio_stores()
-        diagram = client.get_network_diagram(diagram_id)
         entity_id = int(diagram.get("entities_id") or 0)
         activity_rows = drawio_stores.activity.map_for_entity(entity_id) if entity_id else {}
         source_activity = activity_rows.get(diagram_id) or activity_rows.get(int(diagram_id))
@@ -423,17 +389,14 @@ def create_diagrams_blueprint(limiter: Limiter, csrf: CSRFProtect) -> Blueprint:
             version_name,
             tech_name,
         )
-        return Response(
-            json.dumps(
-                {
-                    "ok": True,
-                    "message": f"Diagrama guardado. Copia de version: {version_name}.",
-                    "version_id": version_id,
-                    "version_name": version_name,
-                    "version_url": client.diagram_url(version_id),
-                }
-            ),
-            mimetype="application/json",
+        return jsonify(
+            {
+                "ok": True,
+                "message": f"Diagrama guardado. Copia de version: {version_name}.",
+                "version_id": version_id,
+                "version_name": version_name,
+                "version_url": client.diagram_url(version_id),
+            }
         )
 
     return bp

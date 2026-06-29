@@ -2,11 +2,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import datetime
-from pathlib import Path
 
-from defusedxml import ElementTree as DefusedET
-from defusedxml.common import DefusedXmlException
 from flask import Blueprint, Response, current_app, jsonify, redirect, render_template, request, url_for
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -17,29 +13,20 @@ from app_context import (
     login_required,
     security_logger,
 )
-from catalog_loader import _glpi_diagram_rows, index_context, load_glpi_catalog
+from web.services.glpi_catalog import glpi_diagram_rows, index_context, load_glpi_catalog
 from generator.comms_client import CommsError, import_products_text
 from generator.glpi_client import GlpiClient, GlpiError
 from generator.work_order_import import import_work_order_by_id
-from generator.diagram_metadata import (
-    build_diagram_description,
-    format_activity_timestamp,
-    unique_diagram_name,
-)
+from generator.diagram_metadata import unique_diagram_name
 from generator.glpi_merge import merge_import_with_glpi
-from generator.knowledge_base import learn_from_drawio
-from generator.pdf_drawio import PdfDrawioError, extract_drawio_from_pdf
 from generator.safe_errors import public_error_message
 from generator.utils import positive_integer
 from generator.web_adapter import build_drawio_from_data, form_to_data, form_to_structured_data
 from generator.work_order_text_parser import parse_work_order_paste
-from generator.address_formatter import addresses_equivalent
+from web.services.diagram_publish import publish_diagram
 from web.services.export import MISSING_SITES_EXPORT_FILENAME, missing_sites_to_xlsx
-from web.services.stats import (
-    build_missing_sites_rows,
-    find_catalog_sede,
-    glpi_street,
-)
+from web.services.stats import build_missing_sites_rows
+from web.services.upload_service import publish_uploaded_files, sync_entity_address
 
 
 def _pending_generation_url(token: str) -> str:
@@ -61,7 +48,7 @@ def _preview_from_download(token: str, payload: dict) -> dict:
     glpi_client = GlpiClient.from_environment()
     if entity_id and glpi_client:
         try:
-            existing_diagrams = _glpi_diagram_rows(glpi_client, entity_id, drawio_stores.activity)
+            existing_diagrams = glpi_diagram_rows(glpi_client, entity_id, drawio_stores.activity)
         except GlpiError:
             existing_diagrams = []
     technician = payload.get("technician") or current_technician()
@@ -162,7 +149,7 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
         glpi_client = GlpiClient.from_environment()
         if glpi_entity_id and glpi_client:
             try:
-                existing_diagrams = _glpi_diagram_rows(glpi_client, glpi_entity_id, drawio_stores.activity)
+                existing_diagrams = glpi_diagram_rows(glpi_client, glpi_entity_id, drawio_stores.activity)
             except GlpiError:
                 existing_diagrams = []
         technician = current_technician()
@@ -217,27 +204,18 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
                     f"{payload['cliente']} - {payload['sede']}",
                     existing,
                 )
-                diagram_id = client.create_network_diagram(
+                diagram_id, diagram_url = publish_diagram(
+                    client,
+                    drawio_stores,
                     entity_id=entity_id,
-                    name=diagram_name,
-                    description=build_diagram_description(
-                        client_name=payload["cliente"],
-                        site_name=payload["sede"],
-                        technician=technician,
-                        source="Generado",
-                        filename=payload.get("filename", ""),
-                    ),
+                    diagram_name=diagram_name,
+                    client_name=payload["cliente"],
+                    site_name=payload["sede"],
+                    technician=technician,
+                    source="Generado",
                     graph_xml=payload["xml"],
+                    filename=payload.get("filename", ""),
                 )
-            drawio_stores.activity.add(
-                diagram_id=diagram_id,
-                entity_id=entity_id,
-                diagram_name=diagram_name,
-                client_name=payload["cliente"],
-                site_name=payload["sede"],
-                technician=technician,
-                source="Generado",
-            )
         except ValueError as exc:
             return Response(
                 public_error_message(str(exc), context="publicacion en GLPI"),
@@ -252,10 +230,7 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
                 mimetype="text/plain; charset=utf-8",
             )
         drawio_stores.downloads.update_payload(token, uploaded=True)
-        return Response(
-            json.dumps({"id": diagram_id, "url": client.diagram_url(diagram_id)}),
-            mimetype="application/json",
-        )
+        return jsonify({"id": diagram_id, "url": diagram_url})
 
     @bp.post("/api/import-work-order")
     @login_required
@@ -367,7 +342,7 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
         if not client:
             return jsonify({"error": "GLPI no esta configurado."}), 503
         try:
-            rows = _glpi_diagram_rows(client, entity_id, get_drawio_stores().activity)
+            rows = glpi_diagram_rows(client, entity_id, get_drawio_stores().activity)
         except GlpiError as exc:
             return jsonify({"error": public_error_message(str(exc), context="consulta de diagramas")}), 502
         rows.sort(key=lambda item: item.get("created_label", ""), reverse=True)
@@ -463,108 +438,32 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
                     technician_label = (
                         technician.get("name") or technician.get("username") or "desconocido"
                     )
-                    if corrected_address:
-                        drawio_stores.sites.set(
-                            validated_entity_id,
-                            corrected_address,
-                            technician_label,
+                    # Una sola sesion GLPI para todas las operaciones de la subida.
+                    with client.batch_session():
+                        if corrected_address:
+                            upload_errors.extend(
+                                sync_entity_address(
+                                    client,
+                                    drawio_stores,
+                                    entity_id=validated_entity_id,
+                                    address=corrected_address,
+                                    glpi_customers=glpi_customers,
+                                    technician_label=technician_label,
+                                )
+                            )
+                        results, file_errors = publish_uploaded_files(
+                            client,
+                            drawio_stores,
+                            uploaded_files,
+                            entity_id=validated_entity_id,
+                            client_name=client_name,
+                            site_name=site_name,
+                            technician=technician,
+                            technician_name=technician_name,
+                            client_ip=client_ip,
                         )
-                        catalog_sede = find_catalog_sede(glpi_customers, validated_entity_id)
-                        glpi_original = glpi_street(catalog_sede) if catalog_sede else ""
-                        if glpi_original and not addresses_equivalent(
-                            corrected_address, glpi_original
-                        ):
-                            try:
-                                client.update_entity_address(
-                                    validated_entity_id, corrected_address
-                                )
-                                drawio_stores.catalog.clear("glpi_customer_catalog")
-                                drawio_stores.catalog.clear("admin_coverage")
-                            except GlpiError as exc:
-                                upload_errors.append(
-                                    "La calle se guardo localmente, pero no se pudo actualizar en GLPI: "
-                                    + public_error_message(str(exc), context="actualizacion de direccion GLPI")
-                                )
-                    existing_diagrams = client.list_network_diagrams(validated_entity_id)
-                    for uploaded_file in uploaded_files:
-                        if not uploaded_file or not uploaded_file.filename:
-                            continue
-                        if not uploaded_file.filename.lower().endswith((".drawio", ".xml", ".pdf")):
-                            upload_errors.append(
-                                f"{uploaded_file.filename}: extension no valida (.drawio, .xml o .pdf)."
-                            )
-                            security_logger.warning(
-                                f"Upload attempt with invalid file type: {uploaded_file.filename}, "
-                                f"user={technician_name}, IP={client_ip}"
-                            )
-                            continue
-                        try:
-                            raw = uploaded_file.read()
-                            if uploaded_file.filename.lower().endswith(".pdf"):
-                                xml = extract_drawio_from_pdf(raw)
-                            else:
-                                xml = raw.decode("utf-8-sig")
-                            root = DefusedET.fromstring(xml)
-                            if root.tag != "mxfile":
-                                raise ValueError("El documento no contiene un mxfile de Draw.io.")
-                            diagram_name = unique_diagram_name(
-                                Path(uploaded_file.filename).stem,
-                                existing_diagrams,
-                            )
-                            diagram_id = client.create_network_diagram(
-                                entity_id=validated_entity_id,
-                                name=diagram_name,
-                                description=build_diagram_description(
-                                    client_name=client_name,
-                                    site_name=site_name,
-                                    technician=technician,
-                                    source="Draw subido",
-                                    filename=uploaded_file.filename,
-                                ),
-                                graph_xml=xml,
-                            )
-                            drawio_stores.activity.add(
-                                diagram_id=diagram_id,
-                                entity_id=validated_entity_id,
-                                diagram_name=diagram_name,
-                                client_name=client_name,
-                                site_name=site_name,
-                                technician=technician,
-                                source="Draw subido",
-                            )
-                            learned_models = learn_from_drawio(xml, uploaded_file.filename)
-                            created = {
-                                "id": diagram_id,
-                                "url": client.diagram_url(diagram_id),
-                                "filename": uploaded_file.filename,
-                                "name": diagram_name,
-                                "cliente": client_name,
-                                "sede": site_name,
-                                "technician": technician.get("name") or technician.get("username") or "",
-                                "created_label": format_activity_timestamp(datetime.now().timestamp()),
-                                "learned_models": learned_models,
-                            }
-                            upload_results.append(created)
-                            existing_diagrams.append({"id": diagram_id, "name": diagram_name})
-                            security_logger.info(
-                                f"File uploaded successfully: diagram_id={diagram_id}, "
-                                f"file={uploaded_file.filename}, user={technician_name}, IP={client_ip}"
-                            )
-                        except (
-                            UnicodeDecodeError,
-                            DefusedET.ParseError,
-                            DefusedXmlException,
-                            PdfDrawioError,
-                            ValueError,
-                            GlpiError,
-                        ) as exc:
-                            upload_errors.append(
-                                f"{uploaded_file.filename}: {public_error_message(str(exc), context='subida del diagrama')}"
-                            )
-                            security_logger.warning(
-                                f"Upload failed: {exc}, file={uploaded_file.filename}, "
-                                f"user={technician_name}, IP={client_ip}"
-                            )
+                    upload_results.extend(results)
+                    upload_errors.extend(file_errors)
                     if not upload_results and not upload_error:
                         upload_error = (
                             upload_errors[0]

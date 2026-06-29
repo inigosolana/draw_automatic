@@ -725,7 +725,7 @@ class WebAppTests(unittest.TestCase):
                 ],
             }
         ]
-        with patch("catalog_loader.load_glpi_catalog", return_value=(sample_catalog, "")):
+        with patch("web.services.glpi_catalog.load_glpi_catalog", return_value=(sample_catalog, "")):
             response = self.client.get("/diagrams")
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Consultar diagramas publicados", response.data)
@@ -914,7 +914,7 @@ class WebAppTests(unittest.TestCase):
             "username": username,
             "name": "Tecnico Prueba",
         }
-        with patch("catalog_loader.GlpiClient.from_environment", return_value=configured_client):
+        with patch("web.services.glpi_catalog.GlpiClient.from_environment", return_value=configured_client):
             response = self.client.post(
                 "/login",
                 data={"username": "tecnico", "password": "clave"},
@@ -1138,8 +1138,8 @@ class WebAppTests(unittest.TestCase):
             app.config["WTF_CSRF_ENABLED"] = False
             app.config["AUTH_REQUIRED"] = False
             client = app.test_client()
-            with patch("catalog_loader.load_glpi_catalog", return_value=(sample_catalog, "")):
-                with patch("catalog_loader.GlpiClient.from_environment", return_value=None):
+            with patch("web.services.glpi_catalog.load_glpi_catalog", return_value=(sample_catalog, "")):
+                with patch("web.services.glpi_catalog.GlpiClient.from_environment", return_value=None):
                     pages = [
                         client.get("/"),
                         client.get("/draw"),
@@ -1153,8 +1153,8 @@ class WebAppTests(unittest.TestCase):
                     "username": "admin.user",
                     "name": "Admin User",
                 }
-            with patch("catalog_loader.load_glpi_catalog", return_value=([], "")):
-                with patch("catalog_loader.GlpiClient.from_environment", return_value=None):
+            with patch("web.services.glpi_catalog.load_glpi_catalog", return_value=([], "")):
+                with patch("web.services.glpi_catalog.GlpiClient.from_environment", return_value=None):
                     with patch("web.blueprints.admin.ADMIN_USERS", {"admin.user"}):
                         pages.append(client.get("/admin"))
                         pages.append(client.get("/admin/diagrams"))
@@ -1185,7 +1185,7 @@ class WebAppTests(unittest.TestCase):
         configured_client = fake_glpi_client(
             list_network_diagrams=lambda entity_id: [{"id": 99, "entities_id": entity_id}],
         )
-        with patch("catalog_loader.GlpiClient.from_environment", return_value=configured_client):
+        with patch("web.services.glpi_catalog.GlpiClient.from_environment", return_value=configured_client):
             response = self.client.post("/confirm-glpi/duplicate-token")
         self.assertEqual(response.status_code, 409)
         self.assertIn(b"ya tiene un diagrama", response.data)
@@ -1213,7 +1213,7 @@ class WebAppTests(unittest.TestCase):
         self.assertIn(b"No se ha encontrado la libreria", response.data)
 
     def test_upload_draw_rejects_invalid_xml(self) -> None:
-        with patch("catalog_loader.GlpiClient.from_environment", return_value=fake_glpi_client()):
+        with patch("web.services.glpi_catalog.GlpiClient.from_environment", return_value=fake_glpi_client()):
             response = self.client.post(
                 "/upload-draw",
                 data={
@@ -1270,6 +1270,53 @@ class WebAppTests(unittest.TestCase):
         self.assertEqual(saved["address"], "Calle Nueva 5")
         glpi_client.update_entity_address.assert_called_once_with(7, "Calle Nueva 5")
 
+    def test_upload_draw_extracts_pdf_diagram(self) -> None:
+        from urllib.parse import quote
+
+        from pypdf import PdfWriter
+
+        mxfile = '<mxfile><diagram name="P1">contenido</diagram></mxfile>'
+        writer = PdfWriter()
+        writer.add_blank_page(width=200, height=200)
+        writer.add_metadata({"/Subject": quote(mxfile)})
+        pdf_buffer = BytesIO()
+        writer.write(pdf_buffer)
+        pdf_buffer.seek(0)
+
+        sample_catalog = [
+            {
+                "id": 1,
+                "nombre": "Bizkaia",
+                "clientes": [
+                    {
+                        "id": 10,
+                        "nombre": "Cliente Demo",
+                        "sedes": [{"id": 7, "nombre": "Central", "direccion": "Calle 1"}],
+                    }
+                ],
+            }
+        ]
+        published: dict = {}
+        glpi_client = fake_glpi_client(
+            create_network_diagram=lambda **kwargs: published.update(kwargs) or 99
+        )
+        with patch("web.blueprints.glpi_import.load_glpi_catalog", return_value=(sample_catalog, "")):
+            with patch("web.blueprints.glpi_import.GlpiClient.from_environment", return_value=glpi_client):
+                response = self.client.post(
+                    "/upload-draw",
+                    data={
+                        "glpi_entity_id": "7",
+                        "glpi_cliente": "Cliente Demo",
+                        "glpi_sede": "Central",
+                        "drawio_files": (pdf_buffer, "cumcum_sede1.pdf"),
+                    },
+                    content_type="multipart/form-data",
+                )
+        self.assertEqual(response.status_code, 200)
+        # El mxfile incrustado en el PDF se extrajo y se publicó como diagrama.
+        self.assertEqual(published.get("graph_xml"), mxfile)
+        self.assertIn(b"cumcum_sede1.pdf", response.data)
+
     def test_upload_draw_missing_sites_xlsx(self) -> None:
         sample_catalog = [
             {
@@ -1307,9 +1354,9 @@ class WebAppTests(unittest.TestCase):
         )
 
     def test_upload_draw_site_diagrams_api(self) -> None:
-        with patch("catalog_loader.GlpiClient.from_environment", return_value=fake_glpi_client()):
+        with patch("web.services.glpi_catalog.GlpiClient.from_environment", return_value=fake_glpi_client()):
             with patch(
-                "web.blueprints.glpi_import._glpi_diagram_rows",
+                "web.blueprints.glpi_import.glpi_diagram_rows",
                 return_value=[
                     {
                         "id": 12,
@@ -1334,7 +1381,7 @@ class WebAppTests(unittest.TestCase):
             b'<!DOCTYPE mxfile [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>'
             b"<mxfile><diagram>&xxe;</diagram></mxfile>"
         )
-        with patch("catalog_loader.GlpiClient.from_environment", return_value=fake_glpi_client()):
+        with patch("web.services.glpi_catalog.GlpiClient.from_environment", return_value=fake_glpi_client()):
             response = self.client.post(
                 "/upload-draw",
                 data={
@@ -1374,7 +1421,7 @@ class WebAppTests(unittest.TestCase):
             "uploaded": False,
         }
         configured_client = GlpiClient("http://glpi", "a", "u")
-        with patch("catalog_loader.GlpiClient.from_environment", return_value=configured_client):
+        with patch("web.services.glpi_catalog.GlpiClient.from_environment", return_value=configured_client):
             response = self.client.post("/confirm-glpi/invalid-id")
         self.assertEqual(response.status_code, 400)
         self.assertIn(b"No se ha podido completar la publicacion en GLPI", response.data)

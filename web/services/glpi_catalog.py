@@ -11,7 +11,7 @@ from generator.safe_errors import public_error_message
 from generator.site_directory import apply_saved_addresses
 
 
-def _glpi_diagram_rows(client: GlpiClient, entity_id: int, activity: DiagramActivity) -> list[dict]:
+def glpi_diagram_rows(client: GlpiClient, entity_id: int, activity: DiagramActivity) -> list[dict]:
     activity_map = activity.map_for_entity(entity_id)
     rows: list[dict] = []
     for diagram in client.list_network_diagrams(entity_id):

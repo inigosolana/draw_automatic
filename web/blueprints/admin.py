@@ -14,7 +14,7 @@ from app_context import (
     login_required,
     security_logger,
 )
-from catalog_loader import load_glpi_catalog
+from web.services.glpi_catalog import load_glpi_catalog
 from generator.diagram_metadata import enrich_activity_rows
 from generator.glpi_client import GlpiClient, GlpiError
 from generator.safe_errors import public_error_message
