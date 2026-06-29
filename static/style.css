@@ -1374,17 +1374,27 @@ svg {
 }
 
 .source-badge {
-  display: inline-block;
-  padding: 4px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
   border-radius: 999px;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0.02em;
 }
 
+.source-badge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
 .source-badge-generated {
-  background: #e8f4ff;
-  color: #0d5f7e;
+  background: #e6f3f4;
+  color: #146c94;
 }
 
 .source-badge-upload {
@@ -1460,18 +1470,19 @@ svg {
 
 .diagram-table th,
 .diagram-table td {
-  padding: 13px 14px;
-  border-bottom: 1px solid #d5e0ea;
+  padding: 12px 14px;
+  border-bottom: 1px solid #eef3f8;
   text-align: left;
   vertical-align: middle;
   overflow-wrap: anywhere;
 }
 
 .diagram-table th {
-  background: #edf4ff;
-  color: #405563;
+  background: transparent;
+  border-bottom: 1px solid #d8e2ec;
+  color: #526572;
   font-size: 0.72rem;
-  letter-spacing: 0.055em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
@@ -1480,7 +1491,7 @@ svg {
 }
 
 .diagram-table tbody tr:hover {
-  background: #f7faff;
+  background: #eef7f7;
 }
 
 .diagram-table tbody tr:last-child td {
