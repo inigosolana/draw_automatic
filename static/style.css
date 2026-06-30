@@ -1592,6 +1592,20 @@ textarea:focus {
   outline-offset: 0;
 }
 
+/* Validacion inline: marca en rojo el campo obligatorio vacio tras intentar
+   enviar o al salir del campo (nativo, sin JS). */
+input:user-invalid,
+select:user-invalid,
+textarea:user-invalid {
+  border-color: #dc2626;
+  background: #fff;
+}
+input:user-invalid:focus,
+select:user-invalid:focus,
+textarea:user-invalid:focus {
+  outline-color: rgba(220, 38, 38, 0.22);
+}
+
 textarea {
   resize: vertical;
 }
