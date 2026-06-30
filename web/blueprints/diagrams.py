@@ -190,7 +190,15 @@ def create_diagrams_blueprint(limiter: Limiter, csrf: CSRFProtect) -> Blueprint:
                 client = GlpiClient.from_environment()
                 if not client:
                     raise GlpiError("GLPI no esta configurado.")
-                diagram_rows = glpi_diagram_rows(client, entity_id, drawio_stores.activity)
+                # Incluir también la entidad cliente (padre): en GLPI hay
+                # diagramas asociados al cliente y no a la sede concreta.
+                relevant_ids = {entity_id}
+                for province in glpi_customers or []:
+                    for customer in province.get("clientes", []):
+                        if any(int(s.get("id") or 0) == entity_id for s in customer.get("sedes", [])):
+                            if str(customer.get("id") or "").isdigit():
+                                relevant_ids.add(int(customer["id"]))
+                diagram_rows = glpi_diagram_rows(client, relevant_ids, drawio_stores.activity)
             except (ValueError, GlpiError) as exc:
                 glpi_error = public_error_message(str(exc), context="consulta de diagramas GLPI")
         return render_template(

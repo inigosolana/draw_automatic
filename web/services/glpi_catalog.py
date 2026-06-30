@@ -11,12 +11,24 @@ from generator.safe_errors import public_error_message
 from generator.site_directory import apply_saved_addresses
 
 
-def glpi_diagram_rows(client: GlpiClient, entity_id: int, activity: DiagramActivity) -> list[dict]:
-    activity_map = activity.map_for_entity(entity_id)
+def glpi_diagram_rows(client: GlpiClient, entity_id, activity: DiagramActivity) -> list[dict]:
+    """Diagramas de una sede. `entity_id` puede ser un id o un conjunto de ids
+    (p. ej. la sede + su entidad cliente padre): en GLPI un diagrama puede estar
+    asociado al cliente y no a la sede concreta, y aun así hay que mostrarlo."""
+    if isinstance(entity_id, int):
+        entity_ids = {entity_id}
+    else:
+        entity_ids = {int(e) for e in entity_id if str(e).isdigit()}
+    activity_map: dict[int, dict] = {}
+    for eid in entity_ids:
+        activity_map.update(activity.map_for_entity(eid))
     rows: list[dict] = []
-    for diagram in client.list_network_diagrams(entity_id):
+    for diagram in client.list_network_diagrams(None):
         diagram_id = diagram.get("id")
         if not str(diagram_id or "").isdigit():
+            continue
+        ent = diagram.get("entities_id")
+        if not (str(ent or "").isdigit() and int(ent) in entity_ids):
             continue
         row = {
             "id": int(diagram_id),
