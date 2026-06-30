@@ -3353,6 +3353,83 @@ label[hidden],
 .b-mikrotik { background: #2b3440; }
 .b-generic { background: #6b7c89; }
 
+/* Editor rapido de cajas (vista previa de Crear diagrama) */
+.box-editor-section { grid-column: 1 / -1; }
+.box-editor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-bottom: 12px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid #eaf0f6;
+}
+.box-editor-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: 1.1rem;
+  color: #0f1d28;
+}
+.box-toolbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.be-btn {
+  appearance: none;
+  border: 1px solid #d8e2ec;
+  background: #fff;
+  color: #0f1d28;
+  border-radius: 8px;
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.be-btn:hover { border-color: #146c94; color: #146c94; }
+.be-btn.on { background: #01696f; border-color: #01696f; color: #fff; }
+.be-btn.be-icon { padding: 7px 11px; line-height: 1; }
+.be-sep { width: 1px; height: 22px; background: #d8e2ec; margin: 0 3px; }
+.be-zoom { min-width: 46px; text-align: center; font-size: 0.8rem; font-weight: 700; color: #526572; font-variant-numeric: tabular-nums; }
+.be-hint { font-size: 0.8rem; color: #526572; margin: 0 0 10px; }
+.be-canvas {
+  position: relative;
+  min-height: 460px;
+  border: 1px solid #d8e2ec;
+  border-radius: 14px;
+  overflow: hidden;
+  touch-action: none;
+  background:
+    radial-gradient(circle at 1px 1px, rgba(82, 101, 114, 0.16) 1px, transparent 0) 0 0 / 22px 22px,
+    #fff;
+}
+#be-stage { position: absolute; inset: 0; transform-origin: 0 0; transition: transform 0.12s ease; }
+#be-wires { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; }
+#be-wires line.hit { stroke: transparent; stroke-width: 16px; cursor: pointer; }
+.be-canvas .ebox {
+  position: absolute;
+  z-index: 2;
+  cursor: grab;
+  user-select: none;
+  margin: 0;
+  background: #fff;
+  border: 1.5px solid #146c94;
+  border-radius: 9px;
+  padding: 8px 11px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-align: center;
+  color: #0f1d28;
+  box-shadow: 0 1px 2px rgba(15, 29, 40, 0.06), 0 8px 22px -14px rgba(15, 29, 40, 0.4);
+  min-width: 64px;
+}
+.be-canvas .ebox:active { cursor: grabbing; }
+.be-canvas .ebox.sel { box-shadow: 0 0 0 3px rgba(1, 105, 111, 0.4); border-color: #01696f; }
+.be-canvas.linkmode, .be-canvas.linkmode .ebox { cursor: crosshair; }
+.be-canvas.delmode, .be-canvas.delmode .ebox { cursor: pointer; }
+
 /* Dark mode desactivado: solo redefinía variables pero la mayoría del CSS usa
    colores hardcodeados, así que en SO oscuro la UI quedaba ilegible (paneles
    blancos con texto claro). Mejor un tema claro consistente hasta migrar todo

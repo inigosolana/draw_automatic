@@ -332,6 +332,25 @@
             </div>
           </details>
 
+          <section class="form-section box-editor-section">
+            <div class="box-editor-head">
+              <h2 class="box-editor-title"><span class="section-icon">▦</span> Vista previa · editor rápido</h2>
+              <div class="box-toolbar">
+                <button type="button" class="be-btn on" id="be-move">Mover</button>
+                <button type="button" class="be-btn" id="be-box">＋ Caja</button>
+                <button type="button" class="be-btn" id="be-link">Conectar</button>
+                <button type="button" class="be-btn" id="be-del">Borrar</button>
+                <button type="button" class="be-btn" id="be-clear">Vaciar</button>
+                <span class="be-sep"></span>
+                <button type="button" class="be-btn be-icon" id="be-zoomout" title="Alejar">−</button>
+                <span class="be-zoom" id="be-zoom">100%</span>
+                <button type="button" class="be-btn be-icon" id="be-zoomin" title="Acercar">＋</button>
+              </div>
+            </div>
+            <p class="be-hint" id="be-hint">Modo <b>Mover</b>: arrastra cajas, clic para seleccionar (Supr borra), doble clic para renombrar.</p>
+            <div class="be-canvas" id="be-canvas"><div id="be-stage"><svg id="be-wires" preserveAspectRatio="none"></svg></div></div>
+          </section>
+
           <div class="creation-actions">
             <button type="button" class="button quiet" id="reset-form">Reset</button>
             <button type="submit" class="button primary"><span aria-hidden="true">⌘</span> Generar diagrama</button>
@@ -344,6 +363,7 @@
         {% endif %}
         <script src="{{ url_for('static', filename='js/device-picker.js') }}?v={{ static_v }}"></script>
         <script src="{{ url_for('static', filename='js/creation-form.js') }}?v={{ static_v }}"></script>
+        <script src="{{ url_for('static', filename='js/box-editor.js') }}?v={{ static_v }}"></script>
       </section>
     </main>
     {% include "_app_footer.html" %}
