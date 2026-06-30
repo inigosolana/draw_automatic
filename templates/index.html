@@ -274,6 +274,24 @@
           </div>
 
           <section class="form-section equipment-card">
+            <h2><span class="section-icon">📞</span> Telefonía (Terminales)</h2>
+              <div class="terminal-description">
+                <div class="terminal-heading">
+                  <div>
+                    <p>Añade cada terminal por separado. Varios W71H, W73H o W53H pueden compartir la misma base DECT seleccionando el mismo modelo en Base DECT.</p>
+                  </div>
+                  <button type="button" class="add-row-button" id="add-terminal"><span class="add-row-emoji" aria-hidden="true">📞</span> Añadir terminal</button>
+                </div>
+                <div class="terminal-columns" aria-hidden="true">
+                  <strong>MODELO</strong><strong>BASE DECT</strong><strong>EXTENSIÓN</strong><strong>SERIAL NUMBER</strong><strong>MAC</strong><strong>IP</strong><strong>PROPIEDAD</strong><strong></strong>
+                </div>
+                <div id="terminal-rows" class="terminal-rows"></div>
+                <input type="hidden" name="terminal_details" id="terminal-details" value="{{ form_data.get('terminal_details', '') }}">
+                <input type="hidden" name="terminal_equipment_text" id="terminal-equipment-text">
+              </div>
+          </section>
+
+          <section class="form-section equipment-card">
             <h2><span class="section-icon">🖧</span> Dispositivos de red</h2>
             <div class="devices-panel">
                 <div class="devices-heading">
@@ -298,24 +316,6 @@
                   >
                   Switch conectado a telefonía
                 </label>
-              </div>
-          </section>
-
-          <section class="form-section equipment-card">
-            <h2><span class="section-icon">📞</span> Telefonía (Terminales)</h2>
-              <div class="terminal-description">
-                <div class="terminal-heading">
-                  <div>
-                    <p>Añade cada terminal por separado. Varios W71H, W73H o W53H pueden compartir la misma base DECT seleccionando el mismo modelo en Base DECT.</p>
-                  </div>
-                  <button type="button" class="add-row-button" id="add-terminal"><span class="add-row-emoji" aria-hidden="true">📞</span> Añadir terminal</button>
-                </div>
-                <div class="terminal-columns" aria-hidden="true">
-                  <strong>MODELO</strong><strong>BASE DECT</strong><strong>EXTENSIÓN</strong><strong>SERIAL NUMBER</strong><strong>MAC</strong><strong>IP</strong><strong>PROPIEDAD</strong><strong></strong>
-                </div>
-                <div id="terminal-rows" class="terminal-rows"></div>
-                <input type="hidden" name="terminal_details" id="terminal-details" value="{{ form_data.get('terminal_details', '') }}">
-                <input type="hidden" name="terminal_equipment_text" id="terminal-equipment-text">
               </div>
           </section>
 

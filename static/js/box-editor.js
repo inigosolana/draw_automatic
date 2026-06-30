@@ -163,17 +163,57 @@
     document.getElementById("be-zoomout").addEventListener("click", function () { setZoom(zoom - 0.1); });
     window.addEventListener("resize", draw);
 
-    // Diagrama de ejemplo
-    var bInt = addBox("🌐 Internet", 40, 200);
-    var bOnt = addBox("ONT", 230, 200);
-    var bRt = addBox("Router", 430, 150);
-    var bBk = addBox("Backup 4G", 620, 70);
-    var bSw = addBox("Switch", 430, 320);
-    var bPh = addBox("Teléfono", 650, 320);
-    var bAp = addBox("AP WiFi", 860, 320);
-    links.push({ a: bInt, b: bOnt }, { a: bOnt, b: bRt }, { a: bRt, b: bBk }, { a: bOnt, b: bSw }, { a: bSw, b: bPh }, { a: bSw, b: bAp });
-    setMode("move");
-    draw();
-    setTimeout(draw, 60);
+    // ---- autorrelleno desde el formulario ----
+    function val(id) { var e = document.getElementById(id); return e ? String(e.value || "").trim() : ""; }
+    function readForm() {
+      var terminals = Array.prototype.map.call(document.querySelectorAll("#terminal-rows .terminal-row"), function (r) {
+        var m = r.querySelector('[data-field="model"]');
+        var ext = r.querySelector('[data-field="extension"]');
+        return { model: m ? m.value.trim() : "", ext: ext ? ext.value.trim() : "" };
+      }).filter(function (t) { return t.model; });
+      var devices = Array.prototype.map.call(document.querySelectorAll("#device-rows .device-row"), function (r) {
+        var cat = r.querySelector('[data-field="category"]');
+        var m = r.querySelector('[data-field="model"]');
+        var cm = r.querySelector('[data-field="custom-model"]');
+        var c = cat ? cat.value : "";
+        var model = c === "otros" ? (cm ? cm.value.trim() : "") : (m ? m.value.trim() : "");
+        return { category: c, model: model };
+      }).filter(function (d) { return d.model; });
+      return {
+        internet: val("internet-tipo"), ont: val("ont-modelo"),
+        router: val("router-modelo"), backup: val("backup-modelo"),
+        terminals: terminals, devices: devices
+      };
+    }
+    var COL = [40, 240, 450, 670, 890, 1110];
+    function buildFromForm() {
+      if (drag) return; // no reconstruir mientras se arrastra
+      clearCanvas();
+      var f = readForm();
+      var col = 0, prev = null, router = null;
+      if (f.internet) { prev = addBox("🌐 " + f.internet, COL[col++], 210); }
+      if (f.ont) { var o = addBox(f.ont, COL[col++], 210); if (prev) links.push({ a: prev, b: o }); prev = o; }
+      if (f.router) { router = addBox(f.router, COL[col++], 210); if (prev) links.push({ a: prev, b: router }); }
+      if (f.backup && router) { var bk = addBox("Backup: " + f.backup, COL[Math.max(0, col - 1)], 80); links.push({ a: router, b: bk }); }
+      var switches = f.devices.filter(function (d) { return d.category === "switch"; });
+      var anchor = router;
+      if (switches.length) { var sw = addBox(switches[0].model, COL[col], 360); if (router) links.push({ a: router, b: sw }); anchor = sw; }
+      var endpoints = [];
+      f.terminals.forEach(function (t) { endpoints.push("📞 " + t.model + (t.ext ? " " + t.ext : "")); });
+      f.devices.forEach(function (d) { if (d.category !== "switch") endpoints.push(d.model); });
+      var ex = COL[Math.min(col + 1, COL.length - 1)], ey = 70, step = 66;
+      endpoints.forEach(function (lbl, i) { var e = addBox(lbl, ex, ey + i * step); if (anchor) links.push({ a: anchor, b: e }); });
+      setMode("move");
+      draw();
+      setTimeout(draw, 40);
+    }
+    var rebuildTimer = null;
+    function scheduleRebuild() { clearTimeout(rebuildTimer); rebuildTimer = setTimeout(buildFromForm, 220); }
+    var form = document.querySelector(".creation-form");
+    if (form) {
+      form.addEventListener("change", scheduleRebuild);
+      form.addEventListener("input", scheduleRebuild);
+    }
+    buildFromForm();
   });
 })();

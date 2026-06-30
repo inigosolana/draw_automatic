@@ -108,7 +108,7 @@ def create_app(stores: DrawioStores | None = None) -> Flask:
                 "Rate limiting en memoria (aceptable para desarrollo o worker unico)."
             )
 
-    static_asset_version = os.environ.get("DRAWIO_STATIC_VERSION", "20260629n")
+    static_asset_version = os.environ.get("DRAWIO_STATIC_VERSION", "20260629o")
 
     @app.before_request
     def _maybe_cleanup() -> None:
