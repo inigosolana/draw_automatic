@@ -4,16 +4,18 @@ import re
 
 from .import_errors import CommsError
 from .address_formatter import normalize_street_address
-from .offer_mapper import (
-    ImportResult,
+from .equipment_detection import (
     _detect_backup_model,
     _detect_ont_model,
     _detect_router_model,
-    _infer_internet_type,
     _normalize_dect_base,
     _normalize_provider,
     _normalize_speed,
     _normalize_terminal_model,
+)
+from .offer_mapper import (
+    ImportResult,
+    _infer_internet_type,
     extract_work_order_id,
     is_accessory,
     is_headset,
@@ -252,6 +254,52 @@ def unwrap_work_order_api_response(payload: object) -> dict:
     return payload
 
 
+def _extract_connectivity(connectivity: object, base_text: str) -> tuple[str, dict[str, str]]:
+    """De un bloque de conectividad (dict estructurado o texto) saca el texto
+    libre y, si es dict, los campos estructurados con sus alias."""
+    connectivity_text = base_text
+    connectivity_structured: dict[str, str] = {}
+    if isinstance(connectivity, dict):
+        connectivity_text = connectivity_text or " ".join(
+            str(value) for value in connectivity.values() if value
+        )
+        connectivity_structured = {
+            "type": _clean(connectivity.get("type") or connectivity.get("tipo")),
+            "provider": _clean(
+                connectivity.get("provider") or connectivity.get("proveedor") or connectivity.get("carrier")
+            ),
+            "speed": _clean(connectivity.get("speed") or connectivity.get("velocidad")),
+            "ont_model": _clean(connectivity.get("ont_model") or connectivity.get("ont_modelo") or connectivity.get("ont")),
+            "router_model": _clean(
+                connectivity.get("router_model") or connectivity.get("router_modelo") or connectivity.get("router")
+            ),
+            "router_ip": _clean(connectivity.get("router_ip") or connectivity.get("ip")),
+            "backup_model": _clean(
+                connectivity.get("backup_model") or connectivity.get("backup_modelo") or connectivity.get("backup")
+            ),
+        }
+    elif isinstance(connectivity, str):
+        connectivity_text = connectivity_text or connectivity
+    return connectivity_text, connectivity_structured
+
+
+def _resolve_site_fields(payload: dict, site: dict, sede_raw: object) -> tuple[str, str]:
+    """Resuelve (nombre de sede, dirección) combinando el dict de sede, la
+    dirección de nivel superior y el caso en que `sede` venga como string."""
+    top_direccion = _clean(payload.get("direccion") or payload.get("address"))
+    sede_name = _clean(site.get("name") or site.get("nombre"))
+    # CRM may send address_id, contact_id, matriz, contact, etc.; only name + address are used.
+    sede_address = _clean(site.get("address") or site.get("direccion")) or top_direccion
+    if isinstance(sede_raw, str):
+        sede_text = _clean(sede_raw)
+        if top_direccion:
+            sede_name = sede_text
+            sede_address = top_direccion
+        elif not sede_name:
+            sede_address = sede_text or sede_address
+    return sede_name, sede_address
+
+
 def normalize_work_order_payload(payload: object) -> dict:
     payload = unwrap_work_order_api_response(payload)
     if not isinstance(payload, dict):
@@ -282,29 +330,9 @@ def normalize_work_order_payload(payload: object) -> dict:
         products = products.get("items") or products.get("data") or []
 
     connectivity = payload.get("connectivity") or payload.get("internet") or {}
-    connectivity_text = (crm_equipment_data or {}).get("connectivity_text", "")
-    connectivity_structured: dict[str, str] = {}
-    if isinstance(connectivity, dict):
-        connectivity_text = connectivity_text or " ".join(
-            str(value) for value in connectivity.values() if value
-        )
-        connectivity_structured = {
-            "type": _clean(connectivity.get("type") or connectivity.get("tipo")),
-            "provider": _clean(
-                connectivity.get("provider") or connectivity.get("proveedor") or connectivity.get("carrier")
-            ),
-            "speed": _clean(connectivity.get("speed") or connectivity.get("velocidad")),
-            "ont_model": _clean(connectivity.get("ont_model") or connectivity.get("ont_modelo") or connectivity.get("ont")),
-            "router_model": _clean(
-                connectivity.get("router_model") or connectivity.get("router_modelo") or connectivity.get("router")
-            ),
-            "router_ip": _clean(connectivity.get("router_ip") or connectivity.get("ip")),
-            "backup_model": _clean(
-                connectivity.get("backup_model") or connectivity.get("backup_modelo") or connectivity.get("backup")
-            ),
-        }
-    elif isinstance(connectivity, str):
-        connectivity_text = connectivity_text or connectivity
+    connectivity_text, connectivity_structured = _extract_connectivity(
+        connectivity, (crm_equipment_data or {}).get("connectivity_text", "")
+    )
 
     terminals_raw = (
         (crm_equipment_data or {}).get("terminals")
@@ -316,17 +344,7 @@ def normalize_work_order_payload(payload: object) -> dict:
     if not isinstance(terminals_raw, list):
         terminals_raw = []
 
-    top_direccion = _clean(payload.get("direccion") or payload.get("address"))
-    sede_name = _clean(site.get("name") or site.get("nombre"))
-    # CRM may send address_id, contact_id, matriz, contact, etc.; only name + address are used.
-    sede_address = _clean(site.get("address") or site.get("direccion")) or top_direccion
-    if isinstance(sede_raw, str):
-        sede_text = _clean(sede_raw)
-        if top_direccion:
-            sede_name = sede_text
-            sede_address = top_direccion
-        elif not sede_name:
-            sede_address = sede_text or sede_address
+    sede_name, sede_address = _resolve_site_fields(payload, site, sede_raw)
 
     return {
         "work_order_id": _clean(payload.get("work_order_id") or payload.get("id") or payload.get("reference")),

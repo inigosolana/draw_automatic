@@ -2,6 +2,7 @@ import json
 import unittest
 from unittest.mock import patch
 
+from generator.address_formatter import normalize_street_address
 from generator.comms_client import CommsError, normalize_work_order_payload
 from generator.crm_client import CrmClient
 from generator.layout_engine import build_layout
@@ -191,6 +192,26 @@ class CrmImportTests(unittest.TestCase):
         self.assertEqual(normalized["connectivity_structured"]["provider"], "AIRE")
         self.assertEqual(normalized["glpi_entity_id"], "12345")
         self.assertEqual(len(normalized["terminals"]), 2)
+
+    def test_normalize_work_order_payload_sede_string_with_top_direccion(self) -> None:
+        # sede como string + direccion arriba: la sede toma el texto y la direccion la de arriba.
+        normalized = normalize_work_order_payload({
+            "cliente": "ACME",
+            "sede": "Oficina Central",
+            "direccion": "Calle Mayor 1, Bilbao",
+        })
+        self.assertEqual(normalized["sede"], "Oficina Central")
+        self.assertEqual(normalized["direccion"], normalize_street_address("Calle Mayor 1, Bilbao"))
+
+    def test_normalize_work_order_payload_alias_fallbacks(self) -> None:
+        # Campos con nombres alternativos (client/location/document).
+        normalized = normalize_work_order_payload({
+            "client": {"nombre": "Beta SL", "document": "B12345678"},
+            "location": {"name": "Sede 2", "direccion": "Av. Libertad 5"},
+        })
+        self.assertEqual(normalized["cliente"], "Beta SL")
+        self.assertEqual(normalized["cif"], "B12345678")
+        self.assertEqual(normalized["sede"], "Sede 2")
 
     @patch("generator.crm_client.urlopen")
     def test_crm_client_fetches_by_work_order_id(self, urlopen_mock) -> None:
