@@ -25,6 +25,13 @@ def diagram_source_meta(source: str) -> dict[str, str]:
             "description": "Copia guardada al editar un diagrama en GLPI",
             "badge_class": "source-badge-version",
         }
+    if normalized == "glpi":
+        return {
+            "key": "glpi",
+            "label": "En GLPI",
+            "description": "Guardado en GLPI. Puedes previsualizarlo aquí sin entrar a GLPI.",
+            "badge_class": "source-badge-version",
+        }
     return {
         "key": "generado",
         "label": "Generado",
