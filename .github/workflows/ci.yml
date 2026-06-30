@@ -20,6 +20,14 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt pytest
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install frontend test deps (jsdom)
+        run: npm install --prefix tests/frontend
+
       - name: Prepare test library
         run: |
           mkdir -p library
