@@ -4,7 +4,7 @@ import os
 import random
 from dataclasses import dataclass
 
-from flask import Flask, session
+from flask import Flask, Response, session
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -108,7 +108,7 @@ def create_app(stores: DrawioStores | None = None) -> Flask:
                 "Rate limiting en memoria (aceptable para desarrollo o worker unico)."
             )
 
-    static_asset_version = os.environ.get("DRAWIO_STATIC_VERSION", "20260629q")
+    static_asset_version = os.environ.get("DRAWIO_STATIC_VERSION", "20260629r")
 
     @app.before_request
     def _maybe_cleanup() -> None:
@@ -120,6 +120,15 @@ def create_app(stores: DrawioStores | None = None) -> Flask:
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
     configure_talisman(app, force_https=force_https)
     register_cache_headers(app)
+
+    @app.errorhandler(429)
+    def _too_many_requests(_error) -> Response:
+        return Response(
+            "Has hecho muchas operaciones seguidas en poco tiempo. "
+            "Espera un par de minutos e inténtalo de nuevo.",
+            status=429,
+            mimetype="text/plain; charset=utf-8",
+        )
 
     app.config["PREVIEW_URL"] = os.environ.get("DRAWIO_PREVIEW_URL", "https://embed.diagrams.net/").rstrip("/")
     is_local_dev = os.environ.get("DRAWIO_COOKIE_SECURE", "0") != "1"

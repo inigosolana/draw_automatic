@@ -18,6 +18,23 @@ class SafeErrorsTests(unittest.TestCase):
         message = public_error_message("No se ha podido conectar con GLPI.", context="carga")
         self.assertIn("GLPI", message)
 
+    def test_glpi_500_becomes_actionable(self) -> None:
+        message = public_error_message(
+            "GLPI ha rechazado la operacion (codigo 500).", context="publicacion en GLPI"
+        )
+        self.assertNotIn("codigo 500", message)
+        self.assertIn("error interno", message.lower())
+
+    def test_glpi_connection_is_actionable(self) -> None:
+        message = public_error_message("No se ha podido conectar con GLPI.", context="carga")
+        self.assertIn("accesible", message.lower())
+
+    def test_glpi_auth_code_is_actionable(self) -> None:
+        message = public_error_message(
+            "GLPI ha rechazado la operacion (codigo 403).", context="consulta"
+        )
+        self.assertIn("acceso", message.lower())
+
 
 if __name__ == "__main__":
     unittest.main()
