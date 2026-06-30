@@ -1,6 +1,6 @@
 FROM alpine:3.19
 
-RUN apk add --no-cache sqlite tzdata \
+RUN apk add --no-cache sqlite jq tzdata \
     && mkdir -p /var/log
 
 COPY backup.sh /usr/local/bin/backup.sh

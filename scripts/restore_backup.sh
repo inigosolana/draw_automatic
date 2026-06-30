@@ -49,6 +49,18 @@ docker run --rm \
       cp "$src" "/data/${db}.sqlite3"
       echo "  restaurado ${db} <- $(basename "$src")"
     done
+    # Conocimiento aprendido (JSON):
+    if [ -n "$DATE_FILTER" ]; then
+      jsrc="/backup/learned_library-${DATE_FILTER}.json"
+    else
+      jsrc="$(ls -1 /backup/learned_library-*.json 2>/dev/null | sort | tail -n1 || true)"
+    fi
+    if [ -n "${jsrc:-}" ] && [ -f "$jsrc" ]; then
+      cp "$jsrc" "/data/learned_library.json"
+      echo "  restaurado learned_library <- $(basename "$jsrc")"
+    else
+      echo "  skip learned_library: no hay copia"
+    fi
   '
 
 echo "==> Arrancando la app…"
