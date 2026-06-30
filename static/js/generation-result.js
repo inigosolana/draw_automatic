@@ -40,7 +40,8 @@
     const confirmResult = document.getElementById("glpi-confirm-result");
     if (confirmButton) {
       const confirmOriginalHtml = confirmButton.innerHTML;
-      confirmButton.addEventListener("click", async function () {
+
+      async function doConfirm(allowDuplicate) {
         confirmButton.disabled = true;
         confirmButton.classList.add("is-busy");
         confirmButton.innerHTML = '<span class="btn-spinner" aria-hidden="true"></span> Publicando…';
@@ -59,7 +60,7 @@
               "csrf_token=" +
               encodeURIComponent(csrfToken) +
               "&allow_duplicate=" +
-              encodeURIComponent(confirmButton.dataset.allowDuplicate || "0"),
+              encodeURIComponent(allowDuplicate ? "1" : "0"),
           });
           const body = await response.text();
           if (!response.ok) {
@@ -77,15 +78,31 @@
             '" target="_blank" rel="noopener">Abrir en GLPI ↗</a>';
           confirmButton.remove();
         } catch (error) {
-          const isDuplicate = error.status === 409;
-          confirmResult.className =
-            "helper-text confirm-status " + (isDuplicate ? "confirm-warn" : "confirm-bad");
-          confirmResult.textContent =
-            (isDuplicate ? "" : "No se ha podido publicar. ") + (error.message || "Error desconocido.");
           confirmButton.disabled = false;
           confirmButton.classList.remove("is-busy");
           confirmButton.innerHTML = confirmOriginalHtml;
+          if (error.status === 409 && !allowDuplicate) {
+            // La sede ya tiene un diagrama: preguntar Sí/No y reintentar si procede.
+            confirmResult.className = "helper-text confirm-status confirm-warn";
+            confirmResult.textContent = error.message || "Esta sede ya tiene un diagrama.";
+            const msg =
+              (error.message || "Esta sede ya tiene un diagrama en GLPI.") +
+              "\n\n¿Subir el diagrama igualmente?";
+            if (window.confirm(msg)) {
+              doConfirm(true);
+            } else {
+              confirmResult.textContent = "Subida cancelada. La sede ya tenía un diagrama.";
+            }
+            return;
+          }
+          confirmResult.className = "helper-text confirm-status confirm-bad";
+          confirmResult.textContent =
+            "No se ha podido publicar. " + (error.message || "Error desconocido.");
         }
+      }
+
+      confirmButton.addEventListener("click", function () {
+        doConfirm(false);
       });
     }
 
