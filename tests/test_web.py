@@ -1488,3 +1488,32 @@ class RelevantEntityIdsTests(unittest.TestCase):
         from web.services.glpi_catalog import relevant_entity_ids
 
         self.assertEqual(relevant_entity_ids(999, []), {999})
+
+
+class IpAllowlistTests(unittest.TestCase):
+    def _app_with_allowlist(self, ips):
+        tmp = tempfile.mkdtemp()
+        env = {
+            "DRAWIO_SECRET_KEY": "test-ip",
+            "DRAWIO_COOKIE_SECURE": "1",  # activa ProxyFix (IP real por X-Forwarded-For)
+            "DRAWIO_ALLOWED_IPS": ips,
+            "DRAWIO_RATELIMIT_STORAGE": "memory://",
+        }
+        for k in ("DOWNLOAD", "SITE", "CATALOG", "ACTIVITY", "SECLOG", "TEMPLATE", "LEARNING"):
+            env[f"DRAWIO_{k}_DB"] = os.path.join(tmp, f"{k.lower()}.sqlite3")
+        with patch.dict(os.environ, env, clear=False):
+            app = create_app(build_drawio_stores(Path(tmp)))
+        app.config["AUTH_REQUIRED"] = False
+        return app.test_client()
+
+    def test_blocks_ip_not_in_allowlist(self) -> None:
+        client = self._app_with_allowlist("45.141.240.254,81.43.116.175")
+        self.assertEqual(client.get("/draw", headers={"X-Forwarded-For": "9.9.9.9"}).status_code, 403)
+
+    def test_allows_listed_ip(self) -> None:
+        client = self._app_with_allowlist("45.141.240.254,81.43.116.175")
+        self.assertNotEqual(client.get("/draw", headers={"X-Forwarded-For": "45.141.240.254"}).status_code, 403)
+
+    def test_no_restriction_when_unset(self) -> None:
+        client = self._app_with_allowlist("")
+        self.assertNotEqual(client.get("/draw", headers={"X-Forwarded-For": "9.9.9.9"}).status_code, 403)

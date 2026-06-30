@@ -4,7 +4,7 @@ import os
 import random
 from dataclasses import dataclass
 
-from flask import Flask, Response, session
+from flask import Flask, Response, request, session
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -140,6 +140,27 @@ def create_app(stores: DrawioStores | None = None) -> Flask:
     def _maybe_cleanup() -> None:
         if random.random() < 0.02:
             get_drawio_stores().downloads.cleanup()
+
+    # Allowlist de IPs: si DRAWIO_ALLOWED_IPS está definido, solo esas IPs (más
+    # localhost para el healthcheck interno) pueden acceder; el resto recibe 403.
+    # Vacío = sin restricción (default seguro, no bloquea por error de config).
+    allowed_ips = {ip.strip() for ip in os.environ.get("DRAWIO_ALLOWED_IPS", "").split(",") if ip.strip()}
+    if allowed_ips:
+        allowed_ips.update({"127.0.0.1", "::1"})
+
+        @app.before_request
+        def _restrict_by_ip() -> Response | None:
+            client_ip = get_remote_address()
+            if client_ip not in allowed_ips:
+                security_logger.warning(
+                    f"Acceso bloqueado por IP no permitida: {client_ip} ({request.path})"
+                )
+                return Response(
+                    "Acceso restringido a esta aplicación.",
+                    status=403,
+                    mimetype="text/plain; charset=utf-8",
+                )
+            return None
 
     force_https = os.environ.get("DRAWIO_FORCE_HTTPS", "0") == "1"
     if os.environ.get("DRAWIO_COOKIE_SECURE", "0") == "1" or force_https:
