@@ -327,6 +327,52 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
             mimetype="application/json; charset=utf-8",
         )
 
+    @bp.post("/upload-draw/file")
+    @login_required
+    @limiter.limit("600 per hour")
+    def upload_draw_file() -> Response:
+        """Sube UN archivo y devuelve JSON (para la subida con progreso)."""
+        entity_id_raw = request.form.get("glpi_entity_id", "").strip()
+        client_name = request.form.get("glpi_cliente", "").strip()
+        site_name = request.form.get("glpi_sede", "").strip()
+        corrected_address = request.form.get("glpi_direccion", "").strip()
+        apply_address = request.form.get("apply_address") == "1"
+        uploaded_file = request.files.get("drawio_file")
+        if not entity_id_raw:
+            return jsonify({"ok": False, "error": "Selecciona una sede de GLPI."}), 400
+        if not uploaded_file or not uploaded_file.filename:
+            return jsonify({"ok": False, "error": "No se ha recibido el archivo."}), 400
+        try:
+            entity_id = positive_integer(entity_id_raw, "glpi_entity_id")
+        except ValueError:
+            return jsonify({"ok": False, "error": "Sede no valida."}), 400
+        client = GlpiClient.from_environment()
+        if not client:
+            return jsonify({"ok": False, "error": "GLPI no esta configurado en el servidor. Avisa a sistemas."}), 503
+        stores = get_drawio_stores()
+        technician = current_technician()
+        tech_label = technician.get("name") or technician.get("username") or "desconocido"
+        warnings: list[str] = []
+        try:
+            with client.batch_session():
+                if apply_address and corrected_address:
+                    glpi_customers, _ = load_glpi_catalog()
+                    warnings = sync_entity_address(
+                        client, stores, entity_id=entity_id, address=corrected_address,
+                        glpi_customers=glpi_customers, technician_label=tech_label,
+                    )
+                results, errors = publish_uploaded_files(
+                    client, stores, [uploaded_file], entity_id=entity_id,
+                    client_name=client_name, site_name=site_name, technician=technician,
+                    technician_name=technician.get("name", "unknown"), client_ip=get_remote_address(),
+                )
+        except (ValueError, GlpiError) as exc:
+            return jsonify({"ok": False, "error": public_error_message(str(exc), context="subida del diagrama")}), 502
+        if results:
+            r = results[0]
+            return jsonify({"ok": True, "id": r["id"], "url": r["url"], "name": r["name"], "warnings": warnings})
+        return jsonify({"ok": False, "error": errors[0] if errors else "No se ha podido subir el archivo.", "warnings": warnings})
+
     @bp.get("/upload-draw/site-diagrams")
     @login_required
     @limiter.limit("120 per hour")

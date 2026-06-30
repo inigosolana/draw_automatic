@@ -1248,6 +1248,34 @@ class WebAppTests(unittest.TestCase):
         self.assertIn(b"Descargar clientes_con_sedes_sin_diagrama.xlsx", response.data)
         self.assertIn(b"Calle / direccion", response.data)
 
+    def test_upload_draw_file_endpoint_publishes_one(self) -> None:
+        glpi_client = fake_glpi_client()
+        with patch("web.blueprints.glpi_import.GlpiClient.from_environment", return_value=glpi_client):
+            response = self.client.post(
+                "/upload-draw/file",
+                data={
+                    "glpi_entity_id": "7",
+                    "glpi_cliente": "Cliente",
+                    "glpi_sede": "Sede",
+                    "apply_address": "0",
+                    "drawio_file": (BytesIO(b"<mxfile><diagram /></mxfile>"), "demo.drawio"),
+                },
+                content_type="multipart/form-data",
+            )
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["id"], 42)
+
+    def test_upload_draw_file_endpoint_requires_site(self) -> None:
+        response = self.client.post(
+            "/upload-draw/file",
+            data={"drawio_file": (BytesIO(b"<mxfile/>"), "x.drawio")},
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(response.get_json()["ok"])
+
     def test_upload_draw_saves_corrected_address(self) -> None:
         sample_catalog = [
             {

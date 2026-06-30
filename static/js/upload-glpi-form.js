@@ -216,19 +216,104 @@
   });
 })();
 
-// Estado "trabajando" en el boton de subir (feedback + evita doble clic).
+// Subida con progreso por archivo (mejora progresiva: si algo falla, queda el
+// envio normal del formulario).
 (function () {
   const form = document.getElementById("upload-draw-form");
   if (!form) return;
-  form.addEventListener("submit", function () {
-    const btn = form.querySelector('button[type="submit"]');
-    if (btn && !btn.dataset.busy) {
-      btn.dataset.busy = "1";
-      setTimeout(function () {
-        btn.disabled = true;
-        btn.classList.add("is-busy");
-        btn.innerHTML = '<span class="btn-spinner" aria-hidden="true"></span> Subiendo…';
-      }, 0);
+  const fileInput = form.querySelector('input[name="drawio_files"]');
+  const submitBtn = form.querySelector('button[type="submit"]');
+  const actions = form.querySelector(".upload-form-actions");
+  if (!fileInput || !submitBtn || !actions) return;
+
+  const progress = document.createElement("div");
+  progress.className = "upload-progress";
+  progress.hidden = true;
+  actions.before(progress);
+
+  form.addEventListener("submit", function (event) {
+    const entityId = (document.getElementById("upload-entity-id") || {}).value || "";
+    const files = Array.prototype.slice.call(fileInput.files || []);
+    if (!entityId || !files.length) {
+      return; // deja la validacion/envio nativo
     }
+    event.preventDefault();
+    runUpload(files, entityId);
   });
+
+  function runUpload(files, entityId) {
+    submitBtn.disabled = true;
+    submitBtn.classList.add("is-busy");
+    submitBtn.innerHTML = '<span class="btn-spinner" aria-hidden="true"></span> Subiendo…';
+    progress.hidden = false;
+    progress.innerHTML = '<div class="upload-progress-head">Subiendo ' + files.length + " archivo(s)…</div>";
+    const list = document.createElement("div");
+    list.className = "up-list";
+    progress.appendChild(list);
+
+    const csrf = (form.querySelector('input[name="csrf_token"]') || {}).value || "";
+    const fileUrl = form.action.replace(/\/+$/, "") + "/file";
+    const clientName = (document.getElementById("upload-client-name") || {}).value || "";
+    const siteName = (document.getElementById("upload-site-name") || {}).value || "";
+    const address = (document.getElementById("upload-direccion") || {}).value || "";
+
+    const rows = files.map(function (f) {
+      const it = document.createElement("div");
+      it.className = "up-item";
+      it.innerHTML = '<span class="up-ico">📄</span><div class="up-info"><div class="up-name"></div><div class="up-sub">En cola</div></div>';
+      it.querySelector(".up-name").textContent = f.name;
+      list.appendChild(it);
+      return it;
+    });
+
+    let done = 0, fail = 0, i = 0;
+    function next() {
+      if (i >= files.length) { return finish(); }
+      const f = files[i], row = rows[i];
+      row.className = "up-item run";
+      row.querySelector(".up-ico").innerHTML = '<span class="up-spin" aria-hidden="true"></span>';
+      row.querySelector(".up-sub").textContent = "Subiendo…";
+      const fd = new FormData();
+      fd.append("csrf_token", csrf);
+      fd.append("glpi_entity_id", entityId);
+      fd.append("glpi_cliente", clientName);
+      fd.append("glpi_sede", siteName);
+      fd.append("glpi_direccion", address);
+      fd.append("apply_address", i === 0 ? "1" : "0");
+      fd.append("drawio_file", f);
+      fetch(fileUrl, { method: "POST", credentials: "same-origin", headers: { "X-CSRFToken": csrf }, body: fd })
+        .then(function (r) { return r.text().then(function (t) { return { ok: r.ok, text: t }; }); })
+        .then(function (res) {
+          let data = {};
+          try { data = JSON.parse(res.text); } catch (_e) { data = {}; }
+          if (res.ok && data.ok) {
+            row.className = "up-item ok";
+            row.querySelector(".up-ico").textContent = "✓";
+            row.querySelector(".up-sub").innerHTML =
+              'Publicado · <a href="' + data.url + '" target="_blank" rel="noopener">Abrir en GLPI ↗</a>';
+            done++;
+          } else {
+            row.className = "up-item bad";
+            row.querySelector(".up-ico").textContent = "✗";
+            row.querySelector(".up-sub").textContent = (data && data.error) || "No se ha podido subir.";
+            fail++;
+          }
+        })
+        .catch(function () {
+          row.className = "up-item bad";
+          row.querySelector(".up-ico").textContent = "✗";
+          row.querySelector(".up-sub").textContent = "Error de red. Inténtalo de nuevo.";
+          fail++;
+        })
+        .then(function () { i++; next(); });
+    }
+    function finish() {
+      const head = progress.querySelector(".upload-progress-head");
+      head.innerHTML = "<b>" + done + " subido(s)</b>" + (fail ? ' · <b class="up-fail">' + fail + " con error</b>" : "");
+      submitBtn.disabled = false;
+      submitBtn.classList.remove("is-busy");
+      submitBtn.innerHTML = "Subir más";
+    }
+    next();
+  }
 })();
