@@ -106,11 +106,35 @@ def create_admin_blueprint(limiter: Limiter) -> Blueprint:
 
         client = GlpiClient.from_environment()
         rows = enrich_activity_rows(drawio_stores.activity.list_all(), client)
+
+        # Provincia por sede (entity_id) desde el catálogo, para poder filtrar por ella.
+        entity_province: dict[int, str] = {}
+        catalog, _ = load_glpi_catalog()
+        for province in catalog or []:
+            for customer in province.get("clientes", []):
+                for site in customer.get("sedes", []):
+                    sid = site.get("id")
+                    if sid is not None:
+                        entity_province[int(sid)] = province.get("nombre", "")
+        for row in rows:
+            eid = row.get("entity_id")
+            row["province"] = entity_province.get(int(eid), "") if eid else ""
+
+        def _sorted_unique(key: str) -> list[str]:
+            return sorted({(r.get(key) or "").strip() for r in rows if (r.get(key) or "").strip()}, key=str.lower)
+
+        filter_options = {
+            "provinces": _sorted_unique("province"),
+            "clients": _sorted_unique("client_name"),
+            "sites": _sorted_unique("site_name"),
+            "technicians": _sorted_unique("technician"),
+        }
         deleted_id = request.args.get("deleted", "").strip()
         delete_error = request.args.get("error", "").strip()
         return render_template(
             "admin_diagrams.html",
             diagrams=rows,
+            filter_options=filter_options,
             technician=technician,
             deleted_id=deleted_id if deleted_id.isdigit() else "",
             delete_error=delete_error,

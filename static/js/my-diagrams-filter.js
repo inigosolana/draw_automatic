@@ -13,6 +13,21 @@
     visibleCount.textContent = visible + " " + label;
   }
 
+  // Desplegables provincia/cliente/sede/técnico (solo en admin_diagrams).
+  const dropdowns = Array.prototype.slice.call(
+    document.querySelectorAll("[data-filter-key]")
+  );
+
+  function matchesDropdowns(row) {
+    return dropdowns.every(function (sel) {
+      const wanted = sel.value;
+      if (!wanted) {
+        return true;
+      }
+      return (row.dataset[sel.dataset.filterKey] || "") === wanted;
+    });
+  }
+
   function applyFilters() {
     const query = diagramFilter
       ? diagramFilter.value.toLocaleLowerCase("es").trim()
@@ -23,7 +38,7 @@
         activeSource === "all" || row.dataset.source === activeSource;
       const matchesText =
         !query || row.textContent.toLocaleLowerCase("es").includes(query);
-      const show = matchesSource && matchesText;
+      const show = matchesSource && matchesText && matchesDropdowns(row);
       row.hidden = !show;
       if (show) {
         visible += 1;
@@ -38,6 +53,10 @@
   if (diagramFilter) {
     diagramFilter.addEventListener("input", applyFilters);
   }
+
+  dropdowns.forEach(function (sel) {
+    sel.addEventListener("change", applyFilters);
+  });
 
   sourceFilters.forEach(function (button) {
     button.addEventListener("click", function () {

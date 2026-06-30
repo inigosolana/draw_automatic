@@ -9,7 +9,11 @@
   {% set source_desc = diagram.source_description | default('') %}
   {% set source_label = diagram.source_label | default(diagram.source | default('GLPI')) %}
   {% set back_url = preview_return if preview_return is not none else request.full_path %}
-  <article class="diagram-card diagram-row" data-source="{{ source_key }}">
+  <article class="diagram-card diagram-row" data-source="{{ source_key }}"
+    data-province="{{ diagram.province | default('') }}"
+    data-client="{{ client }}"
+    data-site="{{ site }}"
+    data-tech="{{ technician }}">
     <div class="diagram-card-main">
       <div class="diagram-card-head">
         <div class="diagram-card-title-wrap">

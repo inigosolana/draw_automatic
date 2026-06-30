@@ -3447,3 +3447,13 @@ así que en SO oscuro la UI quedaba ilegible (paneles
   outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
+
+.diagram-dropdown-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}
+.diagram-dropdown-filters select {
+  max-width: 220px;
+}
