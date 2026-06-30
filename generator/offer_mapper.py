@@ -344,19 +344,26 @@ def map_offer_to_form(
                 )
             continue
 
+        # Productos de conectividad (backup/router/ONT): se dan por clasificados
+        # aunque el campo ya estuviera relleno (p. ej. desde la conectividad
+        # estructurada o una línea previa). Si no, se marcaban falsamente como
+        # "no clasificado" pese a colocarse en el diagrama.
         backup_model = _detect_backup_model(name)
-        if backup_model and not result.backup_modelo:
-            result.backup_modelo = backup_model
+        if backup_model:
+            if not result.backup_modelo:
+                result.backup_modelo = backup_model
             continue
 
         router_model = _detect_router_model(name)
-        if router_model and not result.router_modelo:
-            result.router_modelo = router_model
+        if router_model:
+            if not result.router_modelo:
+                result.router_modelo = router_model
             continue
 
         ont_model = _detect_ont_model(name, result.internet_proveedor)
-        if ont_model and not result.ont_modelo:
-            result.ont_modelo = ont_model
+        if ont_model:
+            if not result.ont_modelo:
+                result.ont_modelo = ont_model
             continue
 
         device = _detect_device_category(name)

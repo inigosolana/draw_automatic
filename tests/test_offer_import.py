@@ -12,6 +12,18 @@ from generator.offer_mapper import (
 
 
 class OfferImportTests(unittest.TestCase):
+    def test_connectivity_products_not_flagged_unclassified(self) -> None:
+        # OT 7885: el wAP LTE (backup) y el hAP ac2 (router) se clasifican como
+        # conectividad y NO deben salir como "Producto no clasificado".
+        products = normalize_products([
+            "Mikrotik wAPR-2Nd&EC200A-EU- Nuevo wAP LTE Kit CPU",
+            "hAP ac2 - RBD52G-5HacD2HnD-TC",
+        ])
+        result = map_offer_to_form(products, connectivity_text="FIBRA + BACK UP AIRE 1GB")
+        self.assertEqual(result.router_modelo, "MikroTik hAP ac2")
+        self.assertEqual(result.backup_modelo, "WAP LTE")
+        self.assertEqual([w for w in result.warnings if "no clasificado" in w], [])
+
     def test_extract_work_order_id_from_url(self) -> None:
         self.assertEqual(
             extract_work_order_id("https://comms.aureamotriz.com/customers/work-order/8850"),
