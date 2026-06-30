@@ -1715,6 +1715,24 @@ textarea {
   filter: brightness(1.06);
 }
 
+.button.is-busy {
+  opacity: 0.85;
+  cursor: wait;
+}
+.btn-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  vertical-align: -2px;
+  margin-right: 4px;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: btn-spin 0.7s linear infinite;
+}
+@keyframes btn-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .btn-spinner { animation: none; } }
+
 .button.secondary {
   background: #ffffff;
   border: 1px solid #d8e2ec;

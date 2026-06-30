@@ -187,6 +187,15 @@
                 internetVelocidad.value = capacity;
               }
             }
+            const btn = this.querySelector('button[type="submit"]');
+            if (btn && !btn.dataset.busy) {
+              btn.dataset.busy = "1";
+              setTimeout(function () {
+                btn.disabled = true;
+                btn.classList.add("is-busy");
+                btn.innerHTML = '<span class="btn-spinner" aria-hidden="true"></span> Generando diagrama…';
+              }, 0);
+            }
           });
           updateInternetFields();
 

@@ -215,3 +215,20 @@
     }
   });
 })();
+
+// Estado "trabajando" en el boton de subir (feedback + evita doble clic).
+(function () {
+  const form = document.getElementById("upload-draw-form");
+  if (!form) return;
+  form.addEventListener("submit", function () {
+    const btn = form.querySelector('button[type="submit"]');
+    if (btn && !btn.dataset.busy) {
+      btn.dataset.busy = "1";
+      setTimeout(function () {
+        btn.disabled = true;
+        btn.classList.add("is-busy");
+        btn.innerHTML = '<span class="btn-spinner" aria-hidden="true"></span> Subiendo…';
+      }, 0);
+    }
+  });
+})();
