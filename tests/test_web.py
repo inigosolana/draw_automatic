@@ -725,7 +725,7 @@ class WebAppTests(unittest.TestCase):
                 ],
             }
         ]
-        with patch("web.services.glpi_catalog.load_glpi_catalog", return_value=(sample_catalog, "")):
+        with patch("web.blueprints.diagrams.load_glpi_catalog", return_value=(sample_catalog, "")):
             response = self.client.get("/diagrams")
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Consultar diagramas publicados", response.data)
@@ -938,7 +938,8 @@ class WebAppTests(unittest.TestCase):
             "<mxfile><diagram /></mxfile>",
             "Cliente - Sede",
         )
-        with patch("web.blueprints.diagrams.GlpiClient.from_environment", return_value=fake_client):
+        with patch("web.blueprints.diagrams.GlpiClient.from_environment", return_value=fake_client), \
+                patch.dict(os.environ, {"DRAWIO_COOKIE_SECURE": "1"}):
             response = self.client.get(
                 "/preview/glpi/2267",
                 headers={"X-Forwarded-Proto": "https", "Host": "draw.ausarta.net"},
@@ -1236,7 +1237,12 @@ class WebAppTests(unittest.TestCase):
         self.assertIn(b"No se ha podido completar la subida del diagrama", response.data)
 
     def test_upload_draw_page_is_available(self) -> None:
-        response = self.client.get("/upload-draw")
+        sample_catalog = [{
+            "id": 1, "nombre": "Bizkaia",
+            "clientes": [{"id": 2, "nombre": "Cliente Demo", "sedes": [{"id": 7, "nombre": "Central"}]}],
+        }]
+        with patch("web.blueprints.glpi_import.load_glpi_catalog", return_value=(sample_catalog, "")):
+            response = self.client.get("/upload-draw")
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Subir draw a GLPI", response.data)
         self.assertIn(b"Descargar clientes_con_sedes_sin_diagrama.xlsx", response.data)
