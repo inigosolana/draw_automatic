@@ -37,7 +37,21 @@ def _friendly_message(text: str) -> str | None:
         if code == "404":
             return "GLPI no encuentra ese recurso. Puede que el diagrama o la sede ya no exista."
         if code.startswith("4"):
-            return "GLPI ha rechazado los datos enviados. Revisa los campos e inténtalo de nuevo."
+            if any(k in low for k in ("exist", "duplicad", "duplicate", "already", "ya existe")):
+                return (
+                    "GLPI dice que ese diagrama ya existe para la sede. Revisa en GLPI si ya está subido; "
+                    "si quieres otra copia, cámbiale el nombre antes de subirlo."
+                )
+            if any(k in low for k in ("too large", "demasiado", "max", "size", "length", "longitud", "payload")):
+                return (
+                    "GLPI ha rechazado el diagrama por tamaño. Es demasiado grande: simplifícalo "
+                    "(menos elementos) o súbelo en partes."
+                )
+            return (
+                "GLPI ha rechazado el diagrama (código 400). Suele pasar si ya está subido para esa sede "
+                "o si algún dato no es válido. Revisa en GLPI si ya aparece; si no, cámbiale el nombre e "
+                "inténtalo de nuevo. Si vuelve a fallar, avisa a sistemas con la hora y el nombre del archivo."
+            )
     return None
 
 

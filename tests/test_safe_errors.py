@@ -35,6 +35,20 @@ class SafeErrorsTests(unittest.TestCase):
         )
         self.assertIn("acceso", message.lower())
 
+    def test_glpi_400_is_actionable_and_hides_code(self) -> None:
+        message = public_error_message(
+            "GLPI ha rechazado la operacion (codigo 400).", context="subida del diagrama"
+        )
+        self.assertNotIn("codigo 400", message)
+        self.assertIn("revisa", message.lower())
+
+    def test_glpi_400_duplicate_gives_rename_hint(self) -> None:
+        message = public_error_message(
+            "GLPI ha rechazado la operacion (codigo 400): ERROR already exists", context="subida"
+        )
+        self.assertIn("ya existe", message.lower())
+        self.assertIn("nombre", message.lower())
+
 
 if __name__ == "__main__":
     unittest.main()

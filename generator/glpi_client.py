@@ -155,6 +155,25 @@ class GlpiClient:
             with urlopen(request, timeout=self.timeout, context=self._urlopen_context()) as response:
                 return json.loads(response.read().decode("utf-8"))
         except HTTPError as exc:
+            # GLPI devuelve el motivo en el cuerpo (normalmente ["ERROR_X","mensaje"]).
+            # Lo capturamos para saber QUÉ ha rechazado y poder explicarlo.
+            reason = ""
+            try:
+                raw = exc.read().decode("utf-8", "replace")
+                parsed = json.loads(raw)
+                if isinstance(parsed, list):
+                    reason = " ".join(str(p) for p in parsed if p)
+                elif isinstance(parsed, dict):
+                    reason = str(parsed.get("message") or parsed.get("0") or "")
+                else:
+                    reason = str(parsed)
+                reason = " ".join(reason.split())[:200]
+            except (ValueError, OSError):
+                reason = ""
+            if reason:
+                raise GlpiError(
+                    f"GLPI ha rechazado la operacion (codigo {exc.code}): {reason}"
+                ) from exc
             raise GlpiError(f"GLPI ha rechazado la operacion (codigo {exc.code}).") from exc
         except URLError as exc:
             raise GlpiError("No se ha podido conectar con GLPI.") from exc
