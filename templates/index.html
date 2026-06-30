@@ -16,6 +16,7 @@
 
         <div class="paste-bar-wrap">
           <input type="hidden" id="page-csrf-token" value="{{ csrf_token() }}">
+          <div class="paste-bar-title"><span aria-hidden="true">📥</span> Importar desde una OT <span class="paste-bar-optional">(opcional)</span></div>
           <div class="paste-bar">
             <textarea
               id="work-order-paste"
@@ -31,6 +32,8 @@
           <div id="import-glpi-suggestions" class="glpi-suggestions" hidden></div>
           <ul id="import-work-order-warnings" class="import-warnings"></ul>
         </div>
+
+        <div class="or-divider"><span>o rellena los datos a mano</span></div>
 
         {% if errors %}
         <div class="message error">
@@ -271,12 +274,10 @@
           </div>
 
           <section class="form-section equipment-card">
-            <h2><span class="section-icon">▣</span> Equipos y Detalles de Terminal</h2>
-            <div class="equipment-grid">
-              <div class="devices-panel">
+            <h2><span class="section-icon">🖧</span> Dispositivos de red</h2>
+            <div class="devices-panel">
                 <div class="devices-heading">
                   <div>
-                    <strong>Dispositivos</strong>
                     <p>Selecciona equipos de la librería. Para switches y otros dispositivos usa el desplegable.</p>
                   </div>
                   <button type="button" class="add-row-button" id="add-device"><span class="add-row-emoji" aria-hidden="true">📦</span> Añadir dispositivo</button>
@@ -302,10 +303,13 @@
                 </p>
                 <p class="tip-callout"><span aria-hidden="true">♧</span> En <strong>Otros</strong> puedes escribir un modelo que no esté en la librería.</p>
               </div>
+          </section>
+
+          <section class="form-section equipment-card">
+            <h2><span class="section-icon">📞</span> Telefonía (Terminales)</h2>
               <div class="terminal-description">
                 <div class="terminal-heading">
                   <div>
-                    <strong>Telefonía (Terminales)</strong>
                     <p>Añade cada terminal por separado. Varios W71H, W73H o W53H pueden compartir la misma base DECT seleccionando el mismo modelo en Base DECT.</p>
                   </div>
                   <button type="button" class="add-row-button" id="add-terminal"><span class="add-row-emoji" aria-hidden="true">📞</span> Añadir terminal</button>
@@ -317,20 +321,10 @@
                 <input type="hidden" name="terminal_details" id="terminal-details" value="{{ form_data.get('terminal_details', '') }}">
                 <input type="hidden" name="terminal_equipment_text" id="terminal-equipment-text">
               </div>
-            </div>
           </section>
 
-          <details class="advanced-fields">
-            <summary>Opciones avanzadas</summary>
-            <div class="advanced-fields-grid">
-              <label>Bloque completo opcional
-                <textarea name="raw_text" rows="7" placeholder="Cliente: Pescados Gines e Hijos&#10;CIF: B20684866&#10;Sede: Esnabide 18&#10;Direccion: Esnabide 18, Pasaia, Gipuzkoa&#10;&#10;Internet: FTTH 1Gb&#10;ONT: ONT ZTE&#10;Router: MikroTik hAP ac2 - 192.168.0.1/24">{{ form_data.get('raw_text', '') }}</textarea>
-              </label>
-              <label>Ruta de la librería .xml
-                <input type="text" name="library_path" value="{{ form_data.get('library_path', 'libreria_Ausarta_JUN_2026.xml') }}">
-              </label>
-            </div>
-          </details>
+          <input type="hidden" name="raw_text" value="{{ form_data.get('raw_text', '') }}">
+          <input type="hidden" name="library_path" value="{{ form_data.get('library_path', 'libreria_Ausarta_JUN_2026.xml') }}">
 
           <section class="form-section box-editor-section">
             <div class="box-editor-head">
