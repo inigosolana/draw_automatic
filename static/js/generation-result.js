@@ -39,9 +39,13 @@
     const confirmButton = document.getElementById("confirm-glpi");
     const confirmResult = document.getElementById("glpi-confirm-result");
     if (confirmButton) {
+      const confirmOriginalHtml = confirmButton.innerHTML;
       confirmButton.addEventListener("click", async function () {
         confirmButton.disabled = true;
-        confirmResult.textContent = "Subiendo y asociando el diagrama a la sede...";
+        confirmButton.classList.add("is-busy");
+        confirmButton.innerHTML = '<span class="btn-spinner" aria-hidden="true"></span> Publicando…';
+        confirmResult.className = "helper-text confirm-status confirm-working";
+        confirmResult.textContent = "Subiendo y asociando el diagrama a la sede…";
         try {
           const csrfToken = document.querySelector('input[name="csrf_token"]').value;
           const response = await fetch(confirmButton.dataset.confirmUrl, {
@@ -59,19 +63,28 @@
           });
           const body = await response.text();
           if (!response.ok) {
-            throw new Error(body);
+            const err = new Error(body);
+            err.status = response.status;
+            throw err;
           }
           const result = JSON.parse(body);
+          confirmResult.className = "helper-text confirm-status confirm-ok";
           confirmResult.innerHTML =
-            'Diagrama #' +
+            '✓ Diagrama #' +
             result.id +
-            ' publicado. <a href="' +
+            ' publicado en GLPI. <a href="' +
             result.url +
-            '" target="_blank" rel="noopener">Abrir en GLPI</a>';
+            '" target="_blank" rel="noopener">Abrir en GLPI ↗</a>';
           confirmButton.remove();
         } catch (error) {
-          confirmResult.textContent = "No se ha podido subir: " + error.message;
+          const isDuplicate = error.status === 409;
+          confirmResult.className =
+            "helper-text confirm-status " + (isDuplicate ? "confirm-warn" : "confirm-bad");
+          confirmResult.textContent =
+            (isDuplicate ? "" : "No se ha podido publicar. ") + (error.message || "Error desconocido.");
           confirmButton.disabled = false;
+          confirmButton.classList.remove("is-busy");
+          confirmButton.innerHTML = confirmOriginalHtml;
         }
       });
     }

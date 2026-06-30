@@ -1733,6 +1733,20 @@ textarea {
 @keyframes btn-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .btn-spinner { animation: none; } }
 
+.confirm-status {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-weight: 600;
+  border-left: 4px solid transparent;
+}
+.confirm-status:empty { display: none; }
+.confirm-working { background: #e6f3f4; color: #0f1d28; border-left-color: #146c94; }
+.confirm-ok { background: #e7f4ec; color: #15803d; border-left-color: #15803d; }
+.confirm-ok a { color: #0f5878; }
+.confirm-warn { background: #fbf0e2; color: #b45309; border-left-color: #b45309; }
+.confirm-bad { background: #fdeaea; color: #dc2626; border-left-color: #dc2626; }
+
 .button.secondary {
   background: #ffffff;
   border: 1px solid #d8e2ec;
