@@ -1,0 +1,9 @@
+{
+  "name": "draw-automatic-frontend-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Arnés jsdom para verificar creation-form*.js. Instalar con `npm install` en esta carpeta; el test de pytest se salta solo si falta node/jsdom.",
+  "dependencies": {
+    "jsdom": "^24.0.0"
+  }
+}

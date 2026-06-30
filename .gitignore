@@ -21,3 +21,5 @@ library/*.xml
 LOCAL_ONLY_MANIFEST.txt
 scripts/sync-local-to-server.ps1
 data/learned_library.json
+tests/frontend/node_modules/
+tests/frontend/package-lock.json
