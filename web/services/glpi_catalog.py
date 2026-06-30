@@ -11,6 +11,19 @@ from generator.safe_errors import public_error_message
 from generator.site_directory import apply_saved_addresses
 
 
+def relevant_entity_ids(entity_id: int, catalog: list[dict]) -> set[int]:
+    """La sede + su entidad cliente (padre). En GLPI muchos diagramas se asocian
+    al cliente y no a la sede; para consultarlos y para detectar duplicados hay
+    que mirar ambas entidades."""
+    ids = {int(entity_id)}
+    for province in catalog or []:
+        for customer in province.get("clientes", []):
+            if any(str(s.get("id")) == str(entity_id) for s in customer.get("sedes", [])):
+                if str(customer.get("id") or "").isdigit():
+                    ids.add(int(customer["id"]))
+    return ids
+
+
 def glpi_diagram_rows(client: GlpiClient, entity_id, activity: DiagramActivity) -> list[dict]:
     """Diagramas de una sede. `entity_id` puede ser un id o un conjunto de ids
     (p. ej. la sede + su entidad cliente padre): en GLPI un diagrama puede estar

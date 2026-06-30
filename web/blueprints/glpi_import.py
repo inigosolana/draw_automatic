@@ -14,7 +14,7 @@ from app_context import (
     security_logger,
     technician_label,
 )
-from web.services.glpi_catalog import glpi_diagram_rows, index_context, load_glpi_catalog
+from web.services.glpi_catalog import glpi_diagram_rows, index_context, load_glpi_catalog, relevant_entity_ids
 from generator.comms_client import CommsError, import_products_text
 from generator.glpi_client import GlpiClient, GlpiError
 from generator.work_order_import import import_work_order_by_id
@@ -223,11 +223,19 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
             entity_id = positive_integer(payload.get("entity_id"), "entity_id")
             technician = payload.get("technician") or current_technician()
             with client.batch_session():
-                existing = client.list_network_diagrams(entity_id)
+                # Duplicados: miramos la sede Y su entidad cliente (en GLPI casi
+                # todos los diagramas cuelgan del cliente, no de la sede).
+                catalog, _ = load_glpi_catalog(client)
+                relevant = relevant_entity_ids(entity_id, catalog)
+                existing = [
+                    d
+                    for d in client.list_network_diagrams(None)
+                    if str(d.get("entities_id", "")).isdigit() and int(d["entities_id"]) in relevant
+                ]
                 allow_duplicate = request.form.get("allow_duplicate") == "1"
                 if existing and not allow_duplicate:
                     return Response(
-                        "Esta sede ya tiene un diagrama en GLPI. Confirma de nuevo para publicar otro.",
+                        "Esta sede o su cliente ya tienen un diagrama en GLPI. Confirma de nuevo para publicar otro.",
                         status=409,
                         mimetype="text/plain; charset=utf-8",
                     )

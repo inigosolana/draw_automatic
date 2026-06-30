@@ -1192,12 +1192,12 @@ class WebAppTests(unittest.TestCase):
             "technician": {"username": "tech", "name": "Tecnico Uno"},
         }
         configured_client = fake_glpi_client(
-            list_network_diagrams=lambda entity_id: [{"id": 99, "entities_id": entity_id}],
+            list_network_diagrams=lambda entity_id=None: [{"id": 99, "entities_id": 7}],
         )
         with patch("web.services.glpi_catalog.GlpiClient.from_environment", return_value=configured_client):
             response = self.client.post("/confirm-glpi/duplicate-token")
         self.assertEqual(response.status_code, 409)
-        self.assertIn(b"ya tiene un diagrama", response.data)
+        self.assertIn(b"ya tienen un diagrama", response.data)
 
     def test_post_fails_when_required_fields_are_missing(self) -> None:
         response = self.client.post(
@@ -1471,3 +1471,20 @@ class WebAppTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RelevantEntityIdsTests(unittest.TestCase):
+    def test_includes_parent_client_entity(self) -> None:
+        from web.services.glpi_catalog import relevant_entity_ids
+
+        catalog = [
+            {"nombre": "Vizcaya", "clientes": [
+                {"id": 1181, "nombre": "IES 8 DE MARZO", "sedes": [{"id": 1182, "nombre": "Sede 1"}]},
+            ]},
+        ]
+        self.assertEqual(relevant_entity_ids(1182, catalog), {1181, 1182})
+
+    def test_unknown_sede_returns_just_itself(self) -> None:
+        from web.services.glpi_catalog import relevant_entity_ids
+
+        self.assertEqual(relevant_entity_ids(999, []), {999})
