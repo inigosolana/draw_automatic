@@ -32,6 +32,7 @@ colapsa terminales por extensión), y reconstruir hacia atrás no es un objetivo
 
 from __future__ import annotations
 
+import html
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -39,6 +40,7 @@ from pathlib import Path
 from .aliases import resolve_alias
 from .device_catalog import devices_json_to_equipos
 from .drawio_writer import BuildResult, build_drawio
+from .equipment_summary import summarize_equipment
 from .layout_engine import build_layout, validate_input_data
 from .layout_types import EdgeSpec, NodeSpec
 from .library_loader import load_library, validate_library_file
@@ -364,7 +366,9 @@ def resolve_library_path(library_path: str | Path) -> Path:
     return candidates[0] if candidates else path
 
 
-def build_drawio_from_box_editor(payload: dict, library_path: str | Path) -> BuildResult:
+def build_drawio_from_box_editor(
+    payload: dict, library_path: str | Path, data: dict | None = None
+) -> BuildResult:
     """Construye el XML draw.io desde el estado EDITADO del editor de cajas.
 
     payload = {"boxes": [{"id","type","model","label","x","y","w","h"}],
@@ -372,6 +376,10 @@ def build_drawio_from_box_editor(payload: dict, library_path: str | Path) -> Bui
     Cada caja conserva su posición; el icono se resuelve por su `model` (las cajas
     de internet se dibujan como nube; las que no tienen model, como texto).
     Se usa solo cuando el técnico ha editado la vista previa antes de generar.
+
+    Si se pasa `data` (datos del formulario), se añaden la CABECERA (cliente/CIF/
+    sede/dirección) y la TABLA RESUMEN de equipos, igual que el diagrama automático,
+    posicionadas alrededor de las cajas para no perder esa información al editar.
     """
     resolved_library = resolve_library_path(library_path)
     if not resolved_library.is_file():
@@ -427,6 +435,29 @@ def build_drawio_from_box_editor(payload: dict, library_path: str | Path) -> Bui
         a, b = str(link.get("a") or ""), str(link.get("b") or "")
         if a in valid_ids and b in valid_ids and a != b:
             edges.append(EdgeSpec(source=a, target=b))
+
+    # Cabecera (cliente/CIF/sede/dirección) y tabla resumen, como el diagrama
+    # automático. Se colocan respecto al bounding box de las cajas para no
+    # solaparlas: cabecera arriba, resumen debajo.
+    if data:
+        min_x = min(n.x for n in nodes)
+        min_y = min(n.y for n in nodes)
+        max_y = max(n.y + n.height for n in nodes)
+
+        def esc(value: object) -> str:
+            return html.escape(str(value or ""))
+
+        header_label = (
+            f"<div style='text-align:start;'><b>{esc(data.get('cliente'))}</b> - {esc(data.get('cif', ''))}</div>"
+            f"<div style='text-align:start;'>{esc(data.get('sede'))}</div>"
+            f"<div style='text-align:start;'>{esc(data.get('direccion'))}</div>"
+        )
+        nodes.append(NodeSpec(key="header", kind="text", label=header_label,
+                              x=min_x, y=max(0, min_y - 100), width=340, height=72))
+        nodes.append(NodeSpec(key="summary_title", kind="plain_text", label="Resumen Equipos",
+                              x=min_x + 17, y=max_y + 60, width=160, height=30))
+        nodes.append(NodeSpec(key="summary", kind="table", label=summarize_equipment(data),
+                              x=min_x, y=max_y + 95, width=385, height=170))
 
     return build_drawio(nodes, edges, library)
 

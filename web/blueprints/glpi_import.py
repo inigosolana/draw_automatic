@@ -127,7 +127,7 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
             if box_data_raw:
                 try:
                     box_payload = json.loads(box_data_raw)
-                    edited = build_drawio_from_box_editor(box_payload, library_path)
+                    edited = build_drawio_from_box_editor(box_payload, library_path, data)
                     generated.result.xml = edited.xml
                     generated.result.warnings = [
                         *generated.result.warnings,

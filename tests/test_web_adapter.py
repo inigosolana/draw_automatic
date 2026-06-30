@@ -30,6 +30,19 @@ class BoxEditorBuildTests(unittest.TestCase):
         self.assertEqual(result.xml.count('edge="1"'), 2)
         self.assertIn("MikroTik hAP ac2", result.xml)
 
+    def test_includes_header_and_summary_when_data_given(self) -> None:
+        payload = {
+            "boxes": [
+                {"id": "1", "type": "router", "model": "MikroTik hAP ac2", "label": "R", "x": 300, "y": 210, "w": 120, "h": 120},
+            ],
+            "links": [],
+        }
+        data = {"cliente": "ACME SL", "cif": "B123", "sede": "Central", "direccion": "Calle Mayor 1", "equipos": []}
+        result = build_drawio_from_box_editor(payload, LIBRARY, data)
+        self.assertIn("ACME SL", result.xml)
+        self.assertIn("Calle Mayor 1", result.xml)
+        self.assertIn("Resumen Equipos", result.xml)
+
     def test_ignores_links_to_missing_boxes(self) -> None:
         payload = {
             "boxes": [{"id": "1", "type": "router", "model": "MikroTik hAP ac2", "label": "R", "x": 0, "y": 0, "w": 120, "h": 120}],
