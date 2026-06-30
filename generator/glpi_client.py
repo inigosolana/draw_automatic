@@ -389,7 +389,10 @@ class GlpiClient:
             "name": name[:45],
             "shortdescription": description[:100],
             "plugin_archimap_graphtypes_id": 1,
-            "plugin_archimap_graphstates_id": 1,
+            # Estado 2 = "Validated": el diagrama se abre en GLPI en SOLO LECTURA
+            # (Archimap bloquea la edición de grafos validados; hay que "Reabrir"
+            # para editar). Estado 1 = "In Progress" lo abría editable.
+            "plugin_archimap_graphstates_id": 2,
             "graph": quote(graph_xml, safe=""),
             "is_helpdesk_visible": 1,
         }
