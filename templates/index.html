@@ -94,7 +94,7 @@
                     <td data-label="Origen">{{ diagram.source or '—' }}</td>
                     <td data-label="">
                       {% if diagram.id %}
-                      <a href="{{ url_for('diagrams.preview_glpi_diagram', diagram_id=diagram.id, next=url_for('glpi_import.index', pending=preview.token)) }}">Previsualizar</a>
+                      <a href="{{ url_for('diagrams.preview_glpi_diagram', diagram_id=diagram.id, next=url_for('glpi_import.index', pending=preview.token)) }}" target="_blank" rel="noopener">Previsualizar ↗</a>
                       ·
                       {% endif %}
                       <a href="{{ diagram.url }}" target="_blank" rel="noopener">Abrir en GLPI</a>
@@ -130,7 +130,7 @@
             >
               Descargar .drawio
             </button>
-            <a class="button secondary" href="{{ preview.preview_url }}">Previsualizar</a>
+            <a class="button secondary" href="{{ preview.preview_url }}" target="_blank" rel="noopener">Previsualizar ↗</a>
             {% if preview.glpi_diagram_url %}
             <a
               class="button glpi"
