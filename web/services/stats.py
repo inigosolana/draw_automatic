@@ -240,6 +240,7 @@ def build_coverage_data(
         province_data: dict = {
             "name": province_name,
             "technician": "",
+            "total_sites": 0,
             "total_missing": 0,
             "clientes": [],
         }
@@ -253,6 +254,7 @@ def build_coverage_data(
                 if entity_id is None:
                     continue
                 total_sites += 1
+                province_data["total_sites"] += 1
                 entity_to_province[int(entity_id)] = province_name
                 if not _entity_covered(entity_id, cliente.get("id"), covered_entity_ids):
                     client_data["sedes"].append(

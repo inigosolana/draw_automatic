@@ -197,7 +197,8 @@
               </span>
               {% endif %}
               <span class="sec-badge sec-badge-warning coverage-province-badge">
-                {{ prov.total_missing }} sede{{ 's' if prov.total_missing != 1 else '' }}
+                {{ prov.total_missing }} por subir de {{ prov.total_sites }}
+                ({{ ((((prov.total_sites or 0) - prov.total_missing) / (prov.total_sites or 1)) * 100) | int }}% cobertura)
               </span>
             </summary>
             {% for cli in prov.clientes %}
