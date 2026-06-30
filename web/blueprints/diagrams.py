@@ -256,6 +256,9 @@ def create_diagrams_blueprint(limiter: Limiter, csrf: CSRFProtect) -> Blueprint:
                 save_url=url_for("diagrams.preview_save", token=token),
                 close_url=_preview_close_url(),
                 preview_label="Previsualización editable",
+                # Diagrama recién generado (aún no en GLPI): autoguardar en
+                # servidor es seguro (actualiza el pendiente, sin crear versiones).
+                autosave_server=True,
             ),
         )
 

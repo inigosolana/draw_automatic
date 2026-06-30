@@ -89,6 +89,18 @@
       hasUnsavedChanges = false;
     }
 
+    let autosaveTimer = null;
+    function scheduleAutosave(xml) {
+      if (autosaveTimer) {
+        window.clearTimeout(autosaveTimer);
+      }
+      autosaveTimer = window.setTimeout(function () {
+        // Guarda en el pendiente sin salir; saveDiagram ya evita guardar si no
+        // hay cambios o si ya hay un guardado en curso.
+        saveDiagram(xml, false).catch(function () {});
+      }, 1500);
+    }
+
     function noteDiagramChange(xml) {
       if (!baselineXml || !xml) {
         return;
@@ -263,6 +275,9 @@
 
       if (message.event === "autosave") {
         noteDiagramChange(message.xml || "");
+        if (config.autosaveServer) {
+          scheduleAutosave(message.xml || "");
+        }
         return;
       }
 
