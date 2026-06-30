@@ -88,6 +88,16 @@
                 filter.value = "";
                 onSelect(item);
               },
+              // Fija la etiqueta/selección SIN disparar onSelect (para autorrellenar
+              // la provincia al elegir cliente sin re-filtrar la lista de clientes).
+              setDisplay(item) {
+                if (!item) {
+                  return;
+                }
+                selected = item;
+                label.textContent = item.nombre;
+                element.classList.remove("disabled");
+              },
             };
           }
 
@@ -106,11 +116,30 @@
               : "Dirección procedente de GLPI. Complétala con la calle exacta; se guardará al generar.";
           });
 
+          // Lista plana de TODOS los clientes (con su provincia) para poder
+          // empezar buscando por cliente sin elegir provincia primero.
+          const customerProvince = new Map();
+          const allCustomers = [];
+          glpiCustomers.forEach(function (province) {
+            (province.clientes || []).forEach(function (customer) {
+              customerProvince.set(customer, province);
+              allCustomers.push(customer);
+            });
+          });
+
           customerControl = createSearchSelect(document.getElementById("glpi-customer"), function (customer) {
             fields.cliente.value = customer.nombre || "";
             fields.cif.value = customer.cif || "";
             fields.direccion.value = customer.direccion || "";
             glpiEntityId.value = "";
+            // Si se eligió el cliente directamente, autorrellena su provincia.
+            const province = customerProvince.get(customer);
+            if (province) {
+              provinceControl.setDisplay(province);
+              if (glpiProvincia) {
+                glpiProvincia.value = province.nombre || "";
+              }
+            }
             siteControl.setItems(customer.sedes, "Selecciona una sede");
           });
 
@@ -124,6 +153,9 @@
           });
 
           provinceControl.setItems(glpiCustomers, "Selecciona una provincia");
+          // Cliente disponible desde el principio (búsqueda entre todos). Elegir
+          // provincia lo sigue filtrando; elegir cliente autorrellena la provincia.
+          customerControl.setItems(allCustomers, "Selecciona o busca un cliente");
 
           window.__drawioGlpiReset = function () {
             glpiEntityId.value = "";
@@ -131,7 +163,7 @@
               glpiProvincia.value = "";
             }
             provinceControl.setItems(glpiCustomers, "Selecciona una provincia");
-            customerControl.setItems([], "Selecciona primero una provincia");
+            customerControl.setItems(allCustomers, "Selecciona o busca un cliente");
             siteControl.setItems([], "Selecciona primero un cliente");
             fields.cliente.value = "";
             fields.cif.value = "";
