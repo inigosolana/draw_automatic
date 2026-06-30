@@ -21,11 +21,27 @@
     return;
   }
 
+  // Lista plana de todos los clientes con su provincia, para poder buscar por
+  // cliente sin elegir provincia primero (igual que en Crear diagrama).
+  const customerProvince = new Map();
+  const allCustomers = [];
+  catalog.forEach(function (province) {
+    (province.clientes || []).forEach(function (customer) {
+      customerProvince.set(customer, province);
+      allCustomers.push(customer);
+    });
+  });
+
   const siteControl = createSearchSelect(document.getElementById("diagram-site"), function (site) {
     entityId.value = String(site.id);
   });
   const customerControl = createSearchSelect(document.getElementById("diagram-customer"), function (customer) {
     entityId.value = "";
+    // Si se eligió cliente directamente, autorrellena su provincia (sin resetear).
+    const province = customerProvince.get(customer);
+    if (province) {
+      provinceControl.selectItem(province, { silent: true });
+    }
     siteControl.setItems(customer.sedes || [], "Selecciona una sede");
   });
   const provinceControl = createSearchSelect(document.getElementById("diagram-province"), function (province) {
@@ -35,6 +51,7 @@
   });
 
   provinceControl.setItems(catalog, "Selecciona una provincia");
+  customerControl.setItems(allCustomers, "Selecciona o busca un cliente");
 
   function selectByEntityId(targetId) {
     if (!targetId || !catalog.length) {
