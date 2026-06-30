@@ -22,7 +22,12 @@ from generator.diagram_metadata import unique_diagram_name
 from generator.glpi_merge import merge_import_with_glpi
 from generator.safe_errors import public_error_message
 from generator.utils import positive_integer
-from generator.web_adapter import build_drawio_from_data, form_to_data, form_to_structured_data
+from generator.web_adapter import (
+    build_drawio_from_box_editor,
+    build_drawio_from_data,
+    form_to_data,
+    form_to_structured_data,
+)
 from generator.work_order_text_parser import parse_work_order_paste
 from web.services.diagram_publish import publish_diagram
 from web.services.export import MISSING_SITES_EXPORT_FILENAME, missing_sites_to_xlsx
@@ -114,9 +119,23 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
         try:
             data = form_to_data(form_data)
             structured_data = form_to_structured_data(form_data)
-            generated = build_drawio_from_data(
-                data, form_data.get("library_path", current_app.config["DEFAULT_LIBRARY"])
-            )
+            library_path = form_data.get("library_path", current_app.config["DEFAULT_LIBRARY"])
+            generated = build_drawio_from_data(data, library_path)
+            # Si el técnico editó la vista previa de cajas (mover/conectar/borrar),
+            # el diagrama final refleja SUS cambios en vez del layout automático.
+            box_data_raw = (form_data.get("box_editor_data") or "").strip()
+            if box_data_raw:
+                try:
+                    box_payload = json.loads(box_data_raw)
+                    edited = build_drawio_from_box_editor(box_payload, library_path)
+                    generated.result.xml = edited.xml
+                    generated.result.warnings = [
+                        *generated.result.warnings,
+                        *edited.warnings,
+                        "Diagrama generado desde tus cambios en la vista previa (editor de cajas).",
+                    ]
+                except (ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
+                    security_logger.warning(f"Editor de cajas ignorado (no válido): {exc}")
         except FileNotFoundError:
             return render_template(
                 "index.html",

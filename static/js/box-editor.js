@@ -17,6 +17,10 @@
     var selBox = null;
     var selLink = null;
     var zoom = 1;
+    // "dirty" = el técnico ha editado a mano (mover/conectar/borrar/renombrar).
+    // Solo entonces el diagrama final se genera desde estas cajas. buildFromForm
+    // (reconstrucción automática) lo deja en false.
+    var dirty = false;
 
     var HINTS = {
       move: "Modo <b>Mover</b>: arrastra cajas, clic para seleccionar (Supr borra), doble clic para renombrar.",
@@ -77,11 +81,12 @@
       return allowed.indexOf(tb) >= 0;
     }
 
-    function addBox(label, x, y, type) {
+    function addBox(label, x, y, type, model) {
       var el = document.createElement("div");
       el.className = "ebox";
       el.dataset.id = ++bid;
       if (type) el.dataset.type = type;
+      if (model) el.dataset.model = model;
       el.textContent = label == null ? "Nueva caja" : label;
       el.style.left = (x == null ? 40 + Math.round((bid * 37) % 300) : x) + "px";
       el.style.top = (y == null ? 40 + Math.round((bid * 53) % 230) : y) + "px";
@@ -91,9 +96,9 @@
       el.addEventListener("dblclick", function (e) {
         e.stopPropagation();
         var t = prompt("Texto de la caja:", el.textContent);
-        if (t != null) { el.textContent = t; draw(); }
+        if (t != null) { el.textContent = t; dirty = true; draw(); }
       });
-      if (label == null) setMode("move");
+      if (label == null) { setMode("move"); dirty = true; }
       draw();
       return el;
     }
@@ -102,11 +107,12 @@
       boxes = boxes.filter(function (b) { return b !== el; });
       el.remove();
       if (selBox === el) selBox = null;
+      dirty = true;
       draw();
     }
     function deleteSelected() {
       if (selBox) deleteBox(selBox);
-      else if (selLink) { links = links.filter(function (l) { return l !== selLink; }); selLink = null; draw(); }
+      else if (selLink) { links = links.filter(function (l) { return l !== selLink; }); selLink = null; dirty = true; draw(); }
     }
 
     var drag = null;
@@ -120,7 +126,7 @@
           var h = document.getElementById("be-hint");
           if (h) h.innerHTML = "❌ Esa conexión no está permitida (p. ej. la ONT solo se conecta al router). Elige otra caja.";
         }
-        else { links.push({ a: linkSrc, b: el }); linkSrc.classList.remove("sel"); linkSrc = null; draw(); setMode("move"); }
+        else { links.push({ a: linkSrc, b: el }); linkSrc.classList.remove("sel"); linkSrc = null; dirty = true; draw(); setMode("move"); }
         return;
       }
       selectBox(el);
@@ -135,6 +141,7 @@
       y = Math.max(2, Math.min(y, stage.clientHeight - drag.el.offsetHeight - 2));
       drag.el.style.left = x + "px";
       drag.el.style.top = y + "px";
+      dirty = true;
       draw();
     });
     document.addEventListener("pointerup", function () { drag = null; });
@@ -145,7 +152,7 @@
       e.stopPropagation();
       var l = links[+i];
       if (!l) return;
-      if (mode === "del") { links = links.filter(function (x) { return x !== l; }); draw(); setMode("move"); }
+      if (mode === "del") { links = links.filter(function (x) { return x !== l; }); dirty = true; draw(); setMode("move"); }
       else selectLink(l);
     });
     canvas.addEventListener("pointerdown", function (e) {
@@ -217,18 +224,19 @@
       var f = readForm();
       var col = 0, prev = null, router = null;
       if (f.internet) { prev = addBox("🌐 " + f.internet, COL[col++], 210, "internet"); }
-      if (f.ont) { var o = addBox(f.ont, COL[col++], 210, "ont"); if (prev) links.push({ a: prev, b: o }); prev = o; }
-      if (f.router) { router = addBox(f.router, COL[col++], 210, "router"); if (prev) links.push({ a: prev, b: router }); }
-      if (f.backup && router) { var bk = addBox("Backup: " + f.backup, COL[Math.max(0, col - 1)], 80, "backup"); links.push({ a: router, b: bk }); }
+      if (f.ont) { var o = addBox(f.ont, COL[col++], 210, "ont", f.ont); if (prev) links.push({ a: prev, b: o }); prev = o; }
+      if (f.router) { router = addBox(f.router, COL[col++], 210, "router", f.router); if (prev) links.push({ a: prev, b: router }); }
+      if (f.backup && router) { var bk = addBox("Backup: " + f.backup, COL[Math.max(0, col - 1)], 80, "backup", f.backup); links.push({ a: router, b: bk }); }
       var switches = f.devices.filter(function (d) { return d.category === "switch"; });
       var anchor = router;
-      if (switches.length) { var sw = addBox(switches[0].model, COL[col], 360, "switch"); if (router) links.push({ a: router, b: sw }); anchor = sw; }
+      if (switches.length) { var sw = addBox(switches[0].model, COL[col], 360, "switch", switches[0].model); if (router) links.push({ a: router, b: sw }); anchor = sw; }
       var endpoints = [];
-      f.terminals.forEach(function (t) { endpoints.push({ label: "📞 " + t.model + (t.ext ? " " + t.ext : ""), type: "terminal" }); });
-      f.devices.forEach(function (d) { if (d.category !== "switch") endpoints.push({ label: d.model, type: d.category === "ap" ? "ap" : "device" }); });
+      f.terminals.forEach(function (t) { endpoints.push({ label: "📞 " + t.model + (t.ext ? " " + t.ext : ""), type: "terminal", model: t.model }); });
+      f.devices.forEach(function (d) { if (d.category !== "switch") endpoints.push({ label: d.model, type: d.category === "ap" ? "ap" : "device", model: d.model }); });
       var ex = COL[Math.min(col + 1, COL.length - 1)], ey = 70, step = 66;
-      endpoints.forEach(function (ep, i) { var e = addBox(ep.label, ex, ey + i * step, ep.type); if (anchor) links.push({ a: anchor, b: e }); });
+      endpoints.forEach(function (ep, i) { var e = addBox(ep.label, ex, ey + i * step, ep.type, ep.model); if (anchor) links.push({ a: anchor, b: e }); });
       setMode("move");
+      dirty = false;
       draw();
       setTimeout(draw, 40);
     }
@@ -238,6 +246,28 @@
     if (form) {
       form.addEventListener("change", scheduleRebuild);
       form.addEventListener("input", scheduleRebuild);
+      // Al generar: si el técnico editó la vista previa, mandamos su estado
+      // (cajas + conexiones) para que el diagrama final lo refleje.
+      form.addEventListener("submit", function () {
+        var field = document.getElementById("box-editor-data");
+        if (!field) return;
+        if (!dirty) { field.value = ""; return; }
+        field.value = JSON.stringify({
+          boxes: boxes.map(function (b) {
+            return {
+              id: b.dataset.id,
+              type: b.dataset.type || "",
+              model: b.dataset.model || "",
+              label: b.textContent || "",
+              x: b.offsetLeft,
+              y: b.offsetTop,
+              w: b.offsetWidth,
+              h: b.offsetHeight
+            };
+          }),
+          links: links.map(function (l) { return { a: l.a.dataset.id, b: l.b.dataset.id }; })
+        });
+      });
     }
     buildFromForm();
   });
