@@ -996,7 +996,15 @@ class WebAppTests(unittest.TestCase):
             headers={"Accept-Encoding": "gzip"},
         )
         self.assertEqual(gzip_response.status_code, 200)
-        self.assertEqual(gzip_response.headers.get("Content-Encoding"), "gzip")
+        # La ruta solo comprime librerias grandes (>512 KB). Con la fixture de
+        # tests (pequena) se sirve sin comprimir; con la libreria real va gzip.
+        encoding = gzip_response.headers.get("Content-Encoding")
+        if encoding == "gzip":
+            import gzip as _gzip
+            self.assertIn(b"<mxlibrary>", _gzip.decompress(gzip_response.data))
+        else:
+            self.assertIsNone(encoding)
+            self.assertIn(b"<mxlibrary>", gzip_response.data)
         app_origin = self.client.get(
             "/drawio-library.xml",
             headers={"Origin": "https://app.diagrams.net"},
