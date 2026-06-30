@@ -3457,3 +3457,53 @@ así que en SO oscuro la UI quedaba ilegible (paneles
 .diagram-dropdown-filters select {
   max-width: 220px;
 }
+
+/* Globos informativos en los encabezados de sección (Crear diagrama) */
+.info-tip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-left: 8px;
+  border-radius: 50%;
+  background: #d8e3e6;
+  color: #01696f;
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-style: normal;
+  cursor: help;
+  vertical-align: middle;
+  user-select: none;
+}
+.info-tip .info-tip-bubble {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 40;
+  width: max-content;
+  max-width: 320px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #1f3b3d;
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 400;
+  line-height: 1.4;
+  text-align: left;
+  white-space: normal;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  pointer-events: none;
+}
+.info-tip:hover .info-tip-bubble,
+.info-tip:focus .info-tip-bubble,
+.info-tip:focus-within .info-tip-bubble {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}

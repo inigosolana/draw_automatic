@@ -176,7 +176,7 @@
 
           <div class="creation-top-grid">
           <section class="form-section destination-card">
-            <h2><span class="section-icon">◆</span> Destino GLPI</h2>
+            <h2><span class="section-icon">◆</span> Destino GLPI<span class="info-tip" tabindex="0" role="note" aria-label="Ayuda: Destino GLPI">ⓘ<span class="info-tip-bubble">Elige a qué sede de GLPI se asociará el diagrama. Puedes empezar por el cliente (búscalo por nombre) y la provincia se rellena sola, o al revés. Al elegir la sede se trae su dirección, que puedes corregir y se guardará.</span></span></h2>
             {% if glpi_customers %}
             <div class="field-grid two-columns glpi-picker-grid">
             <label>Provincia GLPI
@@ -215,7 +215,7 @@
           </section>
 
           <section class="form-section connectivity-card">
-            <h2><span class="section-icon">▣</span> Conectividad</h2>
+            <h2><span class="section-icon">▣</span> Conectividad<span class="info-tip" tabindex="0" role="note" aria-label="Ayuda: Conectividad">ⓘ<span class="info-tip-bubble">Define el internet de la sede: tipo (Fibra, Fibra+Backup o 4G monitorizado), proveedor, velocidad, ONT, router y equipo de backup. Las opciones se ajustan solas según el tipo (p. ej. 4G monitorizado fuerza router CHATEAU y sin ONT). Puedes guardar combinaciones como plantilla.</span></span></h2>
             <div class="template-bar">
               <label class="template-bar-field">Plantilla
                 <select id="template-picker">
@@ -286,7 +286,7 @@
           </div>
 
           <section class="form-section equipment-card">
-            <h2><span class="section-icon">📞</span> Telefonía (Terminales)</h2>
+            <h2><span class="section-icon">📞</span> Telefonía (Terminales)<span class="info-tip" tabindex="0" role="note" aria-label="Ayuda: Telefonía">ⓘ<span class="info-tip-bubble">Añade cada teléfono con su modelo y extensión. Los terminales DECT (W71H, W72H, W53H, W73H) necesitan una base; se asigna una por defecto y varios handsets pueden compartirla. Usa el botón para añadir o quitar filas.</span></span></h2>
               <div class="terminal-description">
                 <div class="terminal-heading">
                   <div>
@@ -304,7 +304,7 @@
           </section>
 
           <section class="form-section equipment-card">
-            <h2><span class="section-icon">🖧</span> Dispositivos de red</h2>
+            <h2><span class="section-icon">🖧</span> Dispositivos de red<span class="info-tip" tabindex="0" role="note" aria-label="Ayuda: Dispositivos de red">ⓘ<span class="info-tip-bubble">Añade el resto de equipos de la sede: switches, puntos de acceso WiFi, PCs, NAS, cámaras, etc. Elige la categoría y el modelo; con «Otros» puedes escribir un modelo libre.</span></span></h2>
             <div class="devices-panel">
                 <div class="devices-heading">
                   <div>
@@ -336,7 +336,7 @@
 
           <section class="form-section box-editor-section">
             <div class="box-editor-head">
-              <h2 class="box-editor-title"><span class="section-icon">▦</span> Vista previa · editor rápido</h2>
+              <h2 class="box-editor-title"><span class="section-icon">▦</span> Vista previa · editor rápido<span class="info-tip" tabindex="0" role="note" aria-label="Ayuda: Vista previa">ⓘ<span class="info-tip-bubble">Esquema orientativo que se monta solo desde el formulario. Puedes mover cajas, conectarlas (Conectar) y borrarlas (Borrar); algunas conexiones no se permiten (p. ej. la ONT solo va al router). Es una vista previa: el diagrama final se genera del formulario.</span></span></h2>
               <div class="box-toolbar">
                 <button type="button" class="be-btn on" id="be-move">Mover</button>
                 <button type="button" class="be-btn" id="be-box">＋ Caja</button>
