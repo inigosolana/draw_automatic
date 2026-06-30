@@ -1,12 +1,17 @@
-Flask>=3.0.0
-defusedxml>=0.7.1
-gunicorn>=22.0.0
-lxml>=5.0.0
-Flask-Limiter>=3.5.0
-redis>=5.0.0
-Flask-WTF>=1.2.1
-Flask-Talisman>=1.1.0
-cryptography>=42.0.0
-python-dotenv>=1.0.0
-openpyxl>=3.1.0
-pypdf>=4.0.0
+# Versiones FIJADAS a un conjunto conocido-bueno (pasa la suite de tests y está
+# en producción). El código se hornea en la imagen con `pip install -r` durante
+# `docker compose build`, así que un rango `>=` dejaría que una versión nueva
+# (incluso major) entrara en un rebuild y rompiera producción sin tocar el código.
+# Para subir una dependencia: cámbiala aquí, reconstruye, corre los tests y despliega.
+Flask==3.1.3
+defusedxml==0.7.1
+gunicorn==26.0.0
+lxml==6.1.1
+Flask-Limiter==4.1.1
+redis==8.0.0
+Flask-WTF==1.3.0
+Flask-Talisman==1.1.0
+cryptography==49.0.0
+python-dotenv==1.2.2
+openpyxl==3.1.5
+pypdf==6.14.2

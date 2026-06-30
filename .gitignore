@@ -20,3 +20,4 @@ libreria_Ausarta_JUN_2026.xml
 library/*.xml
 LOCAL_ONLY_MANIFEST.txt
 scripts/sync-local-to-server.ps1
+data/learned_library.json

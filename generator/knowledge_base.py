@@ -3,6 +3,7 @@ from __future__ import annotations
 import html
 import json
 import re
+import threading
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -10,6 +11,12 @@ from .aliases import normalize_name
 
 
 KNOWLEDGE_PATH = Path(__file__).resolve().parents[1] / "data" / "learned_library.json"
+
+# Cache de los items aprendidos por (mtime, tamaño): el JSON se re-leía y
+# re-parseaba en cada /generate. Se invalida solo cuando cambia el fichero
+# (p. ej. tras learn_from_drawio), igual que _BASE_CACHE en library_loader.
+_LEARNED_CACHE: dict[str, tuple[tuple[int, int], list[dict]]] = {}
+_LEARNED_CACHE_LOCK = threading.Lock()
 
 
 def _plain_label(value: str) -> str:
@@ -83,10 +90,21 @@ def learn_from_drawio(xml: str, source_name: str, knowledge_path: Path = KNOWLED
 
 
 def load_learned_items(knowledge_path: Path = KNOWLEDGE_PATH) -> list[dict]:
-    if not knowledge_path.exists():
+    try:
+        stat = knowledge_path.stat()
+    except OSError:
         return []
+    signature = (int(stat.st_mtime_ns), int(stat.st_size))
+    key = str(knowledge_path)
+    with _LEARNED_CACHE_LOCK:
+        cached = _LEARNED_CACHE.get(key)
+        if cached and cached[0] == signature:
+            return cached[1]
     try:
         payload = json.loads(knowledge_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
         return []
-    return list(payload.values()) if isinstance(payload, dict) else []
+    items = list(payload.values()) if isinstance(payload, dict) else []
+    with _LEARNED_CACHE_LOCK:
+        _LEARNED_CACHE[key] = (signature, items)
+    return items
