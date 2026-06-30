@@ -21,6 +21,9 @@
     // Solo entonces el diagrama final se genera desde estas cajas. buildFromForm
     // (reconstrucción automática) lo deja en false.
     var dirty = false;
+    // Historial para deshacer/rehacer (snapshots serializables del lienzo).
+    var history = [];
+    var histIndex = -1;
 
     var HINTS = {
       move: "Modo <b>Mover</b>: arrastra cajas, clic para seleccionar (Supr borra), doble clic para renombrar.",
@@ -96,7 +99,7 @@
       el.addEventListener("dblclick", function (e) {
         e.stopPropagation();
         var t = prompt("Texto de la caja:", el.textContent);
-        if (t != null) { el.textContent = t; dirty = true; draw(); }
+        if (t != null) { el.textContent = t; dirty = true; draw(); pushHistory(); }
       });
       if (label == null) { setMode("move"); dirty = true; }
       draw();
@@ -109,10 +112,11 @@
       if (selBox === el) selBox = null;
       dirty = true;
       draw();
+      pushHistory();
     }
     function deleteSelected() {
       if (selBox) deleteBox(selBox);
-      else if (selLink) { links = links.filter(function (l) { return l !== selLink; }); selLink = null; dirty = true; draw(); }
+      else if (selLink) { links = links.filter(function (l) { return l !== selLink; }); selLink = null; dirty = true; draw(); pushHistory(); }
     }
 
     var drag = null;
@@ -126,7 +130,7 @@
           var h = document.getElementById("be-hint");
           if (h) h.innerHTML = "❌ Esa conexión no está permitida (p. ej. la ONT solo se conecta al router). Elige otra caja.";
         }
-        else { links.push({ a: linkSrc, b: el }); linkSrc.classList.remove("sel"); linkSrc = null; dirty = true; draw(); setMode("move"); }
+        else { links.push({ a: linkSrc, b: el }); linkSrc.classList.remove("sel"); linkSrc = null; dirty = true; draw(); setMode("move"); pushHistory(); }
         return;
       }
       selectBox(el);
@@ -141,10 +145,14 @@
       y = Math.max(2, Math.min(y, stage.clientHeight - drag.el.offsetHeight - 2));
       drag.el.style.left = x + "px";
       drag.el.style.top = y + "px";
+      drag.moved = true;
       dirty = true;
       draw();
     });
-    document.addEventListener("pointerup", function () { drag = null; });
+    document.addEventListener("pointerup", function () {
+      if (drag && drag.moved) pushHistory();
+      drag = null;
+    });
 
     wires.addEventListener("click", function (e) {
       var i = e.target.getAttribute && e.target.getAttribute("data-i");
@@ -152,16 +160,29 @@
       e.stopPropagation();
       var l = links[+i];
       if (!l) return;
-      if (mode === "del") { links = links.filter(function (x) { return x !== l; }); dirty = true; draw(); setMode("move"); }
+      if (mode === "del") { links = links.filter(function (x) { return x !== l; }); dirty = true; draw(); setMode("move"); pushHistory(); }
       else selectLink(l);
     });
     canvas.addEventListener("pointerdown", function (e) {
       if (e.target === canvas || e.target === stage || e.target === wires) clearSel();
     });
     document.addEventListener("keydown", function (e) {
+      var tag = (document.activeElement && document.activeElement.tagName) || "";
+      var typing = /INPUT|SELECT|TEXTAREA/.test(tag);
+      if ((e.ctrlKey || e.metaKey) && (e.key === "z" || e.key === "Z")) {
+        if (typing) return;
+        e.preventDefault();
+        if (e.shiftKey) redo(); else undo();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === "y" || e.key === "Y")) {
+        if (typing) return;
+        e.preventDefault();
+        redo();
+        return;
+      }
       if ((e.key === "Delete" || e.key === "Backspace") && (selBox || selLink)) {
-        var tag = (document.activeElement && document.activeElement.tagName) || "";
-        if (/INPUT|SELECT|TEXTAREA/.test(tag)) return;
+        if (typing) return;
         e.preventDefault();
         deleteSelected();
       }
@@ -186,11 +207,74 @@
       boxes = []; links = []; linkSrc = null; selBox = null; selLink = null; draw();
     }
 
+    // ---- Deshacer / Rehacer (historial de snapshots) ----
+    function snapshot() {
+      return {
+        boxes: boxes.map(function (b) {
+          return {
+            id: b.dataset.id, type: b.dataset.type || "", model: b.dataset.model || "",
+            label: b.textContent || "", x: b.offsetLeft, y: b.offsetTop
+          };
+        }),
+        links: links.map(function (l) { return { a: l.a.dataset.id, b: l.b.dataset.id }; })
+      };
+    }
+    function restoreSnapshot(snap) {
+      clearCanvas();
+      var map = {};
+      snap.boxes.forEach(function (bx) {
+        var el = addBox(bx.label, bx.x, bx.y, bx.type, bx.model);
+        el.dataset.id = bx.id;
+        var n = parseInt(bx.id, 10);
+        if (!isNaN(n) && n > bid) bid = n;
+        map[bx.id] = el;
+      });
+      links = snap.links
+        .map(function (lk) { return { a: map[lk.a], b: map[lk.b] }; })
+        .filter(function (l) { return l.a && l.b; });
+      draw();
+    }
+    function updateHistoryButtons() {
+      var u = document.getElementById("be-undo"), r = document.getElementById("be-redo");
+      if (u) u.disabled = histIndex <= 0;
+      if (r) r.disabled = histIndex >= history.length - 1;
+    }
+    function resetHistory() {
+      history = [snapshot()];
+      histIndex = 0;
+      updateHistoryButtons();
+    }
+    function pushHistory() {
+      history = history.slice(0, histIndex + 1);
+      history.push(snapshot());
+      if (history.length > 60) history.shift();
+      histIndex = history.length - 1;
+      updateHistoryButtons();
+    }
+    function undo() {
+      if (histIndex <= 0) return;
+      histIndex--;
+      restoreSnapshot(history[histIndex]);
+      dirty = histIndex > 0; // índice 0 = estado generado del formulario
+      updateHistoryButtons();
+    }
+    function redo() {
+      if (histIndex >= history.length - 1) return;
+      histIndex++;
+      restoreSnapshot(history[histIndex]);
+      dirty = histIndex > 0;
+      updateHistoryButtons();
+    }
+
     document.getElementById("be-move").addEventListener("click", function () { setMode("move"); });
-    document.getElementById("be-box").addEventListener("click", function () { addBox(); });
+    document.getElementById("be-box").addEventListener("click", function () { addBox(); pushHistory(); });
     document.getElementById("be-link").addEventListener("click", function () { setMode("link"); });
     document.getElementById("be-del").addEventListener("click", function () { setMode("del"); });
-    document.getElementById("be-clear").addEventListener("click", clearCanvas);
+    document.getElementById("be-clear").addEventListener("click", function () { clearCanvas(); dirty = true; pushHistory(); });
+    var undoBtn = document.getElementById("be-undo");
+    if (undoBtn) undoBtn.addEventListener("click", undo);
+    var redoBtn = document.getElementById("be-redo");
+    if (redoBtn) redoBtn.addEventListener("click", redo);
     document.getElementById("be-zoomin").addEventListener("click", function () { setZoom(zoom + 0.1); });
     document.getElementById("be-zoomout").addEventListener("click", function () { setZoom(zoom - 0.1); });
     window.addEventListener("resize", draw);
@@ -239,6 +323,7 @@
       dirty = false;
       draw();
       setTimeout(draw, 40);
+      resetHistory();
     }
     var rebuildTimer = null;
     function scheduleRebuild() { clearTimeout(rebuildTimer); rebuildTimer = setTimeout(buildFromForm, 220); }

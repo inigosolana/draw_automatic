@@ -3507,3 +3507,5 @@ así que en SO oscuro la UI quedaba ilegible (paneles
   visibility: visible;
   transform: translateY(0);
 }
+
+.be-btn[disabled] { opacity: 0.4; cursor: default; }
