@@ -63,9 +63,10 @@ class GlpiClientRefactorTests(unittest.TestCase):
         self.assertEqual(calls.count(GlpiEndpoints.INIT_SESSION), 2)
 
     def test_archimap_entities_page_only_requests_entity_field(self) -> None:
+        # Campo 80 = nombre completo de la entidad REAL (la sede), no el 81 (padre).
         path = GlpiEndpoints.archimap_entities_page(0, 500)
         self.assertEqual(
-            path, "search/PluginArchimapGraph?range=0-499&forcedisplay[0]=81"
+            path, "search/PluginArchimapGraph?range=0-499&forcedisplay[0]=80"
         )
 
     def test_list_covered_entity_ids_collects_unique_ints(self) -> None:
@@ -79,9 +80,10 @@ class GlpiClientRefactorTests(unittest.TestCase):
                 return False
 
         client.session = lambda: FakeSession()
+        client.entity_id_by_completename = lambda: {"A > S1": 10, "A > S2": 25}
         client._request = MagicMock(
             return_value={
-                "data": [{"81": 10}, {"81": 10}, {"81": "25"}, {"81": None}]
+                "data": [{"80": "A > S1"}, {"80": "A > S1"}, {"80": "A > S2"}, {"80": ""}]
             }
         )
 
@@ -98,11 +100,13 @@ class GlpiClientRefactorTests(unittest.TestCase):
                 return False
 
         client.session = lambda: FakeSession()
+        client.entity_id_by_completename = lambda: {"A > Cliente > Sede": 5583}
         client._request = MagicMock(
             return_value={
                 "totalcount": 1,
                 "data": [
-                    {"72": 2279, "1": "Cliente - Sede", "2": "desc", "6": "Active", "81": 5583}
+                    {"72": 2279, "1": "Cliente - Sede", "2": "desc", "6": "Active",
+                     "81": 5582, "80": "A > Cliente > Sede"}
                 ],
             }
         )
@@ -112,6 +116,7 @@ class GlpiClientRefactorTests(unittest.TestCase):
         self.assertEqual(len(diagrams), 1)
         self.assertEqual(diagrams[0]["id"], 2279)
         self.assertEqual(diagrams[0]["name"], "Cliente - Sede")
+        # Entidad REAL resuelta por nombre completo (no el padre 5582 del campo 81).
         self.assertEqual(diagrams[0]["entities_id"], 5583)
         path = client._request.call_args.args[0]
         self.assertTrue(path.startswith("search/PluginArchimapGraph?"))
@@ -130,6 +135,7 @@ class GlpiClientRefactorTests(unittest.TestCase):
                 return False
 
         client.session = lambda: FakeSession()
+        client.entity_id_by_completename = lambda: {}  # sin resolver -> cae al campo 81
         # totalcount=3 pero el servidor sólo entrega 2 filas por página.
         rows = [
             {"72": 1, "1": "A", "2": "", "6": "", "81": 5},
@@ -158,9 +164,10 @@ class GlpiClientRefactorTests(unittest.TestCase):
                 return False
 
         client.session = lambda: FakeSession()
+        client.entity_id_by_completename = lambda: {"S10": 10, "S11": 11, "S12": 12}
         pages = [
-            {"totalcount": 3, "data": [{"81": 10}, {"81": 11}]},
-            {"totalcount": 3, "data": [{"81": 12}]},
+            {"totalcount": 3, "data": [{"80": "S10"}, {"80": "S11"}]},
+            {"totalcount": 3, "data": [{"80": "S12"}]},
         ]
         client._request = MagicMock(side_effect=pages)
 

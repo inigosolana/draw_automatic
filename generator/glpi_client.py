@@ -43,6 +43,10 @@ class GlpiEndpoints:
         "shortdescription": 2,
         "plugin_archimap_graphstates_id": 6,
         "entities_id": 81,
+        # Campo 80 = nombre completo de la entidad REAL del diagrama (la sede).
+        # El 81 devuelve la entidad PADRE, no la propia; usamos el 80 + el mapa
+        # completename->id para conocer la sede exacta.
+        "entity_completename": 80,
     }
 
     @classmethod
@@ -61,9 +65,13 @@ class GlpiEndpoints:
 
     @classmethod
     def archimap_entities_page(cls, start: int, page_size: int) -> str:
-        """Pagina pidiendo SOLO el campo entities_id (cobertura ligera)."""
+        """Pagina pidiendo el nombre completo de la entidad (cobertura ligera).
+
+        Usamos el campo 80 (nombre completo de la entidad REAL = la sede) y no el
+        81 (que devuelve la entidad padre), para que la cobertura sea por sede.
+        """
         end = start + page_size - 1
-        field = cls.ARCHIMAP_SEARCH_FIELDS["entities_id"]
+        field = cls.ARCHIMAP_SEARCH_FIELDS["entity_completename"]
         return f"search/{cls.PLUGIN_ARCHIMAP_GRAPH}?range={start}-{end}&forcedisplay[0]={field}"
 
 
@@ -108,6 +116,19 @@ class GlpiClient:
         # Cuando batch_session() esta activo, todas las operaciones reutilizan
         # esta sesion en vez de hacer initSession/killSession en cada llamada.
         self._active_headers: dict[str, str] | None = None
+        # Cache completename->id de entidades (para resolver la entidad REAL de
+        # cada diagrama: la search API devuelve el nombre completo, no el id).
+        self._entity_cn_map: dict[str, int] | None = None
+
+    def entity_id_by_completename(self) -> dict[str, int]:
+        if self._entity_cn_map is None:
+            mapping: dict[str, int] = {}
+            for entity in self.list_entities():
+                cn = str(entity.get("completename") or "").strip()
+                if cn and str(entity.get("id") or "").isdigit():
+                    mapping[cn] = int(entity["id"])
+            self._entity_cn_map = mapping
+        return self._entity_cn_map
 
     @classmethod
     def from_environment(cls) -> GlpiClient | None:
@@ -299,7 +320,12 @@ class GlpiClient:
                 rows = payload.get("data") if isinstance(payload, dict) else None
                 if not isinstance(rows, list) or not rows:
                     break
+                cn_map = self.entity_id_by_completename()
                 for row in rows:
+                    # Entidad REAL del diagrama vía nombre completo (campo 80);
+                    # si no resuelve, caemos al campo 81 (padre) como antes.
+                    completename = str(row.get(str(fields["entity_completename"])) or "").strip()
+                    real_entity = cn_map.get(completename)
                     diagrams.append(
                         {
                             "id": row.get(str(fields["id"])),
@@ -309,7 +335,9 @@ class GlpiClient:
                                 str(fields["plugin_archimap_graphstates_id"])
                             )
                             or "",
-                            "entities_id": row.get(str(fields["entities_id"])),
+                            "entities_id": real_entity
+                            if real_entity is not None
+                            else row.get(str(fields["entities_id"])),
                         }
                     )
                 # Avanzamos por las filas REALMENTE devueltas: si GLPI limita el
@@ -343,7 +371,8 @@ class GlpiClient:
         entities_id, sin nombre/descripcion/estado. Usado por la cobertura del
         admin y el export de sedes sin diagrama.
         """
-        field_key = str(GlpiEndpoints.ARCHIMAP_SEARCH_FIELDS["entities_id"])
+        field_key = str(GlpiEndpoints.ARCHIMAP_SEARCH_FIELDS["entity_completename"])
+        cn_map = self.entity_id_by_completename()
         covered: set[int] = set()
         with self._session_or_active() as headers:
             page_size = 500
@@ -357,9 +386,10 @@ class GlpiClient:
                 if not isinstance(rows, list) or not rows:
                     break
                 for row in rows:
-                    value = row.get(field_key)
-                    if value is not None and str(value).isdigit():
-                        covered.add(int(value))
+                    # Resolver la sede real por su nombre completo (campo 80).
+                    real_id = cn_map.get(str(row.get(field_key) or "").strip())
+                    if real_id is not None:
+                        covered.add(int(real_id))
                 # Igual que list_network_diagrams: avanzar por filas reales y
                 # parar con totalcount para no infra-paginar si el servidor
                 # limita el tamaño de página.
