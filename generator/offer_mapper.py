@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 
 
 from .parser import parse_equipment_line
+from .utils import dedupe_preserving_order
 
 
 EXTENSION_LABEL_PATTERN = re.compile(
@@ -143,11 +144,7 @@ def _extensions_from_item_fields(item: dict) -> list[str]:
             for cfg_value in value.values():
                 if isinstance(cfg_value, str):
                     extensions.extend(parse_extension_tokens(cfg_value))
-    deduped: list[str] = []
-    for value in extensions:
-        if value not in deduped:
-            deduped.append(value)
-    return deduped
+    return dedupe_preserving_order(extensions)
 
 
 def _offer_product_from_text_line(line: str) -> OfferProduct | None:
@@ -206,10 +203,7 @@ def normalize_products(raw_products: list[object]) -> list[OfferProduct]:
             quantity = 1
         name, inline_extensions = strip_inline_extensions(name)
         extensions = inline_extensions + _extensions_from_item_fields(item)
-        deduped: list[str] = []
-        for value in extensions:
-            if value not in deduped:
-                deduped.append(value)
+        deduped = dedupe_preserving_order(extensions)
         products.append(OfferProduct(name=name, quantity=quantity, extensions=deduped))
     return products
 

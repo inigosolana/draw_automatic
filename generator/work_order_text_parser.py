@@ -11,6 +11,7 @@ from .offer_mapper import (
     parse_product_lines,
     strip_inline_extensions,
 )
+from .utils import dedupe_preserving_order
 
 
 OT_NUMBER_PATTERN = re.compile(r"\bOT0*(\d+)\b", re.IGNORECASE)
@@ -181,11 +182,7 @@ def _extensions_from_servicio(servicio: str) -> list[str]:
     for match in VOIP_SERVICE_EXTENSION_PATTERN.finditer(servicio or ""):
         extensions.append(match.group(1))
     extensions.extend(parse_extension_tokens(servicio))
-    deduped: list[str] = []
-    for value in extensions:
-        if value not in deduped:
-            deduped.append(value)
-    return deduped
+    return dedupe_preserving_order(extensions)
 
 
 def _product_block_extensions(block: list[str]) -> list[str]:
@@ -202,11 +199,7 @@ def _product_block_extensions(block: list[str]) -> list[str]:
             continue
         if in_config and re.fullmatch(r"\d{2,6}", line.strip()):
             extensions.append(line.strip())
-    deduped: list[str] = []
-    for value in extensions:
-        if value not in deduped:
-            deduped.append(value)
-    return deduped
+    return dedupe_preserving_order(extensions)
 
 
 def _extract_products(lines: list[str]) -> list[OfferProduct]:
@@ -253,10 +246,7 @@ def _extract_products(lines: list[str]) -> list[OfferProduct]:
             extensions = _extensions_from_servicio(pending_servicio) or extensions
             pending_servicio = ""
         extensions.extend(_product_block_extensions(lines[index + 1 : end]))
-        deduped: list[str] = []
-        for value in extensions:
-            if value not in deduped:
-                deduped.append(value)
+        deduped = dedupe_preserving_order(extensions)
         products.append(OfferProduct(name=name, quantity=1, extensions=deduped))
 
     return products

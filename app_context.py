@@ -49,6 +49,12 @@ def current_technician() -> dict:
     return session.get("technician") or {"username": "local", "name": "Tecnico local"}
 
 
+def technician_label(technician: dict | None = None) -> str:
+    """Nombre legible del tecnico para auditoria: name > username > 'desconocido'."""
+    technician = technician if technician is not None else current_technician()
+    return technician.get("name") or technician.get("username") or "desconocido"
+
+
 def login_required(view):
     @wraps(view)
     def wrapped(*args, **kwargs):

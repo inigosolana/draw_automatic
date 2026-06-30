@@ -12,6 +12,7 @@ from app_context import (
     get_drawio_stores,
     login_required,
     security_logger,
+    technician_label,
 )
 from web.services.glpi_catalog import glpi_diagram_rows, index_context, load_glpi_catalog
 from generator.comms_client import CommsError, import_products_text
@@ -92,6 +93,9 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
             try:
                 payload = drawio_stores.downloads[pending]
             except KeyError:
+                security_logger.warning(
+                    f"Diagrama pendiente no encontrado: token={pending} IP={get_remote_address()}"
+                )
                 errors = ["El diagrama pendiente ya no esta disponible. Genera uno nuevo."]
             else:
                 preview = _preview_from_download(pending, payload)
@@ -142,7 +146,7 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
             drawio_stores.sites.set(
                 glpi_entity_id,
                 generated.data.get("direccion", ""),
-                technician.get("name") or technician.get("username") or "desconocido",
+                technician_label(technician),
             )
         token = uuid.uuid4().hex
         technician = current_technician()
@@ -157,7 +161,8 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
             if isinstance(baseline, dict) and baseline:
                 learning.record_corrections(baseline, form_data)
             learning_warnings = learning.warnings(form_data)
-        except (ValueError, TypeError, KeyError):
+        except (ValueError, TypeError, KeyError) as exc:
+            security_logger.warning(f"Aprendizaje de conectividad fallo (no critico): {exc}")
             learning_warnings = []
         # Nota: los diagramas existentes de la sede los carga una sola vez
         # _preview_from_download() para mostrarlos. Antes se consultaban aquí
@@ -358,7 +363,7 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
             return jsonify({"ok": False, "error": "GLPI no esta configurado en el servidor. Avisa a sistemas."}), 503
         stores = get_drawio_stores()
         technician = current_technician()
-        tech_label = technician.get("name") or technician.get("username") or "desconocido"
+        tech_label = technician_label(technician)
         warnings: list[str] = []
         try:
             with client.batch_session():
@@ -493,9 +498,7 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
                     if not client:
                         raise GlpiError("GLPI no esta configurado.")
                     technician = current_technician()
-                    technician_label = (
-                        technician.get("name") or technician.get("username") or "desconocido"
-                    )
+                    tech_label = technician_label(technician)
                     # Una sola sesion GLPI para todas las operaciones de la subida.
                     with client.batch_session():
                         if corrected_address:
@@ -506,7 +509,7 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
                                     entity_id=validated_entity_id,
                                     address=corrected_address,
                                     glpi_customers=glpi_customers,
-                                    technician_label=technician_label,
+                                    technician_label=tech_label,
                                 )
                             )
                         results, file_errors = publish_uploaded_files(
@@ -563,7 +566,7 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
     def templates_create() -> Response:
         payload = request.get_json(silent=True) or {}
         technician = current_technician()
-        updated_by = technician.get("name") or technician.get("username") or "desconocido"
+        updated_by = technician_label(technician)
         try:
             template_id = get_drawio_stores().templates.save(
                 payload.get("name", ""), payload, updated_by

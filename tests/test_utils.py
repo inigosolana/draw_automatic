@@ -1,6 +1,6 @@
 import unittest
 
-from generator.utils import normalize_person_name, technician_is_admin
+from generator.utils import dedupe_preserving_order, normalize_person_name, technician_is_admin
 
 ADMIN_USERS = {
     "ana garcia",
@@ -10,6 +10,27 @@ ADMIN_USERS = {
     "carol jones",
     "jones carol",
 }
+
+
+class DedupePreservingOrderTests(unittest.TestCase):
+    def test_removes_duplicates_keeping_first_occurrence(self) -> None:
+        self.assertEqual(
+            dedupe_preserving_order(["2001", "2002", "2001", "2003", "2002"]),
+            ["2001", "2002", "2003"],
+        )
+
+    def test_empty_and_unique(self) -> None:
+        self.assertEqual(dedupe_preserving_order([]), [])
+        self.assertEqual(dedupe_preserving_order(["a", "b"]), ["a", "b"])
+
+
+class TechnicianLabelTests(unittest.TestCase):
+    def test_prefers_name_then_username_then_default(self) -> None:
+        from app_context import technician_label
+
+        self.assertEqual(technician_label({"name": "Ana", "username": "ag"}), "Ana")
+        self.assertEqual(technician_label({"username": "ag"}), "ag")
+        self.assertEqual(technician_label({}), "desconocido")
 
 
 class UtilsTests(unittest.TestCase):

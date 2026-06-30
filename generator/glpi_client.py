@@ -183,8 +183,9 @@ class GlpiClient:
         finally:
             try:
                 self._request(GlpiEndpoints.KILL_SESSION, headers)
-            except GlpiError:
-                pass
+            except GlpiError as exc:
+                import logging
+                logging.getLogger("security").warning(f"No se pudo cerrar la sesion GLPI de usuario: {exc}")
 
     @contextmanager
     def session(self):
@@ -202,8 +203,9 @@ class GlpiClient:
         finally:
             try:
                 self._request(GlpiEndpoints.KILL_SESSION, headers)
-            except GlpiError:
-                pass
+            except GlpiError as exc:
+                import logging
+                logging.getLogger("security").warning(f"No se pudo cerrar la sesion GLPI de servicio: {exc}")
 
     @contextmanager
     def _session_or_active(self):

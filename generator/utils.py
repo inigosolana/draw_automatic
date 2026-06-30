@@ -4,6 +4,11 @@ import unicodedata
 from urllib.parse import urlparse
 
 
+def dedupe_preserving_order(items: list[str]) -> list[str]:
+    """Quita duplicados conservando el orden de primera aparición (O(n))."""
+    return list(dict.fromkeys(items))
+
+
 def is_safe_redirect(url: str) -> bool:
     """Solo permite rutas internas relativas (sin dominio ni esquema)."""
     if not url:
