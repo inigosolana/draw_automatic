@@ -69,6 +69,19 @@ def build_drawio_stores(project_root: os.PathLike[str] | None = None) -> DrawioS
     )
 
 
+def _compute_static_version() -> str:
+    """mtime más reciente de static/ (cambia en cada edición/rebuild → cache-bust)."""
+    static_dir = PROJECT_ROOT / "static"
+    try:
+        latest = max(
+            (path.stat().st_mtime_ns for path in static_dir.rglob("*") if path.is_file()),
+            default=0,
+        )
+        return str(latest)
+    except OSError:
+        return "0"
+
+
 def create_app(stores: DrawioStores | None = None) -> Flask:
     app = Flask(__name__, template_folder=str(PROJECT_ROOT / "templates"), static_folder=str(PROJECT_ROOT / "static"))
     drawio_stores = stores or build_drawio_stores()
@@ -118,7 +131,10 @@ def create_app(stores: DrawioStores | None = None) -> Flask:
                 "Rate limiting en memoria (aceptable para desarrollo o worker unico)."
             )
 
-    static_asset_version = os.environ.get("DRAWIO_STATIC_VERSION", "20260629u")
+    # Versión de los assets estáticos para cache-busting (?v=). Si no se fija por
+    # env, se deriva del mtime más reciente de static/, de modo que CADA cambio
+    # (y cada rebuild, que reescribe los ficheros) invalida la caché del navegador.
+    static_asset_version = os.environ.get("DRAWIO_STATIC_VERSION") or _compute_static_version()
 
     @app.before_request
     def _maybe_cleanup() -> None:
