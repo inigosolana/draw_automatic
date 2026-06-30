@@ -174,6 +174,17 @@ def covered_entity_ids_from_diagrams(all_diagrams: list[dict]) -> set[int]:
     return covered
 
 
+def _entity_covered(sede_id, cliente_id, covered: set[int]) -> bool:
+    """Una sede está cubierta si su propio id tiene diagrama (publicado a nivel
+    sede) o si lo tiene su cliente (en GLPI muchos diagramas cuelgan del cliente,
+    no de la sede)."""
+    if sede_id is not None and str(sede_id).isdigit() and int(sede_id) in covered:
+        return True
+    if cliente_id is not None and str(cliente_id).isdigit() and int(cliente_id) in covered:
+        return True
+    return False
+
+
 def build_missing_sites_rows(catalog: list[dict], covered_entity_ids: set[int]) -> list[dict]:
     """Flat list of sedes without a diagram: cliente, sede, calle, provincia."""
     rows: list[dict] = []
@@ -185,7 +196,7 @@ def build_missing_sites_rows(catalog: list[dict], covered_entity_ids: set[int]) 
                 entity_id = sede.get("id")
                 if entity_id is None:
                     continue
-                if int(entity_id) in covered_entity_ids:
+                if _entity_covered(entity_id, cliente.get("id"), covered_entity_ids):
                     continue
                 rows.append(
                     {
@@ -243,7 +254,7 @@ def build_coverage_data(
                     continue
                 total_sites += 1
                 entity_to_province[int(entity_id)] = province_name
-                if int(entity_id) not in covered_entity_ids:
+                if not _entity_covered(entity_id, cliente.get("id"), covered_entity_ids):
                     client_data["sedes"].append(
                         {
                             "name": sede.get("nombre", "?"),

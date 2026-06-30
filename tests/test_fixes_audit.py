@@ -43,5 +43,27 @@ class DectParsingTests(unittest.TestCase):
         self.assertEqual(parse_equipment_line("1 W73H").get("tipo"), "terminal_dect")
 
 
+class CoverageClientLevelTests(unittest.TestCase):
+    def test_site_covered_when_client_has_diagram(self) -> None:
+        from web.services.stats import build_missing_sites_rows
+        catalog = [{
+            "nombre": "Bizkaia",
+            "clientes": [{
+                "id": 478, "nombre": "Manuela Simón",
+                "sedes": [
+                    {"id": 5001, "nombre": "Sede 1", "direccion": "X"},
+                    {"id": 5002, "nombre": "Sede 2", "direccion": "Y"},
+                ],
+            }],
+        }]
+        # El diagrama cuelga del cliente (478), no de las sedes -> ambas cubiertas.
+        rows = build_missing_sites_rows(catalog, {478})
+        self.assertEqual(rows, [])
+        # Sin cobertura del cliente ni de las sedes -> las dos salen como pendientes.
+        self.assertEqual(len(build_missing_sites_rows(catalog, set())), 2)
+        # Diagrama a nivel sede tambien cuenta.
+        self.assertEqual(len(build_missing_sites_rows(catalog, {5001})), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
