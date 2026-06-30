@@ -154,11 +154,14 @@
             <h2>Sedes sin diagrama</h2>
             {% if coverage_data and not coverage_data.error %}
             <div class="coverage-summary">
+              <span class="coverage-total-count">
+                {{ coverage_data.total_sites }} sedes en total
+              </span>
               <span class="coverage-missing-count">
-                {{ coverage_data.missing_sites }} sin diagrama
+                {{ coverage_data.missing_sites }} por subir
               </span>
               <span class="coverage-total-count">
-                de {{ coverage_data.total_sites }} sedes
+                · {{ coverage_data.covered_sites }} subidas
                 ({{ ((coverage_data.covered_sites / (coverage_data.total_sites or 1)) * 100) | int }}% cobertura)
               </span>
               <a class="button secondary quiet" href="{{ url_for('glpi_import.upload_draw_missing_sites_xlsx') }}">
