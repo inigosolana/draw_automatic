@@ -57,10 +57,31 @@
       if (lbl) lbl.textContent = Math.round(zoom * 100) + "%";
     }
 
-    function addBox(label, x, y) {
+    // Reglas de conexión por tipo de caja (simétricas). Si un tipo no está en el
+    // mapa o la caja no tiene tipo (cajas manuales), se permite cualquier conexión.
+    var LINK_RULES = {
+      internet: ["ont", "router"],
+      ont: ["router"],
+      router: ["internet", "ont", "switch", "backup", "terminal", "device", "ap"],
+      backup: ["router"],
+      switch: ["router", "switch", "terminal", "device", "ap", "pc"],
+      ap: ["router", "switch"],
+      terminal: ["router", "switch"],
+      device: ["router", "switch"]
+    };
+    function canConnect(a, b) {
+      var ta = a.dataset.type || "", tb = b.dataset.type || "";
+      if (!ta || !tb) return true;
+      var allowed = LINK_RULES[ta];
+      if (!allowed) return true;
+      return allowed.indexOf(tb) >= 0;
+    }
+
+    function addBox(label, x, y, type) {
       var el = document.createElement("div");
       el.className = "ebox";
       el.dataset.id = ++bid;
+      if (type) el.dataset.type = type;
       el.textContent = label == null ? "Nueva caja" : label;
       el.style.left = (x == null ? 40 + Math.round((bid * 37) % 300) : x) + "px";
       el.style.top = (y == null ? 40 + Math.round((bid * 53) % 230) : y) + "px";
@@ -90,12 +111,16 @@
 
     var drag = null;
     function onBoxDown(e, el) {
-      if (mode === "del") { e.stopPropagation(); deleteBox(el); return; }
+      if (mode === "del") { e.stopPropagation(); deleteBox(el); setMode("move"); return; }
       if (mode === "link") {
         e.stopPropagation();
         if (!linkSrc) { linkSrc = el; el.classList.add("sel"); }
         else if (linkSrc === el) { el.classList.remove("sel"); linkSrc = null; }
-        else { links.push({ a: linkSrc, b: el }); linkSrc.classList.remove("sel"); linkSrc = null; draw(); }
+        else if (!canConnect(linkSrc, el)) {
+          var h = document.getElementById("be-hint");
+          if (h) h.innerHTML = "❌ Esa conexión no está permitida (p. ej. la ONT solo se conecta al router). Elige otra caja.";
+        }
+        else { links.push({ a: linkSrc, b: el }); linkSrc.classList.remove("sel"); linkSrc = null; draw(); setMode("move"); }
         return;
       }
       selectBox(el);
@@ -120,7 +145,7 @@
       e.stopPropagation();
       var l = links[+i];
       if (!l) return;
-      if (mode === "del") { links = links.filter(function (x) { return x !== l; }); draw(); }
+      if (mode === "del") { links = links.filter(function (x) { return x !== l; }); draw(); setMode("move"); }
       else selectLink(l);
     });
     canvas.addEventListener("pointerdown", function (e) {
@@ -191,18 +216,18 @@
       clearCanvas();
       var f = readForm();
       var col = 0, prev = null, router = null;
-      if (f.internet) { prev = addBox("🌐 " + f.internet, COL[col++], 210); }
-      if (f.ont) { var o = addBox(f.ont, COL[col++], 210); if (prev) links.push({ a: prev, b: o }); prev = o; }
-      if (f.router) { router = addBox(f.router, COL[col++], 210); if (prev) links.push({ a: prev, b: router }); }
-      if (f.backup && router) { var bk = addBox("Backup: " + f.backup, COL[Math.max(0, col - 1)], 80); links.push({ a: router, b: bk }); }
+      if (f.internet) { prev = addBox("🌐 " + f.internet, COL[col++], 210, "internet"); }
+      if (f.ont) { var o = addBox(f.ont, COL[col++], 210, "ont"); if (prev) links.push({ a: prev, b: o }); prev = o; }
+      if (f.router) { router = addBox(f.router, COL[col++], 210, "router"); if (prev) links.push({ a: prev, b: router }); }
+      if (f.backup && router) { var bk = addBox("Backup: " + f.backup, COL[Math.max(0, col - 1)], 80, "backup"); links.push({ a: router, b: bk }); }
       var switches = f.devices.filter(function (d) { return d.category === "switch"; });
       var anchor = router;
-      if (switches.length) { var sw = addBox(switches[0].model, COL[col], 360); if (router) links.push({ a: router, b: sw }); anchor = sw; }
+      if (switches.length) { var sw = addBox(switches[0].model, COL[col], 360, "switch"); if (router) links.push({ a: router, b: sw }); anchor = sw; }
       var endpoints = [];
-      f.terminals.forEach(function (t) { endpoints.push("📞 " + t.model + (t.ext ? " " + t.ext : "")); });
-      f.devices.forEach(function (d) { if (d.category !== "switch") endpoints.push(d.model); });
+      f.terminals.forEach(function (t) { endpoints.push({ label: "📞 " + t.model + (t.ext ? " " + t.ext : ""), type: "terminal" }); });
+      f.devices.forEach(function (d) { if (d.category !== "switch") endpoints.push({ label: d.model, type: d.category === "ap" ? "ap" : "device" }); });
       var ex = COL[Math.min(col + 1, COL.length - 1)], ey = 70, step = 66;
-      endpoints.forEach(function (lbl, i) { var e = addBox(lbl, ex, ey + i * step); if (anchor) links.push({ a: anchor, b: e }); });
+      endpoints.forEach(function (ep, i) { var e = addBox(ep.label, ex, ey + i * step, ep.type); if (anchor) links.push({ a: anchor, b: e }); });
       setMode("move");
       draw();
       setTimeout(draw, 40);
