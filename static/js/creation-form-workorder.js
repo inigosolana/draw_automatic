@@ -165,6 +165,13 @@
               }
               window.__drawioTerminals.sync();
             }
+            // Rellenar campos por JS no dispara "change"/"input", así que el
+            // editor de cajas (que se reconstruye con esos eventos) no se
+            // actualizaba tras importar una OT. Lo forzamos aquí.
+            const creationForm = document.querySelector(".creation-form");
+            if (creationForm) {
+              creationForm.dispatchEvent(new Event("change", { bubbles: true }));
+            }
           }
 
           if (importButton) {
