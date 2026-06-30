@@ -116,6 +116,57 @@ class GlpiClientRefactorTests(unittest.TestCase):
         path = client._request.call_args.args[0]
         self.assertTrue(path.startswith("search/PluginArchimapGraph?"))
 
+    def test_list_network_diagrams_paginates_when_server_caps_page(self) -> None:
+        # GLPI puede devolver menos filas de las pedidas (list_limit). El bucle
+        # debe seguir paginando hasta cubrir totalcount, no cortar al ver una
+        # página "corta".
+        client = GlpiClient("https://glpi.test/apirest.php", "app", "user")
+
+        class FakeSession:
+            def __enter__(self):
+                return {"Session-Token": "session"}
+
+            def __exit__(self, exc_type, exc_value, traceback):
+                return False
+
+        client.session = lambda: FakeSession()
+        # totalcount=3 pero el servidor sólo entrega 2 filas por página.
+        rows = [
+            {"72": 1, "1": "A", "2": "", "6": "", "81": 5},
+            {"72": 2, "1": "B", "2": "", "6": "", "81": 5},
+            {"72": 3, "1": "C", "2": "", "6": "", "81": 6},
+        ]
+        pages = [
+            {"totalcount": 3, "data": rows[0:2]},
+            {"totalcount": 3, "data": rows[2:3]},
+        ]
+        client._request = MagicMock(side_effect=pages)
+
+        diagrams = client.list_network_diagrams()
+
+        self.assertEqual([d["id"] for d in diagrams], [1, 2, 3])
+        self.assertEqual(client._request.call_count, 2)
+
+    def test_list_covered_entity_ids_paginates_with_totalcount(self) -> None:
+        client = GlpiClient("https://glpi.test/apirest.php", "app", "user")
+
+        class FakeSession:
+            def __enter__(self):
+                return {"Session-Token": "session"}
+
+            def __exit__(self, exc_type, exc_value, traceback):
+                return False
+
+        client.session = lambda: FakeSession()
+        pages = [
+            {"totalcount": 3, "data": [{"81": 10}, {"81": 11}]},
+            {"totalcount": 3, "data": [{"81": 12}]},
+        ]
+        client._request = MagicMock(side_effect=pages)
+
+        self.assertEqual(client.list_covered_entity_ids(), {10, 11, 12})
+        self.assertEqual(client._request.call_count, 2)
+
     def test_from_environment_reads_verify_ssl_flag(self) -> None:
         env = {
             "GLPI_URL": "https://glpi.local/apirest.php",

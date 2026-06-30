@@ -33,12 +33,18 @@ def glpi_diagram_rows(client: GlpiClient, entity_id: int, activity: DiagramActiv
     return rows
 
 
-def load_glpi_catalog() -> tuple[list[dict], str]:
+def load_glpi_catalog(client: GlpiClient | None = None) -> tuple[list[dict], str]:
+    """Catálogo de clientes/sedes de GLPI (cacheado).
+
+    Si la ruta ya tiene un cliente con `batch_session()` abierto puede pasarlo
+    en `client` para reutilizar esa sesión en lugar de abrir otra.
+    """
     drawio_stores = get_drawio_stores()
     cached = drawio_stores.catalog.get("glpi_customer_catalog")
     if cached is not None:
         return apply_saved_addresses(cached, drawio_stores.sites.all()), ""
-    client = GlpiClient.from_environment()
+    if client is None:
+        client = GlpiClient.from_environment()
     if not client:
         return [], "GLPI no esta configurado."
     try:
@@ -78,6 +84,8 @@ def index_context(**extra):
             "importWorkOrderUrl": url_for("glpi_import.import_work_order"),
             "homeUrl": url_for("home.index"),
             "crmConfigured": crm_configured(),
+            "templatesUrl": url_for("glpi_import.templates_collection"),
+            "suggestionsUrl": url_for("glpi_import.connectivity_suggestions"),
         },
     }
     context.update(extra)

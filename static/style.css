@@ -28,12 +28,15 @@ body {
 }
 
 *,
+
 *::before,
+
 *::after {
   box-sizing: border-box;
 }
 
 img,
+
 svg {
   max-width: 100%;
 }
@@ -108,9 +111,38 @@ svg {
 }
 
 .destination-card > .field-grid,
+
 .destination-card > .helper-text,
+
 .connectivity-card > .field-grid {
   margin: 16px;
+}
+
+.template-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin: 16px 16px 0;
+}
+
+.template-bar .template-bar-field {
+  flex: 1 1 220px;
+  min-width: 180px;
+}
+
+.template-bar #template-status {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.template-bar #template-status.is-error {
+  color: #b00020;
+}
+
+.connectivity-suggestions {
+  margin: 4px 16px 16px;
+  font-style: italic;
 }
 
 .field-grid {
@@ -150,8 +182,11 @@ svg {
 }
 
 .creation-form input,
+
 .creation-form select,
+
 .creation-form textarea,
+
 .creation-form .search-select-trigger {
   margin-top: 6px;
   padding: 11px 12px;
@@ -159,13 +194,14 @@ svg {
 }
 
 .creation-form input,
+
 .creation-form select,
+
 .creation-form .search-select-trigger {
   min-height: 44px;
 }
 
-.info-callout,
-.tip-callout {
+.info-callout {
   display: flex;
   margin: 16px 0 0;
   padding: 14px 16px;
@@ -177,8 +213,7 @@ svg {
   line-height: 1.45;
 }
 
-.info-callout span,
-.tip-callout span {
+.info-callout span {
   flex: 0 0 auto;
   color: #005374;
   font-size: 1.1rem;
@@ -188,28 +223,14 @@ svg {
   grid-column: 1 / -1;
 }
 
-.equipment-grid {
-  display: grid;
-  grid-template-columns: minmax(300px, 0.8fr) minmax(460px, 1.2fr);
-  gap: 26px;
-  padding: 20px;
-}
-
-.equipment-description label,
-.terminal-textarea-label {
-  min-width: 0;
-  margin: 0;
-}
-
-.equipment-description textarea,
 .terminal-description textarea {
   min-height: 250px;
   background: #fff;
   line-height: 1.55;
 }
 
-.equipment-description,
 .terminal-description,
+
 .devices-panel {
   min-width: 0;
 }
@@ -317,6 +338,7 @@ svg {
 }
 
 .device-model-field input,
+
 .device-model-field select {
   width: 100%;
   min-width: 0;
@@ -326,6 +348,7 @@ svg {
 }
 
 .device-row input,
+
 .device-row select {
   width: 100%;
   min-width: 0;
@@ -335,6 +358,7 @@ svg {
 }
 
 .remove-device,
+
 .remove-terminal {
   display: grid;
   width: 34px;
@@ -353,16 +377,10 @@ svg {
 }
 
 .remove-device:hover,
+
 .remove-terminal:hover {
   background: #fde8e8;
   border-color: #d9a3a3;
-}
-
-.tip-callout {
-  margin-top: 12px;
-  border-top: 0;
-  border-left: 4px solid #bccbda;
-  border-radius: 7px;
 }
 
 .terminal-heading {
@@ -411,6 +429,7 @@ svg {
 }
 
 .terminal-row input,
+
 .terminal-row select {
   width: 100%;
   min-width: 0;
@@ -422,27 +441,6 @@ svg {
 .dect-base-field.is-hidden {
   opacity: 0.35;
   pointer-events: none;
-}
-
-.advanced-fields {
-  min-width: 0;
-  padding: 13px 16px;
-  border: 1px solid #d5e0ea;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.8);
-}
-
-.advanced-fields summary {
-  color: #315268;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.advanced-fields-grid {
-  display: grid;
-  grid-template-columns: 1.4fr 0.6fr;
-  gap: 18px;
-  margin-top: 16px;
 }
 
 .paste-bar-wrap {
@@ -481,6 +479,7 @@ svg {
   letter-spacing: 0.08em;
 }
 .or-divider::before,
+
 .or-divider::after {
   content: "";
   flex: 1;
@@ -623,88 +622,6 @@ svg {
   }
 }
 
-.paste-offer-top {
-  margin-bottom: 20px;
-  padding: 18px 20px 16px;
-  border: 2px solid #7eb8dc;
-  border-radius: 12px;
-  background: linear-gradient(180deg, #eef7ff 0%, #ffffff 100%);
-}
-
-.paste-offer-top-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 8px 16px;
-  margin-bottom: 10px;
-}
-
-.paste-offer-top-head h2 {
-  margin: 0;
-  font-size: 1.25rem;
-  color: #1a4a6e;
-}
-
-.paste-offer-top textarea {
-  width: 100%;
-  min-height: 140px;
-  margin: 0;
-  font-family: Consolas, "Courier New", monospace;
-  font-size: 0.92rem;
-  line-height: 1.45;
-  border-radius: 8px;
-  border: 1px solid #b8d0e2;
-  padding: 12px;
-  box-sizing: border-box;
-}
-
-.paste-offer-top-actions {
-  margin-top: 12px;
-}
-
-.paste-fill-button {
-  min-width: 140px;
-  font-size: 1.05rem;
-  font-weight: 700;
-}
-
-.import-offer-card textarea {
-  min-height: 220px;
-  font-family: Consolas, "Courier New", monospace;
-  font-size: 0.92rem;
-  line-height: 1.45;
-}
-
-.import-offer-card kbd {
-  display: inline-block;
-  padding: 1px 6px;
-  border: 1px solid #c5d5e2;
-  border-radius: 4px;
-  background: #fff;
-  font-size: 0.85em;
-}
-
-.import-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
-}
-
-.import-hint {
-  margin-top: 4px;
-}
-
-.import-status:not(:empty) {
-  margin-top: 10px;
-  font-weight: 600;
-  color: #1f5f3f;
-}
-
-.import-advanced {
-  margin-top: 12px;
-}
-
 .import-warnings {
   margin: 8px 0 0;
   padding-left: 1.2rem;
@@ -756,21 +673,13 @@ svg {
 }
 
 .panel-header h1,
+
 .form-section h2,
+
 .message h2,
+
 .warnings h3 {
   margin-top: 0;
-}
-
-.app-brand {
-  margin-bottom: 18px;
-}
-
-.app-brand img {
-  display: block;
-  width: 180px;
-  max-width: 60%;
-  height: auto;
 }
 
 .topbar {
@@ -927,7 +836,6 @@ svg {
   height: auto;
 }
 
-.technician-bar,
 .preview-toolbar {
   display: flex;
   align-items: center;
@@ -936,36 +844,6 @@ svg {
   padding: 10px 14px;
   border-radius: 10px;
   background: #e8f0f6;
-}
-
-.link-button {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: #0d5f7e;
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.app-tabs {
-  display: flex;
-  gap: 8px;
-  margin: 22px 0 20px;
-  border-bottom: 1px solid #ccd8e2;
-}
-
-.app-tab {
-  padding: 10px 16px;
-  color: #315268;
-  text-decoration: none;
-  border-bottom: 3px solid transparent;
-  font-weight: 700;
-}
-
-.app-tab.active {
-  color: #0d5f7e;
-  border-bottom-color: #0d789e;
 }
 
 .upload-form {
@@ -1025,11 +903,6 @@ svg {
   margin: 0;
   font-size: 0.85rem;
   font-weight: 600;
-}
-
-.upload-glpi-address-value {
-  margin: 0.35rem 0 0;
-  font-size: 1rem;
 }
 
 .upload-glpi-address .helper-text {
@@ -1100,6 +973,7 @@ svg {
 }
 
 .upload-success-meta,
+
 .upload-success-id {
   margin: 0 0 8px;
   color: var(--muted);
@@ -1157,13 +1031,6 @@ svg {
   overflow-wrap: anywhere;
   font-size: 0.88rem;
   color: #0d5f7e;
-}
-
-.diagram-row-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  white-space: nowrap;
 }
 
 .my-diagrams-page .page-wide {
@@ -1387,10 +1254,6 @@ svg {
   gap: 12px;
 }
 
-.admin-diagrams-table td[data-label="Tecnico"] strong {
-  color: #0d5f7e;
-}
-
 .admin-delete-form {
   display: inline;
   margin: 0;
@@ -1466,6 +1329,7 @@ svg {
   }
 
   .diagram-card-actions .button,
+
   .diagram-card-actions .admin-delete-form {
     flex: 1 1 auto;
     width: auto;
@@ -1503,6 +1367,7 @@ svg {
 }
 
 .diagram-table th,
+
 .diagram-table td {
   padding: 12px 14px;
   border-bottom: 1px solid #eef3f8;
@@ -1559,6 +1424,7 @@ svg {
 }
 
 .form-section.full,
+
 .actions {
   grid-column: 1 / -1;
 }
@@ -1570,7 +1436,9 @@ label {
 }
 
 input,
+
 select,
+
 textarea {
   width: 100%;
   margin-top: 8px;
@@ -1585,7 +1453,9 @@ textarea {
 }
 
 input:focus,
+
 select:focus,
+
 textarea:focus {
   border-color: #146c94;
   outline: 2px solid rgba(20, 108, 148, 0.18);
@@ -1593,32 +1463,27 @@ textarea:focus {
 }
 
 /* Validacion inline: marca en rojo el campo obligatorio vacio tras intentar
-   enviar o al salir del campo (nativo, sin JS). */
+   enviar o al salir del campo (nativo,
+
+sin JS). */
 input:user-invalid,
+
 select:user-invalid,
+
 textarea:user-invalid {
   border-color: #dc2626;
   background: #fff;
 }
 input:user-invalid:focus,
+
 select:user-invalid:focus,
+
 textarea:user-invalid:focus {
   outline-color: rgba(220, 38, 38, 0.22);
 }
 
 textarea {
   resize: vertical;
-}
-
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.checkbox-label input {
-  width: auto;
-  margin: 0;
 }
 
 .search-select {
@@ -1694,6 +1559,7 @@ textarea {
 }
 
 .search-select-option:hover,
+
 .search-select-option:focus {
   background: #e8f0fb;
 }
@@ -1811,9 +1677,10 @@ textarea {
 }
 
 .message,
+
 .helper-text,
-.info-callout,
-.tip-callout {
+
+.info-callout {
   overflow-wrap: anywhere;
 }
 
@@ -1836,7 +1703,9 @@ textarea {
 }
 
 html.preview-page-root,
+
 .preview-page-root,
+
 .preview-page-body {
   height: 100%;
 }
@@ -1928,6 +1797,7 @@ html.preview-page-root,
 }
 
 .login-panel form,
+
 .login-panel .helper-text {
   text-align: left;
 }
@@ -1961,16 +1831,7 @@ html.preview-page-root,
     display: none;
   }
 
-  .creation-top-grid,
-  .equipment-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .equipment-grid {
-    padding: 16px;
-  }
-
-  .advanced-fields-grid {
+  .creation-top-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -1980,32 +1841,32 @@ html.preview-page-root,
     width: calc(100% - 24px);
   }
 
-  .equipment-grid {
-    grid-template-columns: minmax(260px, 0.7fr) minmax(0, 1.3fr);
-    gap: 18px;
-    padding: 16px;
-  }
-
   .terminal-columns,
+
   .terminal-row {
     grid-template-columns: 1fr 0.85fr 0.6fr 0.85fr 0.85fr 0.7fr 0.65fr 32px;
     gap: 7px;
   }
 
   .device-columns,
+
   .device-row {
     grid-template-columns: 0.95fr 1.35fr 0.55fr 0.8fr 34px;
     gap: 7px;
   }
 
   .terminal-row,
+
   .device-row {
     padding: 8px;
   }
 
   .terminal-row input,
+
   .terminal-row select,
+
   .device-row input,
+
   .device-row select {
     padding-inline: 7px;
     font-size: 0.82rem;
@@ -2027,13 +1888,6 @@ html.preview-page-root,
 }
 
 @media (max-width: 1080px) {
-  .equipment-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .equipment-description textarea {
-    min-height: 180px;
-  }
 
   .terminal-row {
     grid-template-columns: minmax(140px, 1fr) minmax(80px, 0.85fr) minmax(70px, 0.6fr) minmax(110px, 0.85fr) minmax(110px, 0.85fr) minmax(90px, 0.7fr) minmax(80px, 0.65fr) 32px;
@@ -2046,20 +1900,13 @@ html.preview-page-root,
   }
 
   .terminal-columns,
+
   .device-columns {
     display: none;
   }
 }
 
 @media (max-width: 640px) {
-  .app-brand img {
-    width: 145px;
-    max-width: 75%;
-  }
-
-  .app-tabs {
-    overflow-x: auto;
-  }
 
   .field-grid.two-columns {
     grid-template-columns: 1fr;
@@ -2100,6 +1947,7 @@ html.preview-page-root,
 }
 
 .compact-diagram-table td,
+
 .compact-diagram-table th {
   font-size: 0.88rem;
 }
@@ -2380,12 +2228,13 @@ ul {
   border-radius: 50%;
   background: currentColor;
 }
-.sec-badge-info    { background: #e6f3f4; color: #146c94; }
+.sec-badge-info { background: #e6f3f4; color: #146c94; }
 .sec-badge-warning { background: #fbf0e2; color: #b45309; }
-.sec-badge-error   { background: #fdeaea; color: #dc2626; }
-.sec-badge-critical{ background: #fce7f3; color: #9d174d; }
+.sec-badge-error { background: #fdeaea; color: #dc2626; }
+.sec-badge-critical { background: #fce7f3; color: #9d174d; }
 
 .sec-filter,
+
 .period-filter {
   padding: 0.2rem 0.65rem;
   border: 1px solid var(--border);
@@ -2396,8 +2245,11 @@ ul {
   transition: background 0.15s, color 0.15s;
 }
 .sec-filter.active,
+
 .sec-filter:hover,
+
 .period-filter.active,
+
 .period-filter:hover {
   background: var(--primary);
   color: #fff;
@@ -2463,6 +2315,7 @@ ul {
 }
 
 .sec-table-wrap th.is-nowrap,
+
 .sec-table-wrap td.is-nowrap {
   white-space: nowrap;
 }
@@ -2594,6 +2447,7 @@ ul {
 }
 
 .row-field input,
+
 .row-field select {
   margin-top: 0;
 }
@@ -2609,13 +2463,16 @@ ul {
 
   /* Evita el zoom-auto de iOS al enfocar inputs */
   input,
+
   select,
+
   textarea {
     font-size: 16px;
   }
 
   /* Reserva espacio para la bottom-nav */
   .page,
+
   .page-wide {
     padding: 14px 12px calc(88px + env(safe-area-inset-bottom, 0px));
   }
@@ -2735,9 +2592,13 @@ ul {
   }
 
   .diagram-table.is-cards,
+
   .diagram-table.is-cards thead,
+
   .diagram-table.is-cards tbody,
+
   .diagram-table.is-cards tr,
+
   .diagram-table.is-cards td {
     display: block;
     width: 100%;
@@ -2866,8 +2727,7 @@ ul {
   }
 
   .creation-top-grid,
-  .equipment-grid,
-  .advanced-fields-grid,
+
   .field-grid.two-columns {
     grid-template-columns: 1fr;
   }
@@ -2877,6 +2737,7 @@ ul {
   }
 
   .devices-heading,
+
   .terminal-heading {
     flex-direction: column;
     align-items: stretch;
@@ -2908,6 +2769,7 @@ ul {
   }
 
   .device-row,
+
   .terminal-row {
     display: flex;
     flex-direction: column;
@@ -2923,14 +2785,18 @@ ul {
   }
 
   .device-row input,
+
   .device-row select,
+
   .terminal-row input,
+
   .terminal-row select {
     min-height: 44px;
     padding: 10px;
   }
 
   .remove-device,
+
   .remove-terminal {
     align-self: flex-end;
     width: 44px;
@@ -3027,6 +2893,7 @@ ul {
   }
 
   .admin-toolbar .toolbar-spacer,
+
   .admin-toolbar .filter-row {
     margin-left: 0;
     width: 100%;
@@ -3036,6 +2903,7 @@ ul {
   }
 
   .admin-toolbar .period-filter,
+
   .admin-toolbar .sec-filter {
     flex: 1 1 calc(33% - 0.5rem);
     min-height: 40px;
@@ -3280,17 +3148,20 @@ ul {
 }
 
 .zabbix-plan-hosts,
+
 .zabbix-created-hosts {
   margin: 0;
   padding-left: 1.2rem;
 }
 
 .zabbix-plan-hosts li,
+
 .zabbix-created-hosts li {
   margin-bottom: 6px;
 }
 
 label[hidden],
+
 .zabbix-form label[hidden] {
   display: none;
 }
@@ -3532,11 +3403,17 @@ label[hidden],
 }
 .be-canvas .ebox:active { cursor: grabbing; }
 .be-canvas .ebox.sel { box-shadow: 0 0 0 3px rgba(1, 105, 111, 0.4); border-color: #01696f; }
-.be-canvas.linkmode, .be-canvas.linkmode .ebox { cursor: crosshair; }
-.be-canvas.delmode, .be-canvas.delmode .ebox { cursor: pointer; }
+.be-canvas.linkmode,
+
+.be-canvas.linkmode .ebox { cursor: crosshair; }
+.be-canvas.delmode,
+
+.be-canvas.delmode .ebox { cursor: pointer; }
 
 /* Dark mode desactivado: solo redefinía variables pero la mayoría del CSS usa
-   colores hardcodeados, así que en SO oscuro la UI quedaba ilegible (paneles
+   colores hardcodeados,
+
+así que en SO oscuro la UI quedaba ilegible (paneles
    blancos con texto claro). Mejor un tema claro consistente hasta migrar todo
    a variables. */
 
@@ -3547,15 +3424,25 @@ label[hidden],
   border-radius: 4px;
 }
 .button:focus-visible,
+
 .add-row-button:focus-visible,
+
 .topbar-link:focus-visible,
+
 .bottom-nav-item:focus-visible,
+
 .icon-button:focus-visible,
+
 .search-select-trigger:focus-visible,
+
 .app-card:focus-visible,
+
 .csv-button:focus-visible,
+
 .my-diagrams-filter:focus-visible,
+
 .sec-filter:focus-visible,
+
 .period-filter:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;

@@ -216,6 +216,17 @@
 
           <section class="form-section connectivity-card">
             <h2><span class="section-icon">▣</span> Conectividad</h2>
+            <div class="template-bar">
+              <label class="template-bar-field">Plantilla
+                <select id="template-picker">
+                  <option value="">— Cargar una plantilla guardada —</option>
+                </select>
+              </label>
+              <button type="button" class="add-row-button" id="template-save">★ Guardar como plantilla</button>
+              <button type="button" class="add-row-button" id="template-delete" hidden>🗑 Borrar plantilla</button>
+              <span class="helper-text" id="template-status" role="status" aria-live="polite"></span>
+            </div>
+            <input type="hidden" name="autofill_baseline" id="autofill-baseline" value="">
             <div class="field-grid two-columns">
             <label>Tipo de internet
               <select name="internet_tipo" id="internet-tipo">
@@ -270,6 +281,7 @@
             </label>
             </div>
             <p class="info-callout"><span aria-hidden="true">ⓘ</span> <span id="backup-help">Con CHATEAU el backup 4G va integrado. Con hAP ac2/ac3 y Fibra + Backup selecciona WAP LTE o TELTONIKA para ETH2.</span></p>
+            <p class="helper-text connectivity-suggestions" id="connectivity-suggestions" hidden></p>
           </section>
           </div>
 

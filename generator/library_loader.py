@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import json
 import re
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -10,6 +11,14 @@ from .aliases import normalize_name, resolve_alias
 from .knowledge_base import load_learned_items
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+# Cache del parseo pesado de la libreria (~13 MB de XML + iconos en base64).
+# Se invalida solo cuando cambia el fichero (mtime/tamaño), de modo que un
+# despliegue con nueva libreria se recoge sin reiniciar. Los iconos "aprendidos"
+# NO se cachean aqui: se re-aplican en cada load_library() para que la base de
+# conocimiento siga viva sin reinicio.
+_BASE_CACHE: dict[str, tuple[tuple[int, int], list["LibraryItem"]]] = {}
+_BASE_CACHE_LOCK = threading.Lock()
 
 
 @dataclass
@@ -84,8 +93,8 @@ def validate_library_file(path: str | Path) -> list[str]:
     return warnings
 
 
-def load_library(path: str | Path) -> LibraryIndex:
-    library_path = Path(path)
+def _parse_base_items(library_path: Path) -> list[LibraryItem]:
+    """Parsea el XML de la libreria + iconos locales. Parte cara (~13 MB)."""
     text = library_path.read_text(encoding="utf-8", errors="ignore")
     match = re.search(r"<mxlibrary>(.*)</mxlibrary>", text, re.DOTALL)
     if not match:
@@ -118,6 +127,33 @@ def load_library(path: str | Path) -> LibraryIndex:
         custom_icon = _load_local_icon(icon_title, PROJECT_ROOT / "assets" / icon_file)
         if custom_icon:
             items.append(custom_icon)
+    return items
+
+
+def _cached_base_items(library_path: Path) -> list[LibraryItem]:
+    """Devuelve los items base cacheados, re-parseando solo si cambia el fichero."""
+    key = str(library_path)
+    try:
+        stat = library_path.stat()
+        signature = (int(stat.st_mtime_ns), int(stat.st_size))
+    except OSError:
+        # Si no podemos consultar el fichero, no cacheamos: parseamos directo.
+        return _parse_base_items(library_path)
+    with _BASE_CACHE_LOCK:
+        cached = _BASE_CACHE.get(key)
+        if cached and cached[0] == signature:
+            return cached[1]
+    items = _parse_base_items(library_path)
+    with _BASE_CACHE_LOCK:
+        _BASE_CACHE[key] = (signature, items)
+    return items
+
+
+def load_library(path: str | Path) -> LibraryIndex:
+    library_path = Path(path)
+    # Copia de la lista cacheada: los items aprendidos se añaden por encima sin
+    # mutar la base compartida.
+    items = list(_cached_base_items(library_path))
     known_titles = {normalize_name(item.title) for item in items}
     for entry in load_learned_items():
         title = entry.get("title", "")

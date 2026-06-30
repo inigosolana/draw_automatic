@@ -55,15 +55,17 @@ def create_admin_blueprint(limiter: Limiter) -> Blueprint:
         try:
             glpi_client = GlpiClient.from_environment()
             if glpi_client:
-                catalog_for_coverage, _ = load_glpi_catalog()
-                if catalog_for_coverage:
-                    cached = drawio_stores.catalog.get("admin_coverage")
-                    if cached is not None:
-                        coverage_data = cached
-                    else:
-                        coverage_data = build_coverage_data(catalog_for_coverage, glpi_client, all_rows)
-                        if coverage_data and not coverage_data.get("error"):
-                            drawio_stores.catalog.set("admin_coverage", coverage_data)
+                cached = drawio_stores.catalog.get("admin_coverage")
+                if cached is not None:
+                    coverage_data = cached
+                else:
+                    # Una sola sesión GLPI para catálogo + cobertura.
+                    with glpi_client.batch_session():
+                        catalog_for_coverage, _ = load_glpi_catalog(glpi_client)
+                        if catalog_for_coverage:
+                            coverage_data = build_coverage_data(catalog_for_coverage, glpi_client, all_rows)
+                            if coverage_data and not coverage_data.get("error"):
+                                drawio_stores.catalog.set("admin_coverage", coverage_data)
         except Exception as exc:  # noqa: BLE001 - la cobertura es opcional; no debe tumbar /admin
             security_logger.warning(f"No se pudo calcular la cobertura del admin: {exc}")
 

@@ -145,14 +145,24 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
                 technician.get("name") or technician.get("username") or "desconocido",
             )
         token = uuid.uuid4().hex
-        existing_diagrams: list[dict] = []
-        glpi_client = GlpiClient.from_environment()
-        if glpi_entity_id and glpi_client:
-            try:
-                existing_diagrams = glpi_diagram_rows(glpi_client, glpi_entity_id, drawio_stores.activity)
-            except GlpiError:
-                existing_diagrams = []
         technician = current_technician()
+        # Aprendizaje: registramos los valores de conectividad usados, aprendemos
+        # de las correcciones sobre lo autorrellenado y añadimos avisos de
+        # combinaciones poco habituales. Nunca debe romper la generación.
+        learning_warnings: list[str] = []
+        try:
+            learning = drawio_stores.learning
+            learning.record(form_data, technician.get("name") or technician.get("username") or "")
+            baseline = json.loads(form_data.get("autofill_baseline") or "{}")
+            if isinstance(baseline, dict) and baseline:
+                learning.record_corrections(baseline, form_data)
+            learning_warnings = learning.warnings(form_data)
+        except (ValueError, TypeError, KeyError):
+            learning_warnings = []
+        # Nota: los diagramas existentes de la sede los carga una sola vez
+        # _preview_from_download() para mostrarlos. Antes se consultaban aquí
+        # también (campo existing_diagram_ids que nadie leía), duplicando la
+        # llamada a GLPI en cada generación.
         drawio_stores.downloads[token] = {
             "filename": generated.filename,
             "xml": generated.result.xml,
@@ -162,13 +172,10 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
             "direccion": generated.data.get("direccion", ""),
             "template": generated.data.get("template", ""),
             "total_equipment": generated.total_equipment,
-            "warnings": generated.result.warnings,
+            "warnings": [*generated.result.warnings, *learning_warnings],
             "structured_json": json.dumps(structured_data, ensure_ascii=False, indent=2),
             "uploaded": False,
             "technician": technician,
-            "existing_diagram_ids": [
-                int(item["id"]) for item in existing_diagrams if str(item.get("id", "")).isdigit()
-            ],
         }
         preview = _preview_from_download(token, drawio_stores.downloads[token])
         return render_template(
@@ -419,18 +426,21 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
     @login_required
     @limiter.limit("10 per hour")
     def upload_draw_missing_sites_xlsx() -> Response:
-        catalog, catalog_error = load_glpi_catalog()
-        if not catalog:
-            return Response(
-                public_error_message(catalog_error, context="catalogo GLPI"),
-                status=503,
-                mimetype="text/plain; charset=utf-8",
-            )
         client = GlpiClient.from_environment()
         if not client:
             return Response("GLPI no esta configurado.", status=503, mimetype="text/plain; charset=utf-8")
+        # Una sola sesión GLPI para el catálogo (si no está cacheado) y la
+        # consulta de cobertura.
         try:
-            covered = client.list_covered_entity_ids()
+            with client.batch_session():
+                catalog, catalog_error = load_glpi_catalog(client)
+                if not catalog:
+                    return Response(
+                        public_error_message(catalog_error, context="catalogo GLPI"),
+                        status=503,
+                        mimetype="text/plain; charset=utf-8",
+                    )
+                covered = client.list_covered_entity_ids()
         except GlpiError as exc:
             return Response(
                 public_error_message(str(exc), context="consulta de diagramas GLPI"),
@@ -532,5 +542,56 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
             site_diagrams_url=url_for("glpi_import.upload_draw_site_diagrams"),
             missing_sites_xlsx_url=url_for("glpi_import.upload_draw_missing_sites_xlsx"),
         )
+
+    # -- Plantillas de conectividad (presets por tipo de instalación) -------
+
+    def _json(payload: dict, status: int = 200) -> Response:
+        return Response(
+            json.dumps(payload, ensure_ascii=False),
+            status=status,
+            mimetype="application/json; charset=utf-8",
+        )
+
+    @bp.get("/api/templates")
+    @login_required
+    def templates_collection() -> Response:
+        return _json({"templates": get_drawio_stores().templates.list_all()})
+
+    @bp.post("/api/templates")
+    @login_required
+    @limiter.limit("60 per hour")
+    def templates_create() -> Response:
+        payload = request.get_json(silent=True) or {}
+        technician = current_technician()
+        updated_by = technician.get("name") or technician.get("username") or "desconocido"
+        try:
+            template_id = get_drawio_stores().templates.save(
+                payload.get("name", ""), payload, updated_by
+            )
+        except ValueError as exc:
+            return _json({"error": str(exc)}, status=400)
+        return _json({"id": template_id})
+
+    @bp.get("/api/templates/<int:template_id>")
+    @login_required
+    def templates_get(template_id: int) -> Response:
+        template = get_drawio_stores().templates.get(template_id)
+        if not template:
+            return _json({"error": "La plantilla ya no existe."}, status=404)
+        return _json(template)
+
+    @bp.delete("/api/templates/<int:template_id>")
+    @login_required
+    def templates_delete(template_id: int) -> Response:
+        get_drawio_stores().templates.delete(template_id)
+        return _json({"ok": True})
+
+    @bp.get("/api/connectivity/suggestions")
+    @login_required
+    def connectivity_suggestions() -> Response:
+        learning = get_drawio_stores().learning
+        proveedor = request.args.get("proveedor", "")
+        tipo = request.args.get("tipo", "")
+        return _json({"suggestions": learning.suggestions(proveedor=proveedor, tipo=tipo)})
 
     return bp

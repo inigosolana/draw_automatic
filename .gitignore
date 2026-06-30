@@ -12,6 +12,9 @@ data/sites.sqlite3*
 data/catalog.sqlite3*
 data/activity.sqlite3*
 data/security.sqlite3*
+data/templates.sqlite3*
+data/learning.sqlite3*
+clientes_con_sedes_sin_diagrama.xlsx
 NORTH_IBERIAN_CONTROL_S_L_SEDE_1_OFICINA.drawio
 libreria_Ausarta_JUN_2026.xml
 library/*.xml

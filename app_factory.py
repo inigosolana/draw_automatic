@@ -12,10 +12,12 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from app_context import ADMIN_USERS, PROJECT_ROOT, get_drawio_stores, security_logger
 from generator.catalog_cache import CatalogCache
 from generator.device_catalog import build_device_catalog
+from generator.connectivity_learning import ConnectivityLearning
 from generator.diagram_activity import DiagramActivity
 from generator.download_store import DownloadStore
 from generator.security_log import SecurityLog
 from generator.site_directory import SiteDirectory
+from generator.template_store import TemplateStore
 from generator.utils import technician_is_admin
 from security_config import (
     configure_csrf,
@@ -34,6 +36,8 @@ class DrawioStores:
     catalog: CatalogCache
     activity: DiagramActivity
     seclog: SecurityLog
+    templates: TemplateStore
+    learning: ConnectivityLearning
 
 
 def build_drawio_stores(project_root: os.PathLike[str] | None = None) -> DrawioStores:
@@ -55,6 +59,12 @@ def build_drawio_stores(project_root: os.PathLike[str] | None = None) -> DrawioS
         ),
         seclog=SecurityLog(
             os.environ.get("DRAWIO_SECLOG_DB", root / "data" / "security.sqlite3")
+        ),
+        templates=TemplateStore(
+            os.environ.get("DRAWIO_TEMPLATE_DB", root / "data" / "templates.sqlite3")
+        ),
+        learning=ConnectivityLearning(
+            os.environ.get("DRAWIO_LEARNING_DB", root / "data" / "learning.sqlite3")
         ),
     )
 

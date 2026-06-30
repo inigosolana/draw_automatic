@@ -12,6 +12,22 @@ Conviven DOS formatos de datos a propósito:
 entiende el formato legacy, mientras que el resto de la app (preview, edición,
 importación de OT) trabaja con el structured. Mantener ambos evita reescribir el
 motor de layout; el coste es esta conversión explícita en un único sitio.
+
+Flujo canónico (una sola dirección, NO hay round-trip de vuelta):
+
+    form (dict del POST)
+      │  form_to_structured_data()
+      ▼
+    structured  ──────────────► preview JSON / edición / OT
+      │  structured_to_generator_data()
+      ▼
+    legacy/generator  ────────► layout_engine.build_layout()
+
+`form_to_data(form)` es exactamente `structured_to_generator_data(form_to_
+structured_data(form))`; no existe ni hace falta `generator_to_structured`.
+Por eso, aunque haya dos formatos, el dato fluye en un solo sentido y no se
+"ida y vuelta": cada paso es una proyección que pierde detalle (p. ej. legacy
+colapsa terminales por extensión), y reconstruir hacia atrás no es un objetivo.
 """
 
 from __future__ import annotations

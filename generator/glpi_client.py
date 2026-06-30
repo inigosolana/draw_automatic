@@ -269,6 +269,7 @@ class GlpiClient:
         with self._session_or_active() as headers:
             page_size = 200
             start = 0
+            total: int | None = None
             while True:
                 payload = self._request(
                     GlpiEndpoints.archimap_search_page(start, page_size),
@@ -290,9 +291,21 @@ class GlpiClient:
                             "entities_id": row.get(str(fields["entities_id"])),
                         }
                     )
-                if len(rows) < page_size:
+                # Avanzamos por las filas REALMENTE devueltas: si GLPI limita el
+                # tamaño de página por debajo de lo pedido (list_limit), un
+                # "len(rows) < page_size" cortaría antes de tiempo y perdería
+                # diagramas. El totalcount nos dice cuándo hemos terminado.
+                if total is None:
+                    try:
+                        total = int(payload.get("totalcount"))
+                    except (TypeError, ValueError):
+                        total = None
+                start += len(rows)
+                if total is not None:
+                    if start >= total:
+                        break
+                elif len(rows) < page_size:
                     break
-                start += page_size
         if entity_id is not None:
             diagrams = [
                 diagram
@@ -314,6 +327,7 @@ class GlpiClient:
         with self._session_or_active() as headers:
             page_size = 500
             start = 0
+            total: int | None = None
             while True:
                 payload = self._request(
                     GlpiEndpoints.archimap_entities_page(start, page_size), headers
@@ -325,9 +339,20 @@ class GlpiClient:
                     value = row.get(field_key)
                     if value is not None and str(value).isdigit():
                         covered.add(int(value))
-                if len(rows) < page_size:
+                # Igual que list_network_diagrams: avanzar por filas reales y
+                # parar con totalcount para no infra-paginar si el servidor
+                # limita el tamaño de página.
+                if total is None:
+                    try:
+                        total = int(payload.get("totalcount"))
+                    except (TypeError, ValueError):
+                        total = None
+                start += len(rows)
+                if total is not None:
+                    if start >= total:
+                        break
+                elif len(rows) < page_size:
                     break
-                start += page_size
         return covered
 
     def create_network_diagram(

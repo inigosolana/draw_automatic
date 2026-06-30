@@ -46,6 +46,8 @@ services:
       DRAWIO_CATALOG_DB: "/app/data/catalog.sqlite3"
       DRAWIO_ACTIVITY_DB: "/app/data/activity.sqlite3"
       DRAWIO_SECLOG_DB: "/app/data/security.sqlite3"
+      DRAWIO_TEMPLATE_DB: "/app/data/templates.sqlite3"
+      DRAWIO_LEARNING_DB: "/app/data/learning.sqlite3"
       DRAWIO_CATALOG_TTL: "${DRAWIO_CATALOG_TTL:-300}"
       DRAWIO_DOWNLOAD_TTL: "${DRAWIO_DOWNLOAD_TTL:-86400}"
       DRAWIO_MAX_UPLOAD_BYTES: "${DRAWIO_MAX_UPLOAD_BYTES:-15728640}"
@@ -121,7 +123,10 @@ services:
       TZ: "${TZ:-UTC}"
       DRAWIO_BACKUP_RETENTION_DAYS: "${DRAWIO_BACKUP_RETENTION_DAYS:-7}"
     volumes:
-      - drawio_data:/app/data:ro
+      # Lectura-escritura: el backup online de SQLite (.backup) necesita abrir el
+      # WAL (-wal/-shm). Con :ro fallaba ("unable to open database file") en las BD
+      # en modo WAL y generaba copias de 0 bytes. .backup nunca escribe en la BD origen.
+      - drawio_data:/app/data
       - drawio_backup:/backup
     networks:
       - drawio_internal

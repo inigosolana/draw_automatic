@@ -13,7 +13,7 @@ set -euo pipefail
 
 DATA_VOL="draw_automatic_drawio_data"
 BACKUP_VOL="draw_automatic_drawio_backup"
-DBS="downloads sites catalog activity security"
+DBS="downloads sites catalog activity security templates learning"
 HELPER_IMAGE="alpine:3.19"
 
 cd "$(dirname "$0")/.."
