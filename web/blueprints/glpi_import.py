@@ -328,6 +328,7 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
                             "id": r["id"],
                             "name": r["name"],
                             "preview_url": url_for("diagrams.preview_glpi_diagram", diagram_id=r["id"]),
+                            "as_form_url": url_for("diagrams.diagram_as_form", diagram_id=r["id"]),
                             "glpi_url": r.get("url", ""),
                         }
                         for r in rows[:10]

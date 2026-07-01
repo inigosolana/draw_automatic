@@ -106,6 +106,43 @@
             }
           };
 
+          async function mergeExistingIntoForm(d, statusEl) {
+            if (!d.as_form_url) {
+              return;
+            }
+            statusEl.textContent = "Trayendo equipos del diagrama existente…";
+            try {
+              const response = await fetch(d.as_form_url, { headers: { Accept: "application/json" } });
+              const body = await response.json();
+              if (!response.ok) {
+                statusEl.textContent = body.error || "No se pudo cargar el diagrama existente.";
+                return;
+              }
+              const olds = body.terminals || [];
+              const present = {};
+              Array.prototype.forEach.call(
+                document.querySelectorAll('#terminal-rows .terminal-row [data-field="extension"]'),
+                function (e) { if (e.value.trim()) present[e.value.trim()] = 1; }
+              );
+              let added = 0;
+              olds.forEach(function (t) {
+                const ext = (t.extension || "").trim();
+                if (ext && present[ext]) return; // ya está en el formulario
+                if (window.__drawioTerminals) {
+                  window.__drawioTerminals.addRow(t);
+                  added += 1;
+                  if (ext) present[ext] = 1;
+                }
+              });
+              statusEl.textContent =
+                added > 0
+                  ? added + " terminal(es) del diagrama existente añadido(s). Revisa/quita lo que no aplique y pulsa Generar."
+                  : "El diagrama existente no aportó terminales nuevos (ya estaban).";
+            } catch (error) {
+              statusEl.textContent = "No se pudo traer el diagrama existente.";
+            }
+          }
+
           function renderExistingDiagrams(diagrams) {
             const panel = document.getElementById("import-existing-diagrams");
             if (!panel) {
@@ -121,8 +158,10 @@
             title.className = "existing-diagrams-title";
             title.textContent =
               "⚠ Esta sede/cliente ya tiene " + diagrams.length +
-              " diagrama(s) en GLPI. Puedes editar uno (añadir o quitar equipos) en vez de crear otro:";
+              " diagrama(s) en GLPI. Puedes traer sus equipos al formulario (se unen a los de la OT), quitar lo que no aplique y Generar:";
             panel.appendChild(title);
+            const status = document.createElement("p");
+            status.className = "existing-diagrams-status";
             diagrams.forEach(function (d) {
               const row = document.createElement("div");
               row.className = "existing-diagram-row";
@@ -130,13 +169,21 @@
               name.className = "existing-diagram-name";
               name.textContent = "#" + d.id + " " + (d.name || "");
               row.appendChild(name);
+              if (d.as_form_url) {
+                const merge = document.createElement("button");
+                merge.type = "button";
+                merge.className = "button secondary";
+                merge.textContent = "Traer al formulario";
+                merge.addEventListener("click", function () { mergeExistingIntoForm(d, status); });
+                row.appendChild(merge);
+              }
               if (d.preview_url) {
                 const edit = document.createElement("a");
                 edit.className = "button secondary quiet";
                 edit.href = d.preview_url;
                 edit.target = "_blank";
                 edit.rel = "noopener";
-                edit.textContent = "Editar aquí";
+                edit.textContent = "Editar en draw.io";
                 row.appendChild(edit);
               }
               if (d.glpi_url) {
@@ -150,6 +197,7 @@
               }
               panel.appendChild(row);
             });
+            panel.appendChild(status);
           }
 
           function applyImportedForm(data) {

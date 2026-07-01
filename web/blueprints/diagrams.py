@@ -12,6 +12,7 @@ from flask_wtf.csrf import CSRFProtect
 from app_context import can_access_pending, current_technician, get_drawio_stores, login_required, security_logger
 from web.services.glpi_catalog import glpi_diagram_rows, load_glpi_catalog, relevant_entity_ids
 from generator.diagram_metadata import enrich_activity_rows
+from generator.drawio_reverse import parse_drawio_to_form
 from generator.glpi_client import GlpiClient, GlpiError
 from generator.safe_errors import public_error_message
 from generator.utils import is_safe_redirect, positive_integer
@@ -356,6 +357,21 @@ def create_diagrams_blueprint(limiter: Limiter, csrf: CSRFProtect) -> Blueprint:
             mimetype="application/xml; charset=utf-8",
             headers={"Cache-Control": "no-store"},
         )
+
+    @bp.get("/api/diagram/<int:diagram_id>/as-form")
+    @login_required
+    @limiter.limit("60 per hour")
+    def diagram_as_form(diagram_id: int) -> Response:
+        """Devuelve un diagrama existente de GLPI como datos de formulario
+        (terminales + conectividad), para fusionarlo con lo nuevo de una OT."""
+        client = GlpiClient.from_environment()
+        if not client:
+            return jsonify({"error": "GLPI no esta configurado."}), 503
+        try:
+            xml, _name = client.get_network_diagram_xml(diagram_id)
+        except GlpiError as exc:
+            return jsonify({"error": public_error_message(str(exc), context="carga del diagrama")}), 404
+        return jsonify(parse_drawio_to_form(xml))
 
     @bp.post("/preview/glpi/<int:diagram_id>/save")
     @login_required
