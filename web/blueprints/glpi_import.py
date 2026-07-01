@@ -219,29 +219,55 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
                     for d in client.list_network_diagrams(None)
                     if str(d.get("entities_id", "")).isdigit() and int(d["entities_id"]) in relevant
                 ]
+                # Diagrama ya en la MISMA sede: se versiona (actualiza + copia fechada).
+                sede_existing = [d for d in existing if str(d.get("entities_id")) == str(entity_id)]
                 allow_duplicate = request.form.get("allow_duplicate") == "1"
                 if existing and not allow_duplicate:
-                    return Response(
-                        "Esta sede o su cliente ya tienen un diagrama en GLPI. Confirma de nuevo para publicar otro.",
-                        status=409,
-                        mimetype="text/plain; charset=utf-8",
+                    msg = (
+                        "Esta sede ya tiene un diagrama. Confirma para guardarlo como NUEVA VERSIÓN "
+                        "(el diagrama actual se actualiza y se guarda una copia fechada)."
+                        if sede_existing
+                        else "Esta sede o su cliente ya tienen un diagrama en GLPI. Confirma de nuevo para publicar otro."
                     )
-                diagram_name = unique_diagram_name(
-                    f"{payload['cliente']} - {payload['sede']}",
-                    existing,
-                )
-                diagram_id, diagram_url = publish_diagram(
-                    client,
-                    drawio_stores,
-                    entity_id=entity_id,
-                    diagram_name=diagram_name,
-                    client_name=payload["cliente"],
-                    site_name=payload["sede"],
-                    technician=technician,
-                    source="Generado",
-                    graph_xml=payload["xml"],
-                    filename=payload.get("filename", ""),
-                )
+                    return Response(msg, status=409, mimetype="text/plain; charset=utf-8")
+
+                if allow_duplicate and sede_existing:
+                    # Versionar el diagrama existente de la sede con el contenido
+                    # nuevo (que ya incluye lo fusionado). No duplica la sede.
+                    diagram_id, diagram_name = client.save_network_diagram_version(
+                        int(sede_existing[0]["id"]), payload["xml"], technician=technician
+                    )
+                    diagram_url = client.diagram_url(diagram_id)
+                    drawio_stores.activity.add(
+                        diagram_id=diagram_id,
+                        entity_id=entity_id,
+                        diagram_name=diagram_name,
+                        client_name=payload["cliente"],
+                        site_name=payload["sede"],
+                        technician=technician,
+                        source="Version",
+                    )
+                    try:
+                        drawio_stores.catalog.clear("admin_coverage")
+                    except Exception:  # noqa: BLE001 - invalidar caché nunca debe romper
+                        pass
+                else:
+                    diagram_name = unique_diagram_name(
+                        f"{payload['cliente']} - {payload['sede']}",
+                        existing,
+                    )
+                    diagram_id, diagram_url = publish_diagram(
+                        client,
+                        drawio_stores,
+                        entity_id=entity_id,
+                        diagram_name=diagram_name,
+                        client_name=payload["cliente"],
+                        site_name=payload["sede"],
+                        technician=technician,
+                        source="Generado",
+                        graph_xml=payload["xml"],
+                        filename=payload.get("filename", ""),
+                    )
         except ValueError as exc:
             return Response(
                 public_error_message(str(exc), context="publicacion en GLPI"),

@@ -1197,7 +1197,33 @@ class WebAppTests(unittest.TestCase):
         with patch("web.services.glpi_catalog.GlpiClient.from_environment", return_value=configured_client):
             response = self.client.post("/confirm-glpi/duplicate-token")
         self.assertEqual(response.status_code, 409)
-        self.assertIn(b"ya tienen un diagrama", response.data)
+        # La sede ya tiene diagrama -> ofrece guardarlo como nueva versión.
+        self.assertIn(b"NUEVA VERSI", response.data)
+
+    def test_confirm_versions_existing_sede_diagram(self) -> None:
+        self.stores.downloads["ver-token"] = {
+            "filename": "demo.drawio",
+            "xml": "<mxfile />",
+            "entity_id": 7,
+            "cliente": "Demo",
+            "sede": "Central",
+            "uploaded": False,
+            "technician": {"username": "local", "name": "Tecnico local"},
+        }
+        calls = {}
+
+        def _save_version(diagram_id, xml, technician=None):
+            calls["diagram_id"] = diagram_id
+            return 501, "Demo - Central_20260101_000000"
+
+        configured_client = fake_glpi_client(
+            list_network_diagrams=lambda entity_id=None: [{"id": 99, "entities_id": 7}],
+            save_network_diagram_version=_save_version,
+        )
+        with patch("web.services.glpi_catalog.GlpiClient.from_environment", return_value=configured_client):
+            response = self.client.post("/confirm-glpi/ver-token", data={"allow_duplicate": "1"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(calls.get("diagram_id"), 99)  # versiona el diagrama de la sede
 
     def test_download_denied_for_other_technician(self) -> None:
         # Un token creado por otro técnico no debe ser accesible (IDOR).
