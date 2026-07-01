@@ -50,9 +50,10 @@
     {% if diagram.url %}
     <div class="diagram-card-actions">
       <a
-        class="button secondary diagram-action-preview"
+        class="button diagram-action-preview"
         href="{{ url_for('diagrams.preview_glpi_diagram', diagram_id=diagram_id, next=back_url) }}"
-      >Previsualizar aquí</a>
+        title="Abre el diagrama en el editor: cámbialo y guarda una nueva versión en GLPI"
+      >Ver / Editar</a>
       <a class="button glpi diagram-action-glpi" href="{{ diagram.url }}" target="_blank" rel="noopener">Abrir en GLPI</a>
       {% if admin_delete or owner_delete %}
       <form
