@@ -309,6 +309,31 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
             "direccion": result.direccion,
         }
         glpi_merge = merge_import_with_glpi(imported, glpi_customers)
+
+        # Si la OT resuelve una sede de GLPI, avisar de diagramas YA existentes de
+        # esa sede/cliente para poder editarlos (añadir/quitar) en vez de duplicar.
+        existing_diagrams: list[dict] = []
+        entity_id_val = str(result.glpi_entity_id or glpi_merge.get("glpi_entity_id") or "").strip()
+        if entity_id_val.isdigit():
+            existing_client = GlpiClient.from_environment()
+            if existing_client:
+                try:
+                    rows = glpi_diagram_rows(
+                        existing_client,
+                        relevant_entity_ids(int(entity_id_val), glpi_customers),
+                        get_drawio_stores().activity,
+                    )
+                    existing_diagrams = [
+                        {
+                            "id": r["id"],
+                            "name": r["name"],
+                            "preview_url": url_for("diagrams.preview_glpi_diagram", diagram_id=r["id"]),
+                            "glpi_url": r.get("url", ""),
+                        }
+                        for r in rows[:10]
+                    ]
+                except GlpiError:
+                    existing_diagrams = []
         response_warnings = list(result.warnings)
         for correction in glpi_merge.get("corrections") or []:
             response_warnings.append(
@@ -337,6 +362,7 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
                     ),
                     "glpi_corrections": glpi_merge.get("corrections") or [],
                     "glpi_suggestions": glpi_merge.get("suggestions") or [],
+                    "existing_diagrams": existing_diagrams,
                     "internet_tipo": result.internet_tipo,
                     "internet_proveedor": result.internet_proveedor,
                     "internet_velocidad": result.internet_velocidad,

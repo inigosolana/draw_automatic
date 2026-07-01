@@ -106,6 +106,52 @@
             }
           };
 
+          function renderExistingDiagrams(diagrams) {
+            const panel = document.getElementById("import-existing-diagrams");
+            if (!panel) {
+              return;
+            }
+            panel.innerHTML = "";
+            if (!diagrams || !diagrams.length) {
+              panel.hidden = true;
+              return;
+            }
+            panel.hidden = false;
+            const title = document.createElement("p");
+            title.className = "existing-diagrams-title";
+            title.textContent =
+              "⚠ Esta sede/cliente ya tiene " + diagrams.length +
+              " diagrama(s) en GLPI. Puedes editar uno (añadir o quitar equipos) en vez de crear otro:";
+            panel.appendChild(title);
+            diagrams.forEach(function (d) {
+              const row = document.createElement("div");
+              row.className = "existing-diagram-row";
+              const name = document.createElement("span");
+              name.className = "existing-diagram-name";
+              name.textContent = "#" + d.id + " " + (d.name || "");
+              row.appendChild(name);
+              if (d.preview_url) {
+                const edit = document.createElement("a");
+                edit.className = "button secondary quiet";
+                edit.href = d.preview_url;
+                edit.target = "_blank";
+                edit.rel = "noopener";
+                edit.textContent = "Editar aquí";
+                row.appendChild(edit);
+              }
+              if (d.glpi_url) {
+                const glpi = document.createElement("a");
+                glpi.className = "button glpi quiet";
+                glpi.href = d.glpi_url;
+                glpi.target = "_blank";
+                glpi.rel = "noopener";
+                glpi.textContent = "Abrir en GLPI";
+                row.appendChild(glpi);
+              }
+              panel.appendChild(row);
+            });
+          }
+
           function applyImportedForm(data) {
             const clienteField = document.getElementById("cliente");
             const cifField = document.getElementById("cif");
@@ -143,6 +189,7 @@
               importGlpiStatus.textContent = glpiMessage;
               importGlpiStatus.classList.toggle("is-warn", confidence !== "high");
             }
+            renderExistingDiagrams(data.existing_diagrams || []);
             if (window.__drawioConnectivity) {
               window.__drawioConnectivity.apply(data);
             }
@@ -216,6 +263,7 @@
                 importGlpiStatus.textContent = "";
               }
               renderImportWarnings([]);
+              renderExistingDiagrams([]);
               try {
                 const csrfToken = csrfTokenValue();
                 const response = await fetch(window.__DRAWIO_PAGE_CONFIG.importWorkOrderUrl, {
@@ -316,6 +364,7 @@
             }
             renderImportWarnings([]);
             renderGlpiSuggestions([]);
+            renderExistingDiagrams([]);
 
             const clienteField = document.getElementById("cliente");
             if (clienteField) {
