@@ -576,13 +576,16 @@ class GlpiClient:
             source="Version",
             filename=f"{version_name}.drawio",
         )
-        self.update_network_diagram_graph(diagram_id, graph_xml)
+        # Creamos primero la copia fechada (backup) y DESPUÉS actualizamos el
+        # diagrama original. Así, si el segundo paso falla, la copia ya existe y
+        # no perdemos el contenido nuevo (evita un estado sin respaldo).
         version_id = self.create_network_diagram(
             entity_id=entity_id,
             name=version_name,
             description=description,
             graph_xml=graph_xml,
         )
+        self.update_network_diagram_graph(diagram_id, graph_xml)
         return int(version_id), version_name
 
 

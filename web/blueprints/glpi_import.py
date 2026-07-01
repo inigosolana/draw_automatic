@@ -220,7 +220,13 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
                     if str(d.get("entities_id", "")).isdigit() and int(d["entities_id"]) in relevant
                 ]
                 # Diagrama ya en la MISMA sede: se versiona (actualiza + copia fechada).
-                sede_existing = [d for d in existing if str(d.get("entities_id")) == str(entity_id)]
+                # Ordenamos por id descendente para versionar SIEMPRE el más reciente
+                # (list_network_diagrams no garantiza orden por fecha).
+                sede_existing = sorted(
+                    (d for d in existing if str(d.get("entities_id")) == str(entity_id)),
+                    key=lambda d: int(d["id"]) if str(d.get("id", "")).isdigit() else 0,
+                    reverse=True,
+                )
                 allow_duplicate = request.form.get("allow_duplicate") == "1"
                 if existing and not allow_duplicate:
                     msg = (

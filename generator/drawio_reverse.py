@@ -78,6 +78,10 @@ def parse_drawio_to_form(xml: str) -> dict:
       mapeo de tipo/proveedor/velocidad lo resuelva equipment_detection).
     Devuelve {} si el XML no es parseable.
     """
+    # Guarda de tamaño: un diagrama nuestro pesa unos pocos KB. Un XML enorme
+    # (edición masiva/manipulación) no debe bloquear el endpoint parseando.
+    if not xml or len(xml) > 20_000_000:
+        return {"terminals": [], "connectivity_text": ""}
     try:
         root = _xml_fromstring(xml)
     except Exception:

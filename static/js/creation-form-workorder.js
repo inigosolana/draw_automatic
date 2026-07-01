@@ -127,11 +127,14 @@
               let added = 0;
               olds.forEach(function (t) {
                 const ext = (t.extension || "").trim();
-                if (ext && present[ext]) return; // ya está en el formulario
+                // Sin extensión (p. ej. bases DECT) deduplicamos por modelo para
+                // no re-añadir el mismo terminal al pulsar "Traer" varias veces.
+                const key = ext || "model:" + (t.model || "").trim();
+                if (key !== "model:" && present[key]) return; // ya está en el formulario
                 if (window.__drawioTerminals) {
                   window.__drawioTerminals.addRow(t);
                   added += 1;
-                  if (ext) present[ext] = 1;
+                  if (key !== "model:") present[key] = 1;
                 }
               });
               statusEl.textContent =
