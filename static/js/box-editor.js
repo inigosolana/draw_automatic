@@ -323,14 +323,20 @@
       f.terminals.forEach(function (t) { endpoints.push({ label: "📞 " + t.model + (t.ext ? " " + t.ext : ""), type: "terminal", model: t.model }); });
       f.devices.forEach(function (d) { if (d.category !== "switch") endpoints.push({ label: d.model, type: d.category === "ap" ? "ap" : "device", model: d.model }); });
       // Colocar los teléfonos/dispositivos debajo del router o switch (como en el
-      // diagrama final), en dos columnas si hay muchos; el técnico puede moverlos.
-      var stepY = 66, perCol = 6;
-      var ex0 = anchor ? anchorX : COL[Math.min(col + 1, COL.length - 1)];
+      // diagrama final), en FILAS centradas bajo el ancla (no en columna, para que
+      // las líneas no se solapen todas en la misma vertical); el técnico puede
+      // moverlos luego. Se reparte en varias filas si hay muchos.
+      var stepX = 160, stepY = 90, perRow = 5;
+      var anchorCx = anchor ? anchorX : COL[Math.min(col + 1, COL.length - 1)];
       var ey0 = anchor ? anchorY + 100 : 70;
       endpoints.forEach(function (ep, i) {
-        var colOffset = Math.floor(i / perCol) * 210;
-        var rowIndex = i % perCol;
-        var e = addBox(ep.label, ex0 + colOffset, ey0 + rowIndex * stepY, ep.type, ep.model);
+        var row = Math.floor(i / perRow);
+        var colInRow = i % perRow;
+        var rowCount = Math.min(perRow, endpoints.length - row * perRow);
+        var rowStartX = anchorCx - Math.floor((rowCount - 1) / 2) * stepX;
+        var x = Math.max(10, rowStartX + colInRow * stepX);
+        var y = ey0 + row * stepY;
+        var e = addBox(ep.label, x, y, ep.type, ep.model);
         if (anchor) links.push({ a: anchor, b: e });
       });
       setMode("move");
