@@ -28,22 +28,10 @@
                 <button type="button" class="my-diagrams-filter" data-source-filter="subido">Subidos</button>
               </div>
               <div class="diagram-dropdown-filters">
-                <select id="filter-province" data-filter-key="province" aria-label="Filtrar por provincia">
-                  <option value="">Todas las provincias</option>
-                  {% for p in filter_options.provinces %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
-                </select>
-                <select id="filter-client" data-filter-key="client" aria-label="Filtrar por cliente">
-                  <option value="">Todos los clientes</option>
-                  {% for c in filter_options.clients %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
-                </select>
-                <select id="filter-site" data-filter-key="site" aria-label="Filtrar por sede">
-                  <option value="">Todas las sedes</option>
-                  {% for s in filter_options.sites %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
-                </select>
-                <select id="filter-tech" data-filter-key="tech" aria-label="Filtrar por técnico">
-                  <option value="">Todos los técnicos</option>
-                  {% for t in filter_options.technicians %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
-                </select>
+                <div class="search-select" id="filter-province" data-filter-key="province" data-placeholder="Todas las provincias"></div>
+                <div class="search-select" id="filter-client" data-filter-key="client" data-placeholder="Todos los clientes"></div>
+                <div class="search-select" id="filter-site" data-filter-key="site" data-placeholder="Todas las sedes"></div>
+                <div class="search-select" id="filter-tech" data-filter-key="tech" data-placeholder="Todos los técnicos"></div>
               </div>
             </div>
             {% endif %}
@@ -78,6 +66,7 @@
         </section>
       </section>
     </main>
+    <script src="{{ url_for('static', filename='js/search-select.js') }}?v={{ static_v }}"></script>
     <script src="{{ url_for('static', filename='js/my-diagrams-filter.js') }}?v={{ static_v }}"></script>
     {% include "_app_footer.html" %}
   </body>
