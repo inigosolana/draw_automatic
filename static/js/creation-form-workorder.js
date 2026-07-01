@@ -256,6 +256,16 @@
                 const sedeField = document.getElementById("sede");
                 if (entityField) entityField.value = String(body.glpi_entity_id);
                 if (sedeField && body.sede) sedeField.value = body.sede;
+                // La sede recién creada no está en el catálogo cargado al abrir la
+                // página: hay que insertarla para poder seleccionarla en los
+                // desplegables de Provincia/Cliente/Sede (si no, se quedan vacíos).
+                if (window.__drawioGlpiAddSite) {
+                  window.__drawioGlpiAddSite(data.glpi_client_id, {
+                    id: body.glpi_entity_id,
+                    nombre: body.sede || sede,
+                    direccion: data.direccion || "",
+                  });
+                }
                 if (window.__drawioGlpiSelectByEntityId) {
                   window.__drawioGlpiSelectByEntityId(body.glpi_entity_id);
                 }

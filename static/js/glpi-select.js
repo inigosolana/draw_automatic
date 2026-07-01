@@ -175,6 +175,26 @@
             }
           };
 
+          // Inserta una sede recién creada en GLPI (no estaba en el catálogo
+          // cargado al abrir la página) para que pueda seleccionarse en los
+          // desplegables de Provincia/Cliente/Sede sin recargar la página.
+          window.__drawioGlpiAddSite = function (clientId, site) {
+            if (!clientId || !site || !site.id) {
+              return false;
+            }
+            for (const province of glpiCustomers) {
+              for (const customer of province.clientes || []) {
+                if (String(customer.id) !== String(clientId)) {
+                  continue;
+                }
+                customer.sedes = customer.sedes || [];
+                customer.sedes.push(site);
+                return true;
+              }
+            }
+            return false;
+          };
+
           window.__drawioGlpiSelectByEntityId = function (entityId) {
             if (!entityId || !glpiCustomers.length) {
               return false;

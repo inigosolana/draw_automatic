@@ -64,7 +64,26 @@ function inject(file) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 (async function () {
-  ["page-bootstrap.js", "device-picker.js", "creation-form.js",
+  inject("page-bootstrap.js");
+  // Catálogo GLPI sintético para probar los desplegables Provincia/Cliente/Sede
+  // (el HTML real de /draw no tiene GLPI configurado en el entorno de test).
+  // Se inyecta DESPUÉS de page-bootstrap.js porque éste sobrescribe
+  // __DRAWIO_PAGE_CONFIG entero al parsear el <script> de configuración.
+  window.__DRAWIO_PAGE_CONFIG.glpiCustomers = [
+    {
+      nombre: "Cantabria",
+      clientes: [
+        {
+          id: 10,
+          nombre: "CEIP EL SARDINERO",
+          cif: "P3900000A",
+          sedes: [{ id: 3138, nombre: "Sede 1 - GIJON", direccion: "Gijón" }],
+        },
+      ],
+    },
+  ];
+  window.__DRAWIO_PAGE_CONFIG.createSiteUrl = "/import-work-order/create-site";
+  ["glpi-select.js", "device-picker.js", "creation-form.js",
    "creation-form-terminals.js", "creation-form-templates.js",
    "creation-form-workorder.js"].forEach(inject);
 
@@ -150,6 +169,15 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     check("click crear-sede llama a create-site", fetchCalls.some(c => c.url.includes("create-site")));
     check("crear-sede fija entity_id nuevo", $("glpi-entity-id").value === "9999", $("glpi-entity-id").value);
     check("crear-sede oculta la caja", newSiteBox.style.display === "none");
+    // La sede nueva debe verse seleccionada en los desplegables (no solo en el
+    // campo oculto): bug real donde se creaba en GLPI pero los desplegables
+    // Provincia/Cliente/Sede se quedaban vacíos.
+    const provinceLabel = d.querySelector("#glpi-province .search-select-trigger span");
+    const customerLabel = d.querySelector("#glpi-customer .search-select-trigger span");
+    const siteLabel = d.querySelector("#glpi-site .search-select-trigger span");
+    check("desplegable provincia rellenado", provinceLabel && provinceLabel.textContent === "Cantabria", provinceLabel && provinceLabel.textContent);
+    check("desplegable cliente rellenado", customerLabel && customerLabel.textContent === "CEIP EL SARDINERO", customerLabel && customerLabel.textContent);
+    check("desplegable sede rellenado", siteLabel && siteLabel.textContent === "Sede 3 - COMEDOR", siteLabel && siteLabel.textContent);
   }
 
   // 7. reset
