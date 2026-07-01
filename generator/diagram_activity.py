@@ -124,6 +124,20 @@ class DiagramActivity:
             ).fetchall()
         return [dict(r) for r in rows]
 
+    def diagram_owners(self, diagram_id: int) -> set[str]:
+        """Usernames de los técnicos que crearon/subieron este diagrama.
+
+        Sirve para autorizar el borrado: un técnico solo puede borrar los suyos.
+        Si no hay filas (diagrama antiguo o de otra persona), devuelve conjunto
+        vacío y el borrado queda reservado a admin.
+        """
+        with closing(self._connect()) as connection:
+            rows = connection.execute(
+                "SELECT DISTINCT technician_username FROM diagram_activity WHERE diagram_id = ?",
+                (int(diagram_id),),
+            ).fetchall()
+        return {str(row[0]).strip() for row in rows if row[0]}
+
     def delete_by_diagram_id(self, diagram_id: int) -> int:
         with closing(self._connect()) as connection:
             with connection:

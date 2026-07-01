@@ -858,6 +858,81 @@ class WebAppTests(unittest.TestCase):
         fake_client.delete_network_diagram.assert_called_once_with(101)
         self.assertEqual(activity.list_for_technician("tecnico.uno"), [])
 
+    def test_owner_can_delete_own_diagram(self) -> None:
+        self.app.config["AUTH_REQUIRED"] = False
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        activity = self.stores.activity
+        activity.add(
+            diagram_id=201,
+            entity_id=7,
+            diagram_name="Cliente - Sede",
+            client_name="Cliente",
+            site_name="Sede",
+            technician={"username": "tecnico.uno", "name": "Tecnico Uno"},
+            source="Generado",
+        )
+        fake_client = fake_glpi_client()
+        fake_client.delete_network_diagram = MagicMock()
+        with self.client.session_transaction() as browser_session:
+            browser_session["technician"] = {"username": "tecnico.uno", "name": "Tecnico Uno"}
+        with patch("web.blueprints.diagrams.ADMIN_USERS", {"admin.user"}):
+            with patch("web.blueprints.diagrams.GlpiClient.from_environment", return_value=fake_client):
+                response = self.client.post("/my-diagrams/delete", data={"diagram_id": "201"})
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/my-diagrams?deleted=201", response.headers["Location"])
+        fake_client.delete_network_diagram.assert_called_once_with(201)
+        self.assertEqual(activity.list_for_technician("tecnico.uno"), [])
+
+    def test_technician_cannot_delete_others_diagram(self) -> None:
+        self.app.config["AUTH_REQUIRED"] = False
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        activity = self.stores.activity
+        activity.add(
+            diagram_id=202,
+            entity_id=7,
+            diagram_name="Cliente - Sede",
+            client_name="Cliente",
+            site_name="Sede",
+            technician={"username": "otra.persona", "name": "Otra Persona"},
+            source="Generado",
+        )
+        fake_client = fake_glpi_client()
+        fake_client.delete_network_diagram = MagicMock()
+        with self.client.session_transaction() as browser_session:
+            browser_session["technician"] = {"username": "tecnico.uno", "name": "Tecnico Uno"}
+        with patch("web.blueprints.diagrams.ADMIN_USERS", {"admin.user"}):
+            with patch("web.blueprints.diagrams.GlpiClient.from_environment", return_value=fake_client):
+                response = self.client.post("/my-diagrams/delete", data={"diagram_id": "202"})
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("Solo+puedes+borrar", response.headers["Location"])
+        fake_client.delete_network_diagram.assert_not_called()
+        # sigue existiendo
+        self.assertEqual(len(activity.list_for_technician("otra.persona")), 1)
+
+    def test_admin_can_delete_any_diagram_from_my_diagrams(self) -> None:
+        self.app.config["AUTH_REQUIRED"] = False
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        activity = self.stores.activity
+        activity.add(
+            diagram_id=203,
+            entity_id=7,
+            diagram_name="Cliente - Sede",
+            client_name="Cliente",
+            site_name="Sede",
+            technician={"username": "otra.persona", "name": "Otra Persona"},
+            source="Generado",
+        )
+        fake_client = fake_glpi_client()
+        fake_client.delete_network_diagram = MagicMock()
+        with self.client.session_transaction() as browser_session:
+            browser_session["technician"] = {"username": "admin.user", "name": "Admin User"}
+        with patch("web.blueprints.diagrams.ADMIN_USERS", {"admin.user"}):
+            with patch("web.blueprints.diagrams.GlpiClient.from_environment", return_value=fake_client):
+                response = self.client.post("/my-diagrams/delete", data={"diagram_id": "203"})
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/my-diagrams?deleted=203", response.headers["Location"])
+        fake_client.delete_network_diagram.assert_called_once_with(203)
+
     def test_authentication_redirects_to_login_when_enabled(self) -> None:
         self.app.config["AUTH_REQUIRED"] = True
         response = self.client.get("/")

@@ -30,11 +30,17 @@
         </header>
 
         <section class="form-section full diagram-results">
+          {% if deleted_id %}
+          <div class="message success">Diagrama #{{ deleted_id }} borrado de GLPI.</div>
+          {% endif %}
+          {% if delete_error %}
+          <div class="message error">{{ delete_error }}</div>
+          {% endif %}
           {% if diagrams %}
           <div class="diagram-card-grid" id="diagram-card-grid">
             {% from '_diagram_macros.html' import diagram_card %}
             {% for diagram in diagrams %}
-            {{ diagram_card(diagram) }}
+            {{ diagram_card(diagram, owner_delete=true) }}
             {% endfor %}
           </div>
           <p class="diagram-list-empty-filter" id="diagram-filter-empty" hidden>No hay diagramas con ese filtro.</p>

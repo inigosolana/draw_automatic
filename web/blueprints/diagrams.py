@@ -5,17 +5,25 @@ import re
 from pathlib import Path
 from urllib.parse import quote
 
-from flask import Blueprint, Response, current_app, jsonify, render_template, request, send_file, url_for
+from flask import Blueprint, Response, current_app, jsonify, redirect, render_template, request, send_file, url_for
 from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import CSRFProtect
 
-from app_context import can_access_pending, current_technician, get_drawio_stores, login_required, security_logger
+from app_context import (
+    ADMIN_USERS,
+    can_access_pending,
+    current_technician,
+    get_drawio_stores,
+    login_required,
+    security_logger,
+)
 from web.services.glpi_catalog import glpi_diagram_rows, load_glpi_catalog, relevant_entity_ids
 from generator.diagram_metadata import enrich_activity_rows
 from generator.drawio_reverse import parse_drawio_to_form
 from generator.glpi_client import GlpiClient, GlpiError
 from generator.safe_errors import public_error_message
-from generator.utils import is_safe_redirect, positive_integer
+from generator.utils import is_safe_redirect, positive_integer, technician_is_admin
 
 _DRAWIO_CORS_ORIGINS = frozenset(
     {
@@ -217,11 +225,69 @@ def create_diagrams_blueprint(limiter: Limiter, csrf: CSRFProtect) -> Blueprint:
             drawio_stores.activity.list_for_technician(username),
             client,
         )
+        deleted_id = request.args.get("deleted", "").strip()
+        delete_error = request.args.get("error", "").strip()
         return render_template(
             "my_diagrams.html",
             diagrams=rows,
             technician=technician,
+            deleted_id=deleted_id if deleted_id.isdigit() else "",
+            delete_error=delete_error,
         )
+
+    @bp.post("/my-diagrams/delete")
+    @login_required
+    @limiter.limit("30 per hour")
+    def delete_my_diagram() -> Response:
+        drawio_stores = get_drawio_stores()
+        technician = current_technician()
+        username = (technician.get("username") or technician.get("name") or "local").strip()
+        back = url_for("diagrams.my_diagrams")
+
+        diagram_id_raw = request.form.get("diagram_id", "").strip()
+        if not diagram_id_raw.isdigit():
+            return redirect(f"{back}?error=ID+de+diagrama+no+valido.")
+        diagram_id = int(diagram_id_raw)
+
+        # Autorización: admin puede borrar cualquiera; un técnico solo los suyos.
+        is_admin = technician_is_admin(technician, ADMIN_USERS)
+        owners = drawio_stores.activity.diagram_owners(diagram_id)
+        if not is_admin and username not in owners:
+            security_logger.warning(
+                "Intento de borrado no autorizado: diagram_id=%s user=%s IP=%s",
+                diagram_id,
+                username,
+                get_remote_address(),
+            )
+            return redirect(f"{back}?error=Solo+puedes+borrar+tus+propios+diagramas.")
+
+        client = GlpiClient.from_environment()
+        if not client:
+            return redirect(f"{back}?error=GLPI+no+esta+configurado.")
+        try:
+            client.delete_network_diagram(diagram_id)
+            removed_rows = drawio_stores.activity.delete_by_diagram_id(diagram_id)
+            drawio_stores.catalog.clear("admin_coverage")
+            security_logger.info(
+                "Diagrama borrado: diagram_id=%s user=%s admin=%s activity_rows=%s IP=%s",
+                diagram_id,
+                username,
+                is_admin,
+                removed_rows,
+                get_remote_address(),
+            )
+        except GlpiError as exc:
+            security_logger.warning(
+                "Borrado de diagrama fallido: diagram_id=%s user=%s error=%s IP=%s",
+                diagram_id,
+                username,
+                exc,
+                get_remote_address(),
+            )
+            return redirect(
+                f"{back}?error=" + quote(public_error_message(str(exc), context="borrado del diagrama"))
+            )
+        return redirect(f"{back}?deleted={diagram_id}")
 
     @bp.get("/download/<token>")
     @login_required

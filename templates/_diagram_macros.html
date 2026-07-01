@@ -1,4 +1,4 @@
-{% macro diagram_card(diagram, admin_delete=false, preview_return=none) -%}
+{% macro diagram_card(diagram, admin_delete=false, owner_delete=false, preview_return=none) -%}
   {% set diagram_id = diagram.diagram_id | default(diagram.id) %}
   {% set title = diagram.diagram_name | default(diagram.name) %}
   {% set client = diagram.client_name | default('') %}
@@ -54,10 +54,10 @@
         href="{{ url_for('diagrams.preview_glpi_diagram', diagram_id=diagram_id, next=back_url) }}"
       >Previsualizar aquí</a>
       <a class="button glpi diagram-action-glpi" href="{{ diagram.url }}" target="_blank" rel="noopener">Abrir en GLPI</a>
-      {% if admin_delete %}
+      {% if admin_delete or owner_delete %}
       <form
         method="post"
-        action="{{ url_for('admin.admin_delete_diagram') }}"
+        action="{{ url_for('admin.admin_delete_diagram') if admin_delete else url_for('diagrams.delete_my_diagram') }}"
         class="admin-delete-form"
         onsubmit="return confirm('¿Eliminar el diagrama #{{ diagram_id }} de GLPI? Esta accion no se puede deshacer.');"
       >
