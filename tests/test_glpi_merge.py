@@ -125,5 +125,60 @@ class GlpiMergeTests(unittest.TestCase):
         self.assertTrue("Nort Control Iberia" in names or "Nort Iberian Control" in names)
 
 
+    def test_never_remaps_sede_to_a_different_one(self) -> None:
+        # CIF exacto: la sede de la OT debe respetarse, no cambiarse por otra
+        # sede distinta del mismo cliente (bug «Sede 1 - COLEGIO» -> «Sede 2 - ...»).
+        catalog = [
+            {
+                "nombre": "Cantabria",
+                "clientes": [
+                    {
+                        "id": 10,
+                        "nombre": "CEIP EL SARDINERO",
+                        "cif": "P3900000A",
+                        "sedes": [
+                            {"id": 101, "nombre": "Sede 1 - COLEGIO", "direccion": "Calle Trasmiera 9"},
+                            {"id": 102, "nombre": "Sede 2 - PREESCOLAR", "direccion": "Calle Santander 9B"},
+                        ],
+                    }
+                ],
+            }
+        ]
+        merged = merge_import_with_glpi(
+            {"cliente": "CEIP EL SARDINERO", "cif": "P3900000A",
+             "sede": "Sede 1 - COLEGIO", "direccion": "Calle Trasmiera 9"},
+            catalog,
+        )
+        self.assertEqual(merged["sede"], "Sede 1 - COLEGIO")
+        self.assertEqual(merged["glpi_entity_id"], "101")
+        sede_corrs = [c for c in merged["corrections"] if c["field"] == "sede"]
+        self.assertEqual(sede_corrs, [])
+
+    def test_same_sede_adopts_glpi_prefix(self) -> None:
+        # Si es la MISMA sede, sí se adopta el nombre de GLPI (añade «Sede N - »).
+        catalog = [
+            {
+                "nombre": "Cantabria",
+                "clientes": [
+                    {
+                        "id": 10,
+                        "nombre": "CEIP EL SARDINERO",
+                        "cif": "P3900000A",
+                        "sedes": [
+                            {"id": 102, "nombre": "Sede 2 - PREESCOLAR", "direccion": "x"},
+                        ],
+                    }
+                ],
+            }
+        ]
+        merged = merge_import_with_glpi(
+            {"cliente": "CEIP EL SARDINERO", "cif": "P3900000A",
+             "sede": "PREESCOLAR", "direccion": "x"},
+            catalog,
+        )
+        self.assertEqual(merged["sede"], "Sede 2 - PREESCOLAR")
+        self.assertEqual(merged["glpi_entity_id"], "102")
+
+
 if __name__ == "__main__":
     unittest.main()

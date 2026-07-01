@@ -20,7 +20,7 @@ from generator.comms_client import CommsError, import_products_text
 from generator.glpi_client import GlpiClient, GlpiError
 from generator.work_order_import import import_work_order_by_id
 from generator.diagram_metadata import unique_diagram_name
-from generator.glpi_merge import merge_import_with_glpi
+from generator.glpi_merge import merge_import_with_glpi, next_site_name
 from generator.safe_errors import public_error_message
 from generator.utils import positive_integer
 from generator.web_adapter import build_drawio_from_data, form_to_data, form_to_structured_data
@@ -388,6 +388,8 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
                     "sede": glpi_merge.get("sede") or result.sede,
                     "direccion": glpi_merge.get("direccion") or result.direccion,
                     "glpi_entity_id": result.glpi_entity_id or glpi_merge.get("glpi_entity_id") or "",
+                    "glpi_client_id": glpi_merge.get("glpi_client_id") or "",
+                    "sede_nueva": glpi_merge.get("sede_nueva", False),
                     "glpi_matched": glpi_merge.get("matched", False),
                     "glpi_confidence": glpi_merge.get("confidence", "none"),
                     "glpi_message": glpi_merge.get("message") or public_error_message(
@@ -409,6 +411,63 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
                 },
                 ensure_ascii=False,
             ),
+            mimetype="application/json; charset=utf-8",
+        )
+
+    @bp.post("/import-work-order/create-site")
+    @login_required
+    @limiter.limit("60 per hour")
+    def create_glpi_site() -> Response:
+        """Crea en GLPI una sede nueva bajo el cliente indicado (sede de la OT que
+        GLPI no tenía). Devuelve el entity_id y nombre para seleccionarla."""
+        payload = request.get_json(silent=True) or {}
+        try:
+            client_id = positive_integer(payload.get("client_id"), "client_id")
+        except ValueError:
+            return Response(
+                json.dumps({"error": "Falta el cliente de GLPI para crear la sede."}, ensure_ascii=False),
+                status=400, mimetype="application/json; charset=utf-8",
+            )
+        sede = str(payload.get("sede") or "").strip()
+        direccion = str(payload.get("direccion") or "").strip()
+        if not sede:
+            return Response(
+                json.dumps({"error": "Indica el nombre de la sede."}, ensure_ascii=False),
+                status=400, mimetype="application/json; charset=utf-8",
+            )
+        client = GlpiClient.from_environment()
+        if not client:
+            return Response(
+                json.dumps({"error": "GLPI no está configurado."}, ensure_ascii=False),
+                status=503, mimetype="application/json; charset=utf-8",
+            )
+        catalog, _ = load_glpi_catalog(client)
+        existing_names: list[str] = []
+        for province in catalog or []:
+            for customer in province.get("clientes") or []:
+                if str(customer.get("id")) == str(client_id):
+                    existing_names = [str(s.get("nombre") or "") for s in customer.get("sedes") or []]
+                    break
+        new_name = next_site_name(existing_names, sede)
+        try:
+            entity_id, created_name = client.create_site_entity(client_id, new_name, direccion)
+        except GlpiError as exc:
+            security_logger.warning(f"Create GLPI site failed: {exc} (IP: {get_remote_address()})")
+            return Response(
+                json.dumps({"error": public_error_message(str(exc), context="creación de la sede")}, ensure_ascii=False),
+                status=502, mimetype="application/json; charset=utf-8",
+            )
+        try:
+            get_drawio_stores().catalog.clear("admin_coverage")
+            get_drawio_stores().catalog.clear("glpi_customer_catalog")
+        except Exception:  # noqa: BLE001
+            pass
+        security_logger.info(
+            f"GLPI site created: id={entity_id} name={created_name!r} under client={client_id} "
+            f"(tech={technician_label()}, IP={get_remote_address()})"
+        )
+        return Response(
+            json.dumps({"glpi_entity_id": entity_id, "sede": created_name}, ensure_ascii=False),
             mimetype="application/json; charset=utf-8",
         )
 

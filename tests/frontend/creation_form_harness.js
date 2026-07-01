@@ -39,7 +39,8 @@ window.fetch = function (url) {
   if (u.includes("/api/templates/")) body = { name: "Plantilla X", payload: { internet_tipo: "SOLO FIBRA", internet_proveedor: "ADAMO", internet_velocidad: "600 MB", ont_modelo: "ONT ADAMO", router_modelo: "MikroTik hAP ac3", backup_modelo: "", router_ip: "10.0.0.1/24" } };
   else if (u.includes("/api/templates")) body = { templates: [{ id: 1, name: "Fibra ADAMO" }] };
   else if (u.includes("/api/connectivity/suggestions")) body = { suggestions: { router_modelo: ["MikroTik hAP ac2"], ont_modelo: ["ONT ZTE"] } };
-  else if (u.includes("import-work-order")) body = { work_order_id: "7885", cliente: "ACME SL", cif: "B12345678", sede: "Central", direccion: "Calle Mayor 1", internet_tipo: "FIBRA + BACK UP", internet_proveedor: "AIRE", internet_velocidad: "300 MB", ont_modelo: "ONT ZTE", router_modelo: "MikroTik hAP ac2", backup_modelo: "WAP LTE", router_ip: "192.168.0.1/24", terminals: [{ model: "W71H", extension: "2001" }], devices_json: [], warnings: ["aviso de prueba"] };
+  else if (u.includes("create-site")) body = { glpi_entity_id: 9999, sede: "Sede 3 - COMEDOR" };
+  else if (u.includes("import-work-order")) body = { work_order_id: "7885", cliente: "ACME SL", cif: "B12345678", sede: "Sede 3 - COMEDOR", direccion: "Calle Mayor 1", glpi_matched: true, glpi_confidence: "high", glpi_entity_id: "", glpi_client_id: "10", sede_nueva: true, glpi_message: "cliente encontrado, sede nueva", internet_tipo: "FIBRA + BACK UP", internet_proveedor: "AIRE", internet_velocidad: "300 MB", ont_modelo: "ONT ZTE", router_modelo: "MikroTik hAP ac2", backup_modelo: "WAP LTE", router_ip: "192.168.0.1/24", terminals: [{ model: "W71H", extension: "2001" }], devices_json: [], warnings: ["aviso de prueba"] };
   return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) });
 };
 window.prompt = () => "Mi Plantilla";
@@ -133,10 +134,23 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await sleep(60);
   check("llamada a import-work-order", fetchCalls.some(c => c.url.includes("import-work-order")));
   check("OT rellena cliente", $("cliente").value === "ACME SL", $("cliente").value);
-  check("OT rellena sede", $("sede").value === "Central");
+  check("OT rellena sede", $("sede").value === "Sede 3 - COMEDOR", $("sede").value);
   check("OT aplica router", router.value === "MikroTik hAP ac2", router.value);
   check("OT añade terminal W71H", Array.from(d.querySelectorAll(".terminal-row")).some(r => r.querySelector('[data-field="model"]').value === "W71H"));
   check("OT muestra warnings", $("import-work-order-warnings").textContent.includes("aviso de prueba"));
+
+  // 6b. sede nueva -> aparece el botón "Crear sede en GLPI" y crea la sede
+  const newSiteBox = $("import-new-site");
+  check("sede nueva muestra caja crear-sede", !!newSiteBox && newSiteBox.style.display !== "none");
+  const createBtn = newSiteBox && newSiteBox.querySelector("button");
+  check("caja crear-sede tiene botón", !!createBtn);
+  if (createBtn) {
+    fire(createBtn, "click");
+    await sleep(40);
+    check("click crear-sede llama a create-site", fetchCalls.some(c => c.url.includes("create-site")));
+    check("crear-sede fija entity_id nuevo", $("glpi-entity-id").value === "9999", $("glpi-entity-id").value);
+    check("crear-sede oculta la caja", newSiteBox.style.display === "none");
+  }
 
   // 7. reset
   window.__drawioResetForm();

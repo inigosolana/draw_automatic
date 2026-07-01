@@ -203,6 +203,78 @@
             panel.appendChild(status);
           }
 
+          function renderNewSitePrompt(data) {
+            let box = document.getElementById("import-new-site");
+            if (!box) {
+              if (!importGlpiStatus || !importGlpiStatus.parentNode) {
+                return;
+              }
+              box = document.createElement("div");
+              box.id = "import-new-site";
+              box.className = "import-new-site";
+              importGlpiStatus.parentNode.insertBefore(box, importGlpiStatus.nextSibling);
+            }
+            box.textContent = "";
+            if (!data.sede_nueva || !data.glpi_client_id) {
+              box.style.display = "none";
+              return;
+            }
+            box.style.display = "";
+            const sede = data.sede || "";
+            const label = document.createElement("span");
+            label.textContent =
+              "La sede «" + sede + "» no existe en GLPI. Puedes crearla bajo este cliente:";
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "btn-secondary";
+            btn.textContent = "Crear sede en GLPI";
+            const status = document.createElement("span");
+            status.className = "import-new-site-status";
+            btn.addEventListener("click", async function () {
+              const url = window.__DRAWIO_PAGE_CONFIG && window.__DRAWIO_PAGE_CONFIG.createSiteUrl;
+              if (!url) {
+                return;
+              }
+              btn.disabled = true;
+              status.textContent = "Creando sede en GLPI…";
+              try {
+                const response = await fetch(url, {
+                  method: "POST",
+                  credentials: "same-origin",
+                  headers: { "Content-Type": "application/json", "X-CSRFToken": csrfTokenValue() },
+                  body: JSON.stringify({
+                    client_id: data.glpi_client_id,
+                    sede: sede,
+                    direccion: data.direccion || "",
+                  }),
+                });
+                const body = await response.json();
+                if (!response.ok) {
+                  throw new Error(body.error || "No se ha podido crear la sede.");
+                }
+                const entityField = document.getElementById("glpi-entity-id");
+                const sedeField = document.getElementById("sede");
+                if (entityField) entityField.value = String(body.glpi_entity_id);
+                if (sedeField && body.sede) sedeField.value = body.sede;
+                if (window.__drawioGlpiSelectByEntityId) {
+                  window.__drawioGlpiSelectByEntityId(body.glpi_entity_id);
+                }
+                if (importGlpiStatus) {
+                  importGlpiStatus.textContent =
+                    "Sede «" + (body.sede || sede) + "» creada en GLPI y seleccionada.";
+                  importGlpiStatus.classList.remove("is-warn");
+                }
+                box.style.display = "none";
+              } catch (error) {
+                status.textContent = error.message;
+                btn.disabled = false;
+              }
+            });
+            box.appendChild(label);
+            box.appendChild(btn);
+            box.appendChild(status);
+          }
+
           function applyImportedForm(data) {
             const clienteField = document.getElementById("cliente");
             const cifField = document.getElementById("cif");
@@ -240,6 +312,7 @@
               importGlpiStatus.textContent = glpiMessage;
               importGlpiStatus.classList.toggle("is-warn", confidence !== "high");
             }
+            renderNewSitePrompt(data);
             renderExistingDiagrams(data.existing_diagrams || []);
             if (window.__drawioConnectivity) {
               window.__drawioConnectivity.apply(data);
@@ -416,6 +489,7 @@
             renderImportWarnings([]);
             renderGlpiSuggestions([]);
             renderExistingDiagrams([]);
+            renderNewSitePrompt({});
 
             const clienteField = document.getElementById("cliente");
             if (clienteField) {

@@ -27,6 +27,37 @@ def _clean_cif(value: str) -> str:
     return re.sub(r"\s+", "", (value or "")).upper()
 
 
+_SEDE_PREFIX = re.compile(r"^\s*sede\s*\d+\s*[-–—]?\s*", re.IGNORECASE)
+
+
+def _sede_core(value: str) -> str:
+    """Nombre de sede sin el prefijo «Sede N - » (para comparar la sede real)."""
+    return _normalize(_SEDE_PREFIX.sub("", value or ""))
+
+
+def _same_sede(a: str, b: str) -> bool:
+    """True si a y b son la MISMA sede (ignorando el prefijo «Sede N - »)."""
+    ca, cb = _sede_core(a), _sede_core(b)
+    if not ca or not cb:
+        return False
+    return ca == cb or ca in cb or cb in ca
+
+
+def next_site_name(existing_names: list[str], sede: str) -> str:
+    """Nombre «Sede N - CORE» con el siguiente N libre según las sedes del cliente.
+
+    - CORE es la sede de la OT sin su prefijo «Sede N - » (si lo trae).
+    - N es el mayor número de sede existente + 1 (o 1 si no hay ninguna).
+    """
+    core = _SEDE_PREFIX.sub("", (sede or "").strip()).strip() or (sede or "").strip()
+    max_n = 0
+    for name in existing_names:
+        m = re.match(r"^\s*sede\s*(\d+)", name or "", re.IGNORECASE)
+        if m:
+            max_n = max(max_n, int(m.group(1)))
+    return f"Sede {max_n + 1} - {core}".strip()
+
+
 def _tokens(value: str) -> set[str]:
     return {
         token
@@ -213,6 +244,8 @@ def merge_import_with_glpi(imported: dict, catalog: list[dict]) -> dict:
         "matched": False,
         "confidence": "none",
         "glpi_entity_id": "",
+        "glpi_client_id": "",
+        "sede_nueva": False,
         "cliente": original["cliente"],
         "cif": original["cif"],
         "sede": original["sede"],
@@ -293,7 +326,18 @@ def merge_import_with_glpi(imported: dict, catalog: list[dict]) -> dict:
     best_site = best["site"]
     glpi_cliente = str(customer.get("nombre") or "").strip()
     glpi_cif = str(customer.get("cif") or "").strip()
-    glpi_sede = str(best_site.get("nombre") or "").strip() if best_site else original["sede"]
+    glpi_site_name = str(best_site.get("nombre") or "").strip() if best_site else ""
+    # NUNCA cambiamos la sede de la OT por OTRA sede distinta de GLPI. Solo
+    # adoptamos el nombre de GLPI (que puede añadir el prefijo «Sede N - ») si
+    # es la MISMA sede. Si la OT trae una sede que GLPI no tiene, la mantenemos
+    # tal cual: es una sede nueva que habrá que crear en GLPI.
+    sede_is_new = False
+    if best_site and _same_sede(original["sede"], glpi_site_name):
+        glpi_sede = glpi_site_name or original["sede"]
+    else:
+        glpi_sede = original["sede"]
+        sede_is_new = bool(original["sede"])
+        best_site = None  # no atar el diagrama a una sede que no corresponde
     glpi_direccion = (
         str(best_site.get("direccion") or customer.get("direccion") or "").strip()
         if best_site
@@ -360,11 +404,15 @@ def merge_import_with_glpi(imported: dict, catalog: list[dict]) -> dict:
         )
         return result
 
-    message = (
-        f"GLPI: {merged['cliente']} / {merged['sede']}"
-        if best_site
-        else f"GLPI: cliente {merged['cliente']} encontrado. Selecciona la sede manualmente."
-    )
+    if best_site:
+        message = f"GLPI: {merged['cliente']} / {merged['sede']}"
+    elif sede_is_new:
+        message = (
+            f"GLPI: cliente {merged['cliente']} encontrado. La sede «{merged['sede']}» "
+            "no existe en GLPI: se creará como sede nueva (no se cambia por otra)."
+        )
+    else:
+        message = f"GLPI: cliente {merged['cliente']} encontrado. Selecciona la sede manualmente."
     if (
         original["direccion"]
         and glpi_direccion
@@ -377,6 +425,8 @@ def merge_import_with_glpi(imported: dict, catalog: list[dict]) -> dict:
             "matched": True,
             "confidence": "high",
             "glpi_entity_id": str(best_site.get("id") or "") if best_site else "",
+            "glpi_client_id": str(customer.get("id") or ""),
+            "sede_nueva": sede_is_new,
             "cliente": merged["cliente"],
             "cif": merged["cif"],
             "sede": merged["sede"],

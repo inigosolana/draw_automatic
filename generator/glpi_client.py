@@ -535,6 +535,33 @@ class GlpiClient:
                 },
             )
 
+    def create_site_entity(self, client_id: int, name: str, address: str = "") -> tuple[int, str]:
+        """Crea una sede (Entity hija) bajo el cliente indicado. Devuelve (id, nombre)."""
+        clean_name = re.sub(r"\s+", " ", (name or "")).strip()
+        if not clean_name:
+            raise GlpiError("El nombre de la sede no puede estar vacío.")
+        payload_input = {
+            "name": to_glpi_ascii(clean_name)[:255],
+            "entities_id": int(client_id),
+        }
+        if address and address.strip():
+            from .address_formatter import normalize_street_address
+
+            payload_input["address"] = to_glpi_ascii(normalize_street_address(address) or address.strip())
+        with self._session_or_active() as headers:
+            response = self._request(
+                GlpiEndpoints.ENTITY,
+                headers,
+                method="POST",
+                payload={"input": payload_input},
+            )
+        new_id = response.get("id") if isinstance(response, dict) else None
+        if not new_id:
+            raise GlpiError("GLPI no ha devuelto el ID de la sede creada.")
+        # Invalidar caché de completename->id: la nueva sede debe ser resoluble.
+        _ENTITY_CN_CACHE.pop(self.url, None)
+        return int(new_id), clean_name
+
     def update_network_diagram_graph(self, diagram_id: int, graph_xml: str) -> None:
         with self._session_or_active() as headers:
             self._request(
