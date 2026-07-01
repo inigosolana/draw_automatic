@@ -4,9 +4,11 @@ import re
 from datetime import datetime
 from pathlib import Path
 
+from .utils import MADRID_TZ, now_madrid
+
 
 def format_activity_timestamp(created_at: float) -> str:
-    return datetime.fromtimestamp(created_at).strftime("%d/%m/%Y %H:%M")
+    return datetime.fromtimestamp(created_at, MADRID_TZ).strftime("%d/%m/%Y %H:%M")
 
 
 def diagram_source_meta(source: str) -> dict[str, str]:
@@ -49,7 +51,7 @@ def build_diagram_description(
     filename: str = "",
 ) -> str:
     tech = (technician.get("name") or technician.get("username") or "desconocido").strip()
-    when = datetime.now().strftime("%d/%m/%Y %H:%M")
+    when = now_madrid().strftime("%d/%m/%Y %H:%M")
     parts = [source, when, tech, f"{client_name} - {site_name}"]
     if filename:
         parts.insert(1, Path(filename).name[:24])
@@ -63,7 +65,7 @@ def unique_diagram_name(base_name: str, existing_diagrams: list[dict]) -> str:
     existing_names = {str(item.get("name", "")).strip().lower() for item in existing_diagrams}
     if base.lower() not in existing_names:
         return base
-    stamp = datetime.now().strftime("%d%m%y-%H%M")
+    stamp = now_madrid().strftime("%d%m%y-%H%M")
     trimmed = base[: max(1, 45 - len(stamp) - 1)].rstrip()
     return f"{trimmed} {stamp}"[:45]
 
@@ -88,7 +90,7 @@ def diagram_base_name(name: str) -> str:
 
 
 def versioned_diagram_name(base_name: str, when: datetime | None = None) -> str:
-    when = when or datetime.now()
+    when = when or now_madrid()
     suffix = when.strftime("_%Y%m%d_%H%M%S")
     base = diagram_base_name(base_name)
     max_len = max(1, 45 - len(suffix))

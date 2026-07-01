@@ -1,7 +1,21 @@
 from __future__ import annotations
 
 import unicodedata
+from datetime import datetime, timezone
 from urllib.parse import urlparse
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+# Zona horaria de la aplicación: las fechas se muestran en hora de Madrid,
+# independientemente de la zona del contenedor. Requiere el paquete `tzdata`.
+try:
+    MADRID_TZ = ZoneInfo("Europe/Madrid")
+except ZoneInfoNotFoundError:  # pragma: no cover - fallback si falta tzdata
+    MADRID_TZ = timezone.utc
+
+
+def now_madrid() -> datetime:
+    """Fecha/hora actual en Madrid (con tzinfo)."""
+    return datetime.now(MADRID_TZ)
 
 
 def dedupe_preserving_order(items: list[str]) -> list[str]:

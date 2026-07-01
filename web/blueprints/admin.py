@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 
 from flask import Blueprint, Response, redirect, render_template, request, url_for
 from flask_limiter import Limiter
@@ -18,7 +18,7 @@ from web.services.glpi_catalog import load_glpi_catalog
 from generator.diagram_metadata import enrich_activity_rows
 from generator.glpi_client import GlpiClient, GlpiError
 from generator.safe_errors import public_error_message
-from generator.utils import technician_is_admin
+from generator.utils import MADRID_TZ, technician_is_admin
 from web.services.stats import build_admin_chart_periods, build_coverage_data
 
 
@@ -44,11 +44,11 @@ def create_admin_blueprint(limiter: Limiter) -> Blueprint:
         if denied:
             return denied
 
-        now = datetime.now(UTC)
+        now = datetime.now(MADRID_TZ)
         all_rows = drawio_stores.activity.list_all() if hasattr(drawio_stores.activity, "list_all") else []
-        today = [r for r in all_rows if datetime.fromtimestamp(r["created_at"], UTC).date() == now.date()]
-        week = [r for r in all_rows if datetime.fromtimestamp(r["created_at"], UTC) >= now - timedelta(days=7)]
-        month = [r for r in all_rows if datetime.fromtimestamp(r["created_at"], UTC) >= now - timedelta(days=30)]
+        today = [r for r in all_rows if datetime.fromtimestamp(r["created_at"], MADRID_TZ).date() == now.date()]
+        week = [r for r in all_rows if datetime.fromtimestamp(r["created_at"], MADRID_TZ) >= now - timedelta(days=7)]
+        month = [r for r in all_rows if datetime.fromtimestamp(r["created_at"], MADRID_TZ) >= now - timedelta(days=30)]
         chart_periods = build_admin_chart_periods(all_rows, now)
 
         coverage_data = None
@@ -72,7 +72,7 @@ def create_admin_blueprint(limiter: Limiter) -> Blueprint:
         recent_events = drawio_stores.seclog.recent(limit=200)
         warn_count = 0
         for ev in recent_events:
-            ev["ts_label"] = datetime.fromtimestamp(ev["ts"]).strftime("%d/%m/%Y %H:%M:%S")
+            ev["ts_label"] = datetime.fromtimestamp(ev["ts"], MADRID_TZ).strftime("%d/%m/%Y %H:%M:%S")
             clean = re.sub(
                 r'^\[[\d\-: ,]+\]\s*(WARNING|INFO|ERROR|CRITICAL)\s*\[SECURITY\]\s*',
                 "",
@@ -91,7 +91,7 @@ def create_admin_blueprint(limiter: Limiter) -> Blueprint:
             technician=technician,
             warn_count=warn_count,
             chart_periods=chart_periods,
-            now_label=now.strftime("%d/%m/%Y %H:%M") + " UTC",
+            now_label=now.strftime("%d/%m/%Y %H:%M %Z"),
             coverage_data=coverage_data,
         )
 
