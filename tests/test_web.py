@@ -933,6 +933,100 @@ class WebAppTests(unittest.TestCase):
         self.assertIn("/my-diagrams?deleted=203", response.headers["Location"])
         fake_client.delete_network_diagram.assert_called_once_with(203)
 
+    def test_owner_can_replace_own_diagram(self) -> None:
+        import io
+
+        self.app.config["AUTH_REQUIRED"] = False
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        activity = self.stores.activity
+        activity.add(
+            diagram_id=301,
+            entity_id=7,
+            diagram_name="Cliente - Sede",
+            client_name="Cliente",
+            site_name="Sede",
+            technician={"username": "tecnico.uno", "name": "Tecnico Uno"},
+            source="Generado",
+        )
+        fake_client = fake_glpi_client()
+        fake_client.save_network_diagram_version = MagicMock(return_value=(9902, "Cliente - Sede_v2"))
+        with self.client.session_transaction() as browser_session:
+            browser_session["technician"] = {"username": "tecnico.uno", "name": "Tecnico Uno"}
+        data = {
+            "diagram_id": "301",
+            "drawio_file": (io.BytesIO(b"<mxfile><diagram>x</diagram></mxfile>"), "nuevo.drawio"),
+        }
+        with patch("web.blueprints.diagrams.ADMIN_USERS", {"admin.user"}):
+            with patch("web.blueprints.diagrams.GlpiClient.from_environment", return_value=fake_client):
+                response = self.client.post(
+                    "/my-diagrams/replace", data=data, content_type="multipart/form-data"
+                )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/my-diagrams?replaced=301", response.headers["Location"])
+        fake_client.save_network_diagram_version.assert_called_once()
+        self.assertEqual(fake_client.save_network_diagram_version.call_args.args[0], 301)
+
+    def test_technician_cannot_replace_others_diagram(self) -> None:
+        import io
+
+        self.app.config["AUTH_REQUIRED"] = False
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        activity = self.stores.activity
+        activity.add(
+            diagram_id=302,
+            entity_id=7,
+            diagram_name="Cliente - Sede",
+            client_name="Cliente",
+            site_name="Sede",
+            technician={"username": "otra.persona", "name": "Otra Persona"},
+            source="Generado",
+        )
+        fake_client = fake_glpi_client()
+        fake_client.save_network_diagram_version = MagicMock()
+        with self.client.session_transaction() as browser_session:
+            browser_session["technician"] = {"username": "tecnico.uno", "name": "Tecnico Uno"}
+        data = {
+            "diagram_id": "302",
+            "drawio_file": (io.BytesIO(b"<mxfile><diagram>x</diagram></mxfile>"), "nuevo.drawio"),
+        }
+        with patch("web.blueprints.diagrams.ADMIN_USERS", {"admin.user"}):
+            with patch("web.blueprints.diagrams.GlpiClient.from_environment", return_value=fake_client):
+                response = self.client.post(
+                    "/my-diagrams/replace", data=data, content_type="multipart/form-data"
+                )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("error=", response.headers["Location"])
+        self.assertIn("cambiar", response.headers["Location"])
+        fake_client.save_network_diagram_version.assert_not_called()
+
+    def test_replace_rejects_invalid_extension(self) -> None:
+        import io
+
+        self.app.config["AUTH_REQUIRED"] = False
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        self.stores.activity.add(
+            diagram_id=303,
+            entity_id=7,
+            diagram_name="Cliente - Sede",
+            client_name="Cliente",
+            site_name="Sede",
+            technician={"username": "tecnico.uno", "name": "Tecnico Uno"},
+            source="Generado",
+        )
+        fake_client = fake_glpi_client()
+        fake_client.save_network_diagram_version = MagicMock()
+        with self.client.session_transaction() as browser_session:
+            browser_session["technician"] = {"username": "tecnico.uno", "name": "Tecnico Uno"}
+        data = {"diagram_id": "303", "drawio_file": (io.BytesIO(b"nope"), "malo.exe")}
+        with patch("web.blueprints.diagrams.ADMIN_USERS", {"admin.user"}):
+            with patch("web.blueprints.diagrams.GlpiClient.from_environment", return_value=fake_client):
+                response = self.client.post(
+                    "/my-diagrams/replace", data=data, content_type="multipart/form-data"
+                )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("error=", response.headers["Location"])
+        fake_client.save_network_diagram_version.assert_not_called()
+
     def test_authentication_redirects_to_login_when_enabled(self) -> None:
         self.app.config["AUTH_REQUIRED"] = True
         response = self.client.get("/")

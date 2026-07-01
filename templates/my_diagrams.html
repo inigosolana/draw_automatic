@@ -33,6 +33,9 @@
           {% if deleted_id %}
           <div class="message success">Diagrama #{{ deleted_id }} borrado de GLPI.</div>
           {% endif %}
+          {% if replaced_id %}
+          <div class="message success">Diagrama #{{ replaced_id }} cambiado: se guardó la nueva versión en GLPI.</div>
+          {% endif %}
           {% if delete_error %}
           <div class="message error">{{ delete_error }}</div>
           {% endif %}

@@ -1254,9 +1254,14 @@ svg {
   gap: 12px;
 }
 
-.admin-delete-form {
+.admin-delete-form,
+.diagram-replace-form {
   display: inline;
   margin: 0;
+}
+
+.diagram-action-replace {
+  cursor: pointer;
 }
 
 .button.danger {
@@ -1329,8 +1334,8 @@ svg {
   }
 
   .diagram-card-actions .button,
-
-  .diagram-card-actions .admin-delete-form {
+  .diagram-card-actions .admin-delete-form,
+  .diagram-card-actions .diagram-replace-form {
     flex: 1 1 auto;
     width: auto;
   }

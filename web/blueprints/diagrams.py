@@ -22,6 +22,7 @@ from web.services.glpi_catalog import glpi_diagram_rows, load_glpi_catalog, rele
 from generator.diagram_metadata import enrich_activity_rows
 from generator.drawio_reverse import parse_drawio_to_form
 from generator.glpi_client import GlpiClient, GlpiError
+from generator.pdf_drawio import PdfDrawioError, extract_drawio_from_pdf
 from generator.safe_errors import public_error_message
 from generator.utils import is_safe_redirect, positive_integer, technician_is_admin
 
@@ -226,12 +227,14 @@ def create_diagrams_blueprint(limiter: Limiter, csrf: CSRFProtect) -> Blueprint:
             client,
         )
         deleted_id = request.args.get("deleted", "").strip()
+        replaced_id = request.args.get("replaced", "").strip()
         delete_error = request.args.get("error", "").strip()
         return render_template(
             "my_diagrams.html",
             diagrams=rows,
             technician=technician,
             deleted_id=deleted_id if deleted_id.isdigit() else "",
+            replaced_id=replaced_id if replaced_id.isdigit() else "",
             delete_error=delete_error,
         )
 
@@ -288,6 +291,67 @@ def create_diagrams_blueprint(limiter: Limiter, csrf: CSRFProtect) -> Blueprint:
                 f"{back}?error=" + quote(public_error_message(str(exc), context="borrado del diagrama"))
             )
         return redirect(f"{back}?deleted={diagram_id}")
+
+    @bp.post("/my-diagrams/replace")
+    @login_required
+    @limiter.limit("30 per hour")
+    def replace_my_diagram() -> Response:
+        """Sustituye el diagrama por otro archivo (.drawio/.xml/.pdf) subido,
+        guardándolo como nueva versión en GLPI. Misma autorización que borrar:
+        admin cualquiera; un técnico solo los suyos."""
+        drawio_stores = get_drawio_stores()
+        technician = current_technician()
+        username = (technician.get("username") or technician.get("name") or "local").strip()
+        back = url_for("diagrams.my_diagrams")
+
+        diagram_id_raw = request.form.get("diagram_id", "").strip()
+        if not diagram_id_raw.isdigit():
+            return redirect(f"{back}?error=ID+de+diagrama+no+valido.")
+        diagram_id = int(diagram_id_raw)
+
+        is_admin = technician_is_admin(technician, ADMIN_USERS)
+        owners = drawio_stores.activity.diagram_owners(diagram_id)
+        if not is_admin and username not in owners:
+            security_logger.warning(
+                "Intento de cambio no autorizado: diagram_id=%s user=%s IP=%s",
+                diagram_id,
+                username,
+                get_remote_address(),
+            )
+            return redirect(f"{back}?error=" + quote("Solo puedes cambiar tus propios diagramas."))
+
+        uploaded = request.files.get("drawio_file")
+        if not uploaded or not uploaded.filename:
+            return redirect(f"{back}?error=" + quote("Elige un archivo .drawio, .xml o .pdf."))
+        if not uploaded.filename.lower().endswith((".drawio", ".xml", ".pdf")):
+            return redirect(f"{back}?error=" + quote("Formato no valido: usa .drawio, .xml o .pdf."))
+
+        client = GlpiClient.from_environment()
+        if not client:
+            return redirect(f"{back}?error=GLPI+no+esta+configurado.")
+        try:
+            raw = uploaded.read()
+            if uploaded.filename.lower().endswith(".pdf"):
+                xml = extract_drawio_from_pdf(raw)
+            else:
+                xml = raw.decode("utf-8-sig")
+            xml = _validate_drawio_xml(xml)
+            # Una sola sesion GLPI para guardar la nueva version.
+            with client.batch_session():
+                client.save_network_diagram_version(diagram_id, xml, technician=technician)
+            drawio_stores.catalog.clear("admin_coverage")
+            security_logger.info(
+                "Diagrama cambiado por otro: diagram_id=%s user=%s file=%s IP=%s",
+                diagram_id,
+                username,
+                uploaded.filename,
+                get_remote_address(),
+            )
+        except (UnicodeDecodeError, PdfDrawioError, ValueError, GlpiError) as exc:
+            return redirect(
+                f"{back}?error=" + quote(public_error_message(str(exc), context="cambio del diagrama"))
+            )
+        return redirect(f"{back}?replaced={diagram_id}")
 
     @bp.get("/download/<token>")
     @login_required

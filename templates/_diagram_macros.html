@@ -55,6 +55,27 @@
         title="Abre el diagrama en el editor: cámbialo y guarda una nueva versión en GLPI"
       >Ver / Editar</a>
       <a class="button glpi diagram-action-glpi" href="{{ diagram.url }}" target="_blank" rel="noopener">Abrir en GLPI</a>
+      {% if owner_delete %}
+      <form
+        method="post"
+        action="{{ url_for('diagrams.replace_my_diagram') }}"
+        class="diagram-replace-form"
+        enctype="multipart/form-data"
+      >
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="diagram_id" value="{{ diagram_id }}">
+        <label class="button secondary diagram-action-replace">
+          Cambiar por otro
+          <input
+            type="file"
+            name="drawio_file"
+            accept=".drawio,.xml,.pdf"
+            hidden
+            onchange="if(this.files.length && confirm('¿Sustituir el diagrama #{{ diagram_id }} por «' + this.files[0].name + '»? Se guardará como nueva versión en GLPI.')){this.form.submit();}else{this.value='';}"
+          >
+        </label>
+      </form>
+      {% endif %}
       {% if admin_delete or owner_delete %}
       <form
         method="post"
