@@ -4,8 +4,11 @@ import html
 import json
 import re
 import threading
-import xml.etree.ElementTree as ET
 from pathlib import Path
+
+# Parser XML seguro (bloquea DTD/entidades externas → evita XXE y billion-laughs)
+# al procesar .drawio subidos o traídos de GLPI.
+from defusedxml.ElementTree import fromstring as _xml_fromstring
 
 from .aliases import normalize_name
 
@@ -31,7 +34,7 @@ def _image_from_style(style: str) -> str:
 
 
 def learn_from_drawio(xml: str, source_name: str, knowledge_path: Path = KNOWLEDGE_PATH) -> list[str]:
-    root = ET.fromstring(xml)
+    root = _xml_fromstring(xml)
     cells = list(root.iter("mxCell"))
     labels: list[tuple[float, float, str]] = []
     images: list[tuple[float, float, str, str]] = []

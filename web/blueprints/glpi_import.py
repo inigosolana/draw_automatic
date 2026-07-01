@@ -8,6 +8,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
 from app_context import (
+    can_access_pending,
     current_technician,
     get_drawio_stores,
     login_required,
@@ -200,6 +201,8 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
             return Response("Diagrama pendiente no encontrado.", status=404, mimetype="text/plain; charset=utf-8")
         if payload["uploaded"]:
             return Response("El diagrama ya fue subido a GLPI.", status=409, mimetype="text/plain; charset=utf-8")
+        if not can_access_pending(payload):
+            return Response("No autorizado para este diagrama.", status=403, mimetype="text/plain; charset=utf-8")
         client = GlpiClient.from_environment()
         if not client:
             return Response("GLPI no esta configurado.", status=503, mimetype="text/plain; charset=utf-8")

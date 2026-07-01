@@ -4,6 +4,7 @@ import json
 import os
 import re
 import ssl
+import time
 from base64 import b64encode
 from contextlib import contextmanager
 from urllib.error import HTTPError, URLError
@@ -89,6 +90,12 @@ def _unverified_ssl_context() -> ssl.SSLContext:
     return context
 
 
+# Cache (compartida entre instancias/peticiones) del mapa completename->id de
+# entidades GLPI, para no re-listar todas las entidades en cada consulta.
+_ENTITY_CN_CACHE: dict[str, tuple[float, dict[str, int]]] = {}
+_ENTITY_CN_TTL = 300
+
+
 class GlpiClient:
     def __init__(
         self,
@@ -121,14 +128,23 @@ class GlpiClient:
         self._entity_cn_map: dict[str, int] | None = None
 
     def entity_id_by_completename(self) -> dict[str, int]:
-        if self._entity_cn_map is None:
-            mapping: dict[str, int] = {}
-            for entity in self.list_entities():
-                cn = str(entity.get("completename") or "").strip()
-                if cn and str(entity.get("id") or "").isdigit():
-                    mapping[cn] = int(entity["id"])
-            self._entity_cn_map = mapping
-        return self._entity_cn_map
+        if self._entity_cn_map is not None:
+            return self._entity_cn_map
+        # Cache entre peticiones (no solo por instancia): listar todas las
+        # entidades es caro y cambia poco. TTL de 5 min.
+        now = time.time()
+        cached = _ENTITY_CN_CACHE.get(self.url)
+        if cached and cached[0] > now:
+            self._entity_cn_map = cached[1]
+            return cached[1]
+        mapping: dict[str, int] = {}
+        for entity in self.list_entities():
+            cn = str(entity.get("completename") or "").strip()
+            if cn and str(entity.get("id") or "").isdigit():
+                mapping[cn] = int(entity["id"])
+        _ENTITY_CN_CACHE[self.url] = (now + _ENTITY_CN_TTL, mapping)
+        self._entity_cn_map = mapping
+        return mapping
 
     @classmethod
     def from_environment(cls) -> GlpiClient | None:

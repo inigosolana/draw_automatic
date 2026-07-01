@@ -9,7 +9,7 @@ from flask import Blueprint, Response, current_app, jsonify, render_template, re
 from flask_limiter import Limiter
 from flask_wtf.csrf import CSRFProtect
 
-from app_context import current_technician, get_drawio_stores, login_required, security_logger
+from app_context import can_access_pending, current_technician, get_drawio_stores, login_required, security_logger
 from web.services.glpi_catalog import glpi_diagram_rows, load_glpi_catalog, relevant_entity_ids
 from generator.diagram_metadata import enrich_activity_rows
 from generator.glpi_client import GlpiClient, GlpiError
@@ -228,6 +228,8 @@ def create_diagrams_blueprint(limiter: Limiter, csrf: CSRFProtect) -> Blueprint:
         payload = get_drawio_stores().downloads.get(token)
         if not payload:
             return Response("Archivo no encontrado.", status=404, mimetype="text/plain; charset=utf-8")
+        if not can_access_pending(payload):
+            return Response("No autorizado.", status=403, mimetype="text/plain; charset=utf-8")
         if payload.get("uploaded"):
             return Response(
                 "El diagrama ya fue publicado en GLPI y no puede descargarse de nuevo.",
@@ -246,6 +248,8 @@ def create_diagrams_blueprint(limiter: Limiter, csrf: CSRFProtect) -> Blueprint:
         payload = get_drawio_stores().downloads.get(token)
         if not payload:
             return Response("Diagrama pendiente no encontrado.", status=404)
+        if not can_access_pending(payload):
+            return Response("No autorizado.", status=403)
         return render_template(
             "preview.html",
             **_preview_template_context(
@@ -268,6 +272,8 @@ def create_diagrams_blueprint(limiter: Limiter, csrf: CSRFProtect) -> Blueprint:
         payload = get_drawio_stores().downloads.get(token)
         if not payload:
             return Response("Diagrama pendiente no encontrado.", status=404)
+        if not can_access_pending(payload):
+            return Response("No autorizado.", status=403)
         return Response(
             _normalize_preview_xml(payload["xml"]),
             mimetype="application/xml; charset=utf-8",
@@ -281,6 +287,8 @@ def create_diagrams_blueprint(limiter: Limiter, csrf: CSRFProtect) -> Blueprint:
         payload = get_drawio_stores().downloads.get(token)
         if not payload:
             return jsonify({"error": "Diagrama pendiente no encontrado."}), 404
+        if not can_access_pending(payload):
+            return jsonify({"error": "No autorizado."}), 403
         if payload.get("uploaded"):
             return jsonify({"error": "El diagrama ya fue publicado en GLPI."}), 409
         body = request.get_json(silent=True) or {}

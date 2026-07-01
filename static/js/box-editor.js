@@ -331,28 +331,6 @@
     if (form) {
       form.addEventListener("change", scheduleRebuild);
       form.addEventListener("input", scheduleRebuild);
-      // Al generar: si el técnico editó la vista previa, mandamos su estado
-      // (cajas + conexiones) para que el diagrama final lo refleje.
-      form.addEventListener("submit", function () {
-        var field = document.getElementById("box-editor-data");
-        if (!field) return;
-        if (!dirty) { field.value = ""; return; }
-        field.value = JSON.stringify({
-          boxes: boxes.map(function (b) {
-            return {
-              id: b.dataset.id,
-              type: b.dataset.type || "",
-              model: b.dataset.model || "",
-              label: b.textContent || "",
-              x: b.offsetLeft,
-              y: b.offsetTop,
-              w: b.offsetWidth,
-              h: b.offsetHeight
-            };
-          }),
-          links: links.map(function (l) { return { a: l.a.dataset.id, b: l.b.dataset.id }; })
-        });
-      });
     }
     buildFromForm();
   });

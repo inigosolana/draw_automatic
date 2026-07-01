@@ -117,6 +117,14 @@ def create_app(stores: DrawioStores | None = None) -> Flask:
         strategy="fixed-window",
     )
     if _ratelimit_uri.startswith("memory://"):
+        if app.config.get("AUTH_REQUIRED"):
+            # En producción (auth activa) el rate limit en memoria es un riesgo:
+            # no es compartido y se pierde al reiniciar. Debe usarse Redis.
+            security_logger.warning(
+                "Rate limiting en MEMORIA con auth activa (producción). "
+                "No es compartido entre workers ni persistente: configura "
+                "DRAWIO_RATELIMIT_STORAGE=redis://..."
+            )
         _workers = int(os.environ.get("WEB_CONCURRENCY", "1"))
         if _workers > 1:
             import warnings
@@ -136,14 +144,10 @@ def create_app(stores: DrawioStores | None = None) -> Flask:
     # (y cada rebuild, que reescribe los ficheros) invalida la caché del navegador.
     static_asset_version = os.environ.get("DRAWIO_STATIC_VERSION") or _compute_static_version()
 
-    @app.before_request
-    def _maybe_cleanup() -> None:
-        if random.random() < 0.02:
-            get_drawio_stores().downloads.cleanup()
-
     # Allowlist de IPs: si DRAWIO_ALLOWED_IPS está definido, solo esas IPs (más
     # localhost para el healthcheck interno) pueden acceder; el resto recibe 403.
     # Vacío = sin restricción (default seguro, no bloquea por error de config).
+    # Se registra ANTES que cualquier otro before_request para cortar cuanto antes.
     allowed_ips = {ip.strip() for ip in os.environ.get("DRAWIO_ALLOWED_IPS", "").split(",") if ip.strip()}
     if allowed_ips:
         allowed_ips.update({"127.0.0.1", "::1"})
@@ -161,6 +165,11 @@ def create_app(stores: DrawioStores | None = None) -> Flask:
                     mimetype="text/plain; charset=utf-8",
                 )
             return None
+
+    @app.before_request
+    def _maybe_cleanup() -> None:
+        if random.random() < 0.02:
+            get_drawio_stores().downloads.cleanup()
 
     force_https = os.environ.get("DRAWIO_FORCE_HTTPS", "0") == "1"
     if os.environ.get("DRAWIO_COOKIE_SECURE", "0") == "1" or force_https:

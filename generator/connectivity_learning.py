@@ -213,6 +213,10 @@ class ConnectivityLearning:
         return unique
 
     def _value_count(self, connection: sqlite3.Connection, field: str, value: str) -> int:
+        # `field` se interpola en el SQL: debe ser SIEMPRE una columna conocida,
+        # nunca input de usuario (evita inyección por identificador).
+        if field not in LEARNED_FIELDS:
+            raise ValueError(f"Campo no permitido: {field}")
         row = connection.execute(
             f"SELECT COUNT(*) FROM observations WHERE {field} = ?", (value,)
         ).fetchone()

@@ -1189,7 +1189,7 @@ class WebAppTests(unittest.TestCase):
             "cliente": "Demo",
             "sede": "Central",
             "uploaded": False,
-            "technician": {"username": "tech", "name": "Tecnico Uno"},
+            "technician": {"username": "local", "name": "Tecnico local"},
         }
         configured_client = fake_glpi_client(
             list_network_diagrams=lambda entity_id=None: [{"id": 99, "entities_id": 7}],
@@ -1198,6 +1198,17 @@ class WebAppTests(unittest.TestCase):
             response = self.client.post("/confirm-glpi/duplicate-token")
         self.assertEqual(response.status_code, 409)
         self.assertIn(b"ya tienen un diagrama", response.data)
+
+    def test_download_denied_for_other_technician(self) -> None:
+        # Un token creado por otro técnico no debe ser accesible (IDOR).
+        self.stores.downloads["ajeno-token"] = {
+            "filename": "x.drawio",
+            "xml": "<mxfile />",
+            "uploaded": False,
+            "technician": {"username": "otro.tecnico", "name": "Otro"},
+        }
+        response = self.client.get("/download/ajeno-token")
+        self.assertEqual(response.status_code, 403)
 
     def test_post_fails_when_required_fields_are_missing(self) -> None:
         response = self.client.post(
@@ -1517,3 +1528,17 @@ class IpAllowlistTests(unittest.TestCase):
     def test_no_restriction_when_unset(self) -> None:
         client = self._app_with_allowlist("")
         self.assertNotEqual(client.get("/draw", headers={"X-Forwarded-For": "9.9.9.9"}).status_code, 403)
+
+
+class KnowledgeBaseXxeTests(unittest.TestCase):
+    def test_learn_from_drawio_rejects_dtd_entities(self) -> None:
+        from defusedxml.common import DefusedXmlException
+        from generator.knowledge_base import learn_from_drawio
+
+        malicious = (
+            '<?xml version="1.0"?>'
+            '<!DOCTYPE mxfile [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>'
+            "<mxfile>&xxe;</mxfile>"
+        )
+        with self.assertRaises(DefusedXmlException):
+            learn_from_drawio(malicious, "malicious.drawio")

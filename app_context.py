@@ -55,6 +55,19 @@ def technician_label(technician: dict | None = None) -> str:
     return technician.get("name") or technician.get("username") or "desconocido"
 
 
+def can_access_pending(payload: dict) -> bool:
+    """El diagrama pendiente (token) solo es accesible por el técnico que lo creó
+    o por un admin. Evita que otro usuario con el token previsualice/confirme/
+    descargue diagramas ajenos."""
+    from generator.utils import technician_is_admin
+
+    owner = (payload.get("technician") or {}).get("username")
+    if not owner:
+        return True  # payloads antiguos sin técnico: no bloquear
+    tech = current_technician()
+    return owner == tech.get("username") or technician_is_admin(tech, ADMIN_USERS)
+
+
 def login_required(view):
     @wraps(view)
     def wrapped(*args, **kwargs):

@@ -1,59 +1,14 @@
 import unittest
-from pathlib import Path
 
 from generator.web_adapter import (
     _as_qty,
     _expand_terminal_equipment,
     _parse_router_ip,
-    build_drawio_from_box_editor,
     form_to_data,
     form_to_structured_data,
     sanitize_filename,
     structured_to_generator_data,
 )
-
-LIBRARY = str(Path(__file__).resolve().parent / "fixtures" / "test_library.xml")
-
-
-class BoxEditorBuildTests(unittest.TestCase):
-    def test_builds_xml_from_boxes_and_links(self) -> None:
-        payload = {
-            "boxes": [
-                {"id": "1", "type": "internet", "model": "", "label": "🌐 FIBRA", "x": 40, "y": 210, "w": 160, "h": 60},
-                {"id": "2", "type": "router", "model": "MikroTik hAP ac2", "label": "MikroTik hAP ac2", "x": 300, "y": 210, "w": 120, "h": 120},
-                {"id": "3", "type": "terminal", "model": "W71H", "label": "W71H 2001", "x": 540, "y": 80, "w": 120, "h": 80},
-            ],
-            "links": [{"a": "1", "b": "2"}, {"a": "2", "b": "3"}],
-        }
-        result = build_drawio_from_box_editor(payload, LIBRARY)
-        self.assertIn("<mxfile", result.xml)
-        self.assertEqual(result.xml.count('edge="1"'), 2)
-        self.assertIn("MikroTik hAP ac2", result.xml)
-
-    def test_includes_header_and_summary_when_data_given(self) -> None:
-        payload = {
-            "boxes": [
-                {"id": "1", "type": "router", "model": "MikroTik hAP ac2", "label": "R", "x": 300, "y": 210, "w": 120, "h": 120},
-            ],
-            "links": [],
-        }
-        data = {"cliente": "ACME SL", "cif": "B123", "sede": "Central", "direccion": "Calle Mayor 1", "equipos": []}
-        result = build_drawio_from_box_editor(payload, LIBRARY, data)
-        self.assertIn("ACME SL", result.xml)
-        self.assertIn("Calle Mayor 1", result.xml)
-        self.assertIn("Resumen Equipos", result.xml)
-
-    def test_ignores_links_to_missing_boxes(self) -> None:
-        payload = {
-            "boxes": [{"id": "1", "type": "router", "model": "MikroTik hAP ac2", "label": "R", "x": 0, "y": 0, "w": 120, "h": 120}],
-            "links": [{"a": "1", "b": "999"}],
-        }
-        result = build_drawio_from_box_editor(payload, LIBRARY)
-        self.assertEqual(result.xml.count('edge="1"'), 0)
-
-    def test_empty_boxes_raises(self) -> None:
-        with self.assertRaises(ValueError):
-            build_drawio_from_box_editor({"boxes": []}, LIBRARY)
 
 
 class AsQtyTests(unittest.TestCase):
