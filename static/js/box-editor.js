@@ -313,12 +313,26 @@
       if (f.backup && router) { var bk = addBox("Backup: " + f.backup, COL[Math.max(0, col - 1)], 80, "backup", f.backup); links.push({ a: router, b: bk }); }
       var switches = f.devices.filter(function (d) { return d.category === "switch"; });
       var anchor = router;
-      if (switches.length) { var sw = addBox(switches[0].model, COL[col], 360, "switch", switches[0].model); if (router) links.push({ a: router, b: sw }); anchor = sw; }
+      var anchorX = router ? COL[Math.max(0, col - 1)] : 0, anchorY = 210;
+      if (switches.length) {
+        var sw = addBox(switches[0].model, COL[col], 360, "switch", switches[0].model);
+        if (router) links.push({ a: router, b: sw });
+        anchor = sw; anchorX = COL[col]; anchorY = 360;
+      }
       var endpoints = [];
       f.terminals.forEach(function (t) { endpoints.push({ label: "📞 " + t.model + (t.ext ? " " + t.ext : ""), type: "terminal", model: t.model }); });
       f.devices.forEach(function (d) { if (d.category !== "switch") endpoints.push({ label: d.model, type: d.category === "ap" ? "ap" : "device", model: d.model }); });
-      var ex = COL[Math.min(col + 1, COL.length - 1)], ey = 70, step = 66;
-      endpoints.forEach(function (ep, i) { var e = addBox(ep.label, ex, ey + i * step, ep.type, ep.model); if (anchor) links.push({ a: anchor, b: e }); });
+      // Colocar los teléfonos/dispositivos debajo del router o switch (como en el
+      // diagrama final), en dos columnas si hay muchos; el técnico puede moverlos.
+      var stepY = 66, perCol = 6;
+      var ex0 = anchor ? anchorX : COL[Math.min(col + 1, COL.length - 1)];
+      var ey0 = anchor ? anchorY + 100 : 70;
+      endpoints.forEach(function (ep, i) {
+        var colOffset = Math.floor(i / perCol) * 210;
+        var rowIndex = i % perCol;
+        var e = addBox(ep.label, ex0 + colOffset, ey0 + rowIndex * stepY, ep.type, ep.model);
+        if (anchor) links.push({ a: anchor, b: e });
+      });
       setMode("move");
       dirty = false;
       draw();

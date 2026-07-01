@@ -145,15 +145,18 @@ def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryI
         label_lines = max(1, node.label.count("<br>") + 1)
         label_height = max(42, label_lines * 18 + 10)
         label_above = node.key in SWITCH_ANCHOR_KEYS or bool(node.meta and node.meta.get("label_above"))
-        label_y = node.y - label_height - 10 if label_above else node.y + node.height + 16
+        label_offset_y = -label_height - 10 if label_above else node.height + 16
+        # La etiqueta cuelga del icono (parent = icono, geometría relativa a él)
+        # para que al mover el icono en draw.io la etiqueta (nombre/SN/MAC) se
+        # mueva con él en vez de quedarse quieta.
         label_cell = etree.Element("mxCell", {
             "id": label_id,
             "value": node.label,
             "style": label_style,
-            "parent": "1",
+            "parent": cell_id,
             "vertex": "1",
         })
-        _geom(label_cell, node.x - 12, label_y, node.width + 24, label_height)
+        _geom(label_cell, -12, label_offset_y, node.width + 24, label_height)
         deferred_labels.append(label_cell)
 
     for edge_spec in edges:

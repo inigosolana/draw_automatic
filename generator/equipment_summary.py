@@ -9,7 +9,8 @@ from .layout_labels import (
 
 
 def summarize_equipment(data: dict) -> str:
-    voip_lines: list[str] = []
+    voip_counts: dict[str, int] = {}
+    voip_order: list[str] = []
     router_lines: list[str] = []
     network_lines: list[str] = []
 
@@ -28,11 +29,16 @@ def summarize_equipment(data: dict) -> str:
         qty = team.get("cantidad", 1)
         model = _display_model(_safe(team.get("modelo") or team.get("tipo", "Equipo")))
         tipo = _safe(team.get("tipo", "")).lower()
-        if tipo in {"telefono", "ata"}:
-            voip_lines.append(f"x{qty} {model}")
+        if tipo in {"telefono", "ata", "terminal_dect"}:
+            # Cada extensión llega como un item independiente (cantidad 1);
+            # se agrupan por modelo para no repetir "x1 W71H" varias veces.
+            if model not in voip_counts:
+                voip_order.append(model)
+            voip_counts[model] = voip_counts.get(model, 0) + qty
         elif tipo in {"switch", "wifi", "otro"}:
             network_lines.append(f"x{qty} {model}")
 
+    voip_lines = [f"x{voip_counts[model]} {model}" for model in voip_order]
     voip_html = "<br>".join(voip_lines) if voip_lines else "&nbsp;"
     router_html = "<br>".join(router_lines) if router_lines else "&nbsp;"
     network_html = "<br>".join(network_lines) if network_lines else "&nbsp;"
