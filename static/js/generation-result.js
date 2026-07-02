@@ -51,7 +51,7 @@
       });
     }
 
-    wireCopyButton(document.getElementById("copy-glpi-link"));
+    Array.prototype.forEach.call(document.querySelectorAll("[data-copy-url]"), wireCopyButton);
 
     const button = document.getElementById("download-drawio");
     if (!button) {

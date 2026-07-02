@@ -99,6 +99,10 @@
                       ·
                       {% endif %}
                       <a href="{{ diagram.url }}" target="_blank" rel="noopener">Abrir en GLPI</a>
+                      {% if diagram.url %}
+                      ·
+                      <button type="button" class="copy-glpi-inline" data-copy-url="{{ diagram.url }}">Copiar enlace</button>
+                      {% endif %}
                     </td>
                   </tr>
                   {% endfor %}

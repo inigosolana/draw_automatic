@@ -1270,6 +1270,22 @@ svg {
   background: #ecfdf5;
 }
 
+/* "Copiar enlace" en línea (dentro de la tabla de diagramas de la sede):
+   se ve como un enlace, no como un botón. */
+.copy-glpi-inline:not(.button) {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: #0d789e;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.copy-glpi-inline.is-copied {
+  color: #0f766e;
+}
+
 .button.danger {
   background: #fee2e2;
   border: 1px solid #fca5a5;
