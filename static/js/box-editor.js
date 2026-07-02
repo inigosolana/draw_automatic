@@ -58,10 +58,38 @@
     function selectLink(l) { clearSel(); selLink = l; draw(); }
 
     function setZoom(z) {
-      zoom = Math.max(0.5, Math.min(2, Math.round(z * 100) / 100));
+      // Suelo bajo (0.3) para que el autoajuste pueda encoger diagramas grandes
+      // hasta que quepan enteros; el técnico luego sube el zoom si quiere.
+      zoom = Math.max(0.3, Math.min(2, Math.round(z * 100) / 100));
+      // Escalar desde la esquina superior izquierda para que el autoajuste deje
+      // todo el contenido visible dentro del lienzo.
+      stage.style.transformOrigin = "0 0";
       stage.style.transform = "scale(" + zoom + ")";
       var lbl = document.getElementById("be-zoom");
       if (lbl) lbl.textContent = Math.round(zoom * 100) + "%";
+    }
+
+    // Ajusta el zoom para que TODO el contenido quepa en el lienzo visible.
+    function fitToView() {
+      if (!boxes.length) return;
+      var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      boxes.forEach(function (b) {
+        var x = parseFloat(b.style.left) || 0;
+        var y = parseFloat(b.style.top) || 0;
+        var w = b.offsetWidth || 130;
+        var h = b.offsetHeight || 44;
+        if (x < minX) minX = x;
+        if (y < minY) minY = y;
+        if (x + w > maxX) maxX = x + w;
+        if (y + h > maxY) maxY = y + h;
+      });
+      var contentW = Math.max(1, maxX);
+      var contentH = Math.max(1, maxY);
+      var pad = 24;
+      var cw = canvas.clientWidth || 900;
+      var ch = canvas.clientHeight || 460;
+      var z = Math.min((cw - pad) / contentW, (ch - pad) / contentH, 1);
+      setZoom(z);
     }
 
     // Reglas de conexión por tipo de caja (simétricas). Si un tipo no está en el
@@ -189,9 +217,19 @@
     });
 
     function draw() {
+      // El lienzo de líneas debe cubrir TODO el contenido (aunque los endpoints
+      // caigan por debajo del alto visible del canvas), si no las líneas a las
+      // cajas de abajo se recortarían. El zoom (fitToView) ya encoge para que
+      // quepa todo dentro del área visible.
       var w = stage.clientWidth, h = stage.clientHeight;
+      boxes.forEach(function (b) {
+        w = Math.max(w, b.offsetLeft + b.offsetWidth + 40);
+        h = Math.max(h, b.offsetTop + b.offsetHeight + 40);
+      });
       wires.setAttribute("width", w);
       wires.setAttribute("height", h);
+      wires.style.width = w + "px";
+      wires.style.height = h + "px";
       wires.setAttribute("viewBox", "0 0 " + w + " " + h);
       wires.innerHTML = links.map(function (l, i) {
         var a = l.a, b = l.b;
@@ -287,14 +325,20 @@
         var ext = r.querySelector('[data-field="extension"]');
         return { model: m ? m.value.trim() : "", ext: ext ? ext.value.trim() : "" };
       }).filter(function (t) { return t.model; });
-      var devices = Array.prototype.map.call(document.querySelectorAll("#device-rows .device-row"), function (r) {
+      var devices = [];
+      Array.prototype.forEach.call(document.querySelectorAll("#device-rows .device-row"), function (r) {
         var cat = r.querySelector('[data-field="category"]');
         var m = r.querySelector('[data-field="model"]');
         var cm = r.querySelector('[data-field="custom-model"]');
         var c = cat ? cat.value : "";
         var model = c === "otros" ? (cm ? cm.value.trim() : "") : (m ? m.value.trim() : "");
-        return { category: c, model: model };
-      }).filter(function (d) { return d.model; });
+        if (!model) return;
+        // Expandir por cantidad: 2 switches (o 1 fila con cantidad 2) => 2 cajas,
+        // igual que en el diagrama final.
+        var qEl = r.querySelector('[data-field="quantity"]');
+        var qty = Math.max(1, parseInt((qEl && qEl.value) || "1", 10) || 1);
+        for (var i = 0; i < qty; i++) devices.push({ category: c, model: model });
+      });
       return {
         internet: val("internet-tipo"), ont: val("ont-modelo"),
         router: val("router-modelo"), backup: val("backup-modelo"),
@@ -311,38 +355,66 @@
       if (f.ont) { var o = addBox(f.ont, COL[col++], 210, "ont", f.ont); if (prev) links.push({ a: prev, b: o }); prev = o; }
       if (f.router) { router = addBox(f.router, COL[col++], 210, "router", f.router); if (prev) links.push({ a: prev, b: router }); }
       if (f.backup && router) { var bk = addBox("Backup: " + f.backup, COL[Math.max(0, col - 1)], 80, "backup", f.backup); links.push({ a: router, b: bk }); }
-      var switches = f.devices.filter(function (d) { return d.category === "switch"; });
-      var anchor = router;
-      var anchorX = router ? COL[Math.max(0, col - 1)] : 0, anchorY = 210;
-      if (switches.length) {
-        var sw = addBox(switches[0].model, COL[col], 360, "switch", switches[0].model);
-        if (router) links.push({ a: router, b: sw });
-        anchor = sw; anchorX = COL[col]; anchorY = 360;
+      var switchDevs = f.devices.filter(function (d) { return d.category === "switch"; });
+      var otherDevs = f.devices.filter(function (d) { return d.category !== "switch"; });
+      var routerX = router ? COL[Math.max(0, col - 1)] : COL[Math.min(col, COL.length - 1)];
+
+      // Colocar TODOS los switches en fila bajo el router (antes solo se pintaba
+      // el primero). Con 2+ switches quedan separados para no solaparse.
+      var SW_Y = 360, SW_SPACING = 320;
+      var switchNodes = [];
+      if (switchDevs.length) {
+        var startX = routerX - (switchDevs.length - 1) * SW_SPACING / 2;
+        switchDevs.forEach(function (sd, i) {
+          var sx = Math.max(20, startX + i * SW_SPACING);
+          var sw = addBox(sd.model, sx, SW_Y, "switch", sd.model);
+          if (router) links.push({ a: router, b: sw });
+          switchNodes.push({ node: sw, x: sx, y: SW_Y });
+        });
       }
-      var endpoints = [];
-      f.terminals.forEach(function (t) { endpoints.push({ label: "📞 " + t.model + (t.ext ? " " + t.ext : ""), type: "terminal", model: t.model }); });
-      f.devices.forEach(function (d) { if (d.category !== "switch") endpoints.push({ label: d.model, type: d.category === "ap" ? "ap" : "device", model: d.model }); });
-      // Colocar los teléfonos/dispositivos debajo del router o switch (como en el
-      // diagrama final), en FILAS centradas bajo el ancla (no en columna, para que
-      // las líneas no se solapen todas en la misma vertical); el técnico puede
-      // moverlos luego. Se reparte en varias filas si hay muchos.
-      var stepX = 160, stepY = 90, perRow = 5;
-      var anchorCx = anchor ? anchorX : COL[Math.min(col + 1, COL.length - 1)];
-      var ey0 = anchor ? anchorY + 100 : 70;
-      endpoints.forEach(function (ep, i) {
-        var row = Math.floor(i / perRow);
-        var colInRow = i % perRow;
-        var rowCount = Math.min(perRow, endpoints.length - row * perRow);
-        var rowStartX = anchorCx - Math.floor((rowCount - 1) / 2) * stepX;
-        var x = Math.max(10, rowStartX + colInRow * stepX);
-        var y = ey0 + row * stepY;
-        var e = addBox(ep.label, x, y, ep.type, ep.model);
-        if (anchor) links.push({ a: anchor, b: e });
+
+      var terminals = f.terminals.map(function (t) {
+        return { label: "📞 " + t.model + (t.ext ? " " + t.ext : ""), type: "terminal", model: t.model };
       });
+      var devs = otherDevs.map(function (d) {
+        return { label: d.model, type: d.category === "ap" ? "ap" : "device", model: d.model };
+      });
+
+      // Reparte una lista de endpoints en FILAS centradas bajo un ancla (no en
+      // columna, para que las líneas no se solapen); el técnico los recoloca luego.
+      function placeEndpoints(list, anchor) {
+        if (!list.length) return;
+        var stepX = 160, stepY = 90, perRow = 5;
+        var ax = anchor ? anchor.x : COL[Math.min(col + 1, COL.length - 1)];
+        var ey0 = anchor ? anchor.y + 120 : 70;
+        list.forEach(function (ep, i) {
+          var row = Math.floor(i / perRow);
+          var colInRow = i % perRow;
+          var rowCount = Math.min(perRow, list.length - row * perRow);
+          var rowStartX = ax - Math.floor((rowCount - 1) / 2) * stepX;
+          var x = Math.max(10, rowStartX + colInRow * stepX);
+          var y = ey0 + row * stepY;
+          var e = addBox(ep.label, x, y, ep.type, ep.model);
+          if (anchor && anchor.node) links.push({ a: anchor.node, b: e });
+        });
+      }
+
+      var routerAnchor = router ? { node: router, x: routerX, y: 210 } : null;
+      if (switchNodes.length >= 2) {
+        // Como en el diagrama final: teléfonos al switch de telefonía (1º) y el
+        // resto de dispositivos al switch de datos (2º).
+        placeEndpoints(terminals, switchNodes[0]);
+        placeEndpoints(devs, switchNodes[1]);
+      } else if (switchNodes.length === 1) {
+        placeEndpoints(terminals.concat(devs), switchNodes[0]);
+      } else {
+        placeEndpoints(terminals.concat(devs), routerAnchor);
+      }
+
       setMode("move");
       dirty = false;
       draw();
-      setTimeout(draw, 40);
+      setTimeout(function () { draw(); fitToView(); }, 40);
       resetHistory();
     }
     var rebuildTimer = null;
