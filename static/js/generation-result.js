@@ -118,16 +118,27 @@
           }
           const result = JSON.parse(body);
           confirmResult.className = "helper-text confirm-status confirm-ok";
-          confirmResult.innerHTML =
-            '✓ Diagrama #' +
-            result.id +
-            ' publicado en GLPI. <a href="' +
-            result.url +
-            '" target="_blank" rel="noopener">Abrir en GLPI ↗</a> ' +
-            '<button type="button" class="button quiet copy-glpi-inline" data-copy-url="' +
-            result.url +
-            '">Copiar enlace</button>';
-          wireCopyButton(confirmResult.querySelector(".copy-glpi-inline"));
+          confirmResult.textContent = "✓ Diagrama #" + result.id + " publicado en GLPI.";
+          // Inyectar botones prominentes en la fila de acciones (donde estaba el
+          // botón de confirmar): abrir el diagrama en GLPI y copiar su enlace.
+          const actions = document.querySelector(".generation-result-actions");
+          if (actions && !document.getElementById("copy-glpi-link")) {
+            const openLink = document.createElement("a");
+            openLink.className = "button glpi";
+            openLink.href = result.url;
+            openLink.target = "_blank";
+            openLink.rel = "noopener";
+            openLink.textContent = "Abrir diagrama en GLPI";
+            const copyBtn = document.createElement("button");
+            copyBtn.type = "button";
+            copyBtn.id = "copy-glpi-link";
+            copyBtn.className = "button secondary";
+            copyBtn.dataset.copyUrl = result.url;
+            copyBtn.textContent = "Copiar enlace";
+            actions.insertBefore(openLink, confirmButton);
+            actions.insertBefore(copyBtn, confirmButton);
+            wireCopyButton(copyBtn);
+          }
           confirmButton.remove();
         } catch (error) {
           confirmButton.disabled = false;
