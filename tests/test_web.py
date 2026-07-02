@@ -759,6 +759,8 @@ class WebAppTests(unittest.TestCase):
         self.assertIn(b"Mis diagramas", response.data)
         self.assertIn(b"Cliente - Sede", response.data)
         self.assertIn("Ver / Editar".encode("utf-8"), response.data)
+        self.assertIn(b"Copiar enlace", response.data)
+        self.assertIn(b"data-copy-url", response.data)
         self.assertIn(b"source-badge-generated", response.data)
         self.assertIn(b'data-source-filter="subido"', response.data)
         list_activity.assert_called_once_with("tecnico.uno")

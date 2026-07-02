@@ -55,6 +55,7 @@
         title="Abre el diagrama en el editor: cámbialo y guarda una nueva versión en GLPI"
       >Ver / Editar</a>
       <a class="button glpi diagram-action-glpi" href="{{ diagram.url }}" target="_blank" rel="noopener">Abrir en GLPI</a>
+      <button type="button" class="button secondary diagram-action-copy" data-copy-url="{{ diagram.url }}">Copiar enlace</button>
       {% if owner_delete %}
       <form
         method="post"
