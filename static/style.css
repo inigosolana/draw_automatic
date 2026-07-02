@@ -1264,6 +1264,12 @@ svg {
   cursor: pointer;
 }
 
+.button.is-copied {
+  color: #0f766e;
+  border-color: #5eead4;
+  background: #ecfdf5;
+}
+
 .button.danger {
   background: #fee2e2;
   border: 1px solid #fca5a5;

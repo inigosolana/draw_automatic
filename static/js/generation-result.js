@@ -5,6 +5,54 @@
       resultPanel.scrollIntoView({ behavior: "smooth", block: "start" });
     }
 
+    // --- Copiar al portapapeles el enlace del diagrama en GLPI ---
+    function copyTextToClipboard(text) {
+      if (navigator.clipboard && window.isSecureContext) {
+        return navigator.clipboard.writeText(text);
+      }
+      return new Promise(function (resolve, reject) {
+        try {
+          const ta = document.createElement("textarea");
+          ta.value = text;
+          ta.style.position = "fixed";
+          ta.style.opacity = "0";
+          document.body.appendChild(ta);
+          ta.focus();
+          ta.select();
+          const ok = document.execCommand("copy");
+          document.body.removeChild(ta);
+          if (ok) resolve();
+          else reject(new Error("copy failed"));
+        } catch (e) {
+          reject(e);
+        }
+      });
+    }
+
+    function wireCopyButton(btn) {
+      if (!btn || btn.dataset.copyWired) return;
+      btn.dataset.copyWired = "1";
+      const original = btn.textContent;
+      btn.addEventListener("click", function () {
+        const url = btn.dataset.copyUrl;
+        if (!url) return;
+        copyTextToClipboard(url)
+          .then(function () {
+            btn.textContent = "✓ ¡Enlace copiado!";
+            btn.classList.add("is-copied");
+            setTimeout(function () {
+              btn.textContent = original;
+              btn.classList.remove("is-copied");
+            }, 1800);
+          })
+          .catch(function () {
+            window.prompt("Copia el enlace del diagrama:", url);
+          });
+      });
+    }
+
+    wireCopyButton(document.getElementById("copy-glpi-link"));
+
     const button = document.getElementById("download-drawio");
     if (!button) {
       return;
@@ -75,7 +123,11 @@
             result.id +
             ' publicado en GLPI. <a href="' +
             result.url +
-            '" target="_blank" rel="noopener">Abrir en GLPI ↗</a>';
+            '" target="_blank" rel="noopener">Abrir en GLPI ↗</a> ' +
+            '<button type="button" class="button quiet copy-glpi-inline" data-copy-url="' +
+            result.url +
+            '">Copiar enlace</button>';
+          wireCopyButton(confirmResult.querySelector(".copy-glpi-inline"));
           confirmButton.remove();
         } catch (error) {
           confirmButton.disabled = false;

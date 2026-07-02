@@ -141,6 +141,14 @@
             >
               Abrir diagrama en GLPI
             </a>
+            <button
+              type="button"
+              class="button secondary"
+              id="copy-glpi-link"
+              data-copy-url="{{ preview.glpi_diagram_url }}"
+            >
+              Copiar enlace
+            </button>
             {% endif %}
             {% if preview.zabbix_url %}
             <a class="button secondary" href="{{ preview.zabbix_url }}">Paso 2: Subir a Zabbix</a>
