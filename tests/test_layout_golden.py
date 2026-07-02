@@ -62,7 +62,9 @@ class LayoutGoldenTests(unittest.TestCase):
     def test_con_switch_layout_is_stable(self) -> None:
         self.assertEqual(
             _canonical(CON_SWITCH),
-            (9, 5, "e54e1d794af03966f2e6f75967824ffecca44ffbf24e2ca5d5916a0059875035"),
+            # Actualizado al arreglar el zigzag de los cables router→switch en
+            # doble switch: ahora caen en vertical desde el punto de salida.
+            (9, 5, "b595313f52e414f11fb4dc257bdbca8820892bc71574a8dc8250d83349292b26"),
         )
 
     def test_office_example_layout_is_stable(self) -> None:

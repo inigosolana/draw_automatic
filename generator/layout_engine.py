@@ -291,16 +291,18 @@ def _place_switch(
             switch_y,
         )
         nodes.extend([switch_tel, switch_datos])
+        exit_tel = _anchor_exit_x(router_node, switch_tel)
+        exit_datos = _anchor_exit_x(router_node, switch_datos)
         edges.append(
             EdgeSpec(
                 "router",
                 "switch",
                 label="ETH3-LAN",
-                exit_x=_anchor_exit_x(router_node, switch_tel),
+                exit_x=exit_tel,
                 exit_y=1.0,
                 entry_x=0.5,
                 entry_y=0.0,
-                waypoints=_router_switch_waypoints(router_node, switch_tel, lane_index=0),
+                waypoints=_router_switch_waypoints(router_node, switch_tel, exit_x=exit_tel, lane_index=0),
                 label_offset_x=-24,
                 label_offset_y=-32,
             )
@@ -310,11 +312,11 @@ def _place_switch(
                 "router",
                 "switch_datos",
                 label="ETH4-LAN",
-                exit_x=_anchor_exit_x(router_node, switch_datos),
+                exit_x=exit_datos,
                 exit_y=1.0,
                 entry_x=0.5,
                 entry_y=0.0,
-                waypoints=_router_switch_waypoints(router_node, switch_datos, lane_index=1),
+                waypoints=_router_switch_waypoints(router_node, switch_datos, exit_x=exit_datos, lane_index=1),
                 label_offset_x=24,
                 label_offset_y=-36,
             )

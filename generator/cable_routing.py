@@ -66,10 +66,16 @@ def _device_bus_y(anchor, target, row_top_y: int | None = None, *, lane_index: i
     return base - lane_index * BUS_LANE_SPACING
 
 
-def _router_switch_waypoints(router, switch, *, lane_index: int = 0) -> tuple[tuple[int, int], ...] | None:
-    router_center = int(router.x + router.width / 2)
+def _router_switch_waypoints(
+    router, switch, *, exit_x: float = 0.5, lane_index: int = 0
+) -> tuple[tuple[int, int], ...] | None:
+    # El cable debe caer EN VERTICAL desde el punto por donde sale del router
+    # (exit_x) y solo entonces girar hacia el switch. Antes caía desde el centro
+    # del router aunque saliera por una esquina (exit_x 0.06/0.94), lo que hacía
+    # que la línea fuese primero hacia el centro y luego de vuelta: un zigzag.
+    exit_abs = int(router.x + exit_x * router.width)
     switch_center = int(switch.x + switch.width / 2)
     joint_y = router.y + router.height + ROUTER_SWITCH_LANE_BASE + lane_index * BUS_LANE_SPACING
-    if abs(router_center - switch_center) <= 8:
+    if abs(exit_abs - switch_center) <= 8:
         return ((switch_center, joint_y),)
-    return ((router_center, joint_y), (switch_center, joint_y))
+    return ((exit_abs, joint_y), (switch_center, joint_y))
