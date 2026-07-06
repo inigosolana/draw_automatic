@@ -24,6 +24,11 @@ def _friendly_message(text: str) -> str | None:
         )
     if "no esta configurado" in low and "glpi" in low:
         return "GLPI no está configurado en el servidor. Avisa a sistemas para revisar la conexión."
+    if "lista de equipos" in low:
+        # Mensaje ya construido explicando qué pasa y a quién avisar; se deja
+        # pasar tal cual (si no, el filtro de longitud/JSON lo sustituiría por
+        # uno genérico que no ayuda a diagnosticar el problema en comms).
+        return text
     match = _CODE_PATTERN.search(low)
     if match:
         code = match.group(1)

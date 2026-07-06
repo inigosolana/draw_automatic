@@ -502,7 +502,15 @@ def import_result_from_json_payload(payload: dict, *, work_order_id: str = "") -
     )
 
     if not products and not explicit_terminals:
-        raise CommsError("La OT no contiene productos ni terminales reconocibles.")
+        who = normalized.get("cliente") or ""
+        where = normalized.get("sede") or ""
+        localizacion = f" ({who} / {where})" if who or where else ""
+        raise CommsError(
+            f"La OT{localizacion} no tiene ningún equipo/producto cargado en comms "
+            "(la lista de equipos llegó vacía). No es un fallo de esta web: "
+            "avisa a quien gestiona la OT en comms para que añada los productos "
+            "(router, ONT, teléfonos...) antes de volver a importar."
+        )
 
     result = map_offer_to_form(
         products,
