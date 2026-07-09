@@ -106,9 +106,18 @@
             }
           };
 
-          async function mergeExistingIntoForm(d, statusEl) {
+          async function mergeExistingIntoForm(d, statusEl, btn) {
             if (!d.as_form_url) {
               return;
+            }
+            // Evitar clics repetidos mientras la petición está en curso: dos
+            // fetch en paralelo leerían el mismo 'present' inicial y añadirían
+            // terminales duplicados.
+            if (btn && btn.disabled) {
+              return;
+            }
+            if (btn) {
+              btn.disabled = true;
             }
             statusEl.textContent = "Trayendo equipos del diagrama existente…";
             try {
@@ -143,6 +152,10 @@
                   : "El diagrama existente no aportó terminales nuevos (ya estaban).";
             } catch (error) {
               statusEl.textContent = "No se pudo traer el diagrama existente.";
+            } finally {
+              if (btn) {
+                btn.disabled = false;
+              }
             }
           }
 
@@ -177,7 +190,7 @@
                 merge.type = "button";
                 merge.className = "button secondary";
                 merge.textContent = "Traer al formulario";
-                merge.addEventListener("click", function () { mergeExistingIntoForm(d, status); });
+                merge.addEventListener("click", function () { mergeExistingIntoForm(d, status, merge); });
                 row.appendChild(merge);
               }
               if (d.preview_url) {

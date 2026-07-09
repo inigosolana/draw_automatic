@@ -190,7 +190,10 @@ class GlpiClient:
         )
         try:
             with urlopen(request, timeout=self.timeout, context=self._urlopen_context()) as response:
-                return json.loads(response.read().decode("utf-8"))
+                raw = response.read().decode("utf-8")
+                if not raw.strip():
+                    return {}
+                return json.loads(raw)
         except HTTPError as exc:
             # GLPI devuelve el motivo en el cuerpo (normalmente ["ERROR_X","mensaje"]).
             # Lo capturamos para saber QUÉ ha rechazado y poder explicarlo.
@@ -324,6 +327,10 @@ class GlpiClient:
         """
         fields = GlpiEndpoints.ARCHIMAP_SEARCH_FIELDS
         diagrams: list[dict] = []
+        # Resolvemos el mapa completename->id ANTES de abrir la sesion del
+        # listado: asi evitamos anidar una segunda sesion GLPI concurrente en
+        # cada pagina y lo calculamos una sola vez (esta ademas cacheado).
+        cn_map = self.entity_id_by_completename()
         with self._session_or_active() as headers:
             page_size = 200
             start = 0
@@ -336,7 +343,6 @@ class GlpiClient:
                 rows = payload.get("data") if isinstance(payload, dict) else None
                 if not isinstance(rows, list) or not rows:
                     break
-                cn_map = self.entity_id_by_completename()
                 for row in rows:
                     # Entidad REAL del diagrama vía nombre completo (campo 80);
                     # si no resuelve, caemos al campo 81 (padre) como antes.
@@ -585,8 +591,11 @@ class GlpiClient:
     ) -> tuple[int, str]:
         """Persist changes on the edited diagram and create a dated copy in GLPI."""
         diagram = self.get_network_diagram(diagram_id)
-        entity_id = diagram.get("entities_id")
-        if not isinstance(entity_id, int) or entity_id <= 0:
+        try:
+            entity_id = int(diagram.get("entities_id"))
+        except (TypeError, ValueError):
+            entity_id = 0
+        if entity_id <= 0:
             raise GlpiError("No se pudo determinar la sede del diagrama.")
         source_name = str(diagram.get("name") or f"Diagrama-{diagram_id}").strip()
         base_name = diagram_base_name(source_name)

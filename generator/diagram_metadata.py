@@ -7,8 +7,13 @@ from pathlib import Path
 from .utils import MADRID_TZ, now_madrid
 
 
-def format_activity_timestamp(created_at: float) -> str:
-    return datetime.fromtimestamp(created_at, MADRID_TZ).strftime("%d/%m/%Y %H:%M")
+def format_activity_timestamp(created_at: float | None) -> str:
+    if created_at is None:
+        return ""
+    try:
+        return datetime.fromtimestamp(created_at, MADRID_TZ).strftime("%d/%m/%Y %H:%M")
+    except (TypeError, ValueError, OSError, OverflowError):
+        return ""
 
 
 def diagram_source_meta(source: str) -> dict[str, str]:
@@ -106,7 +111,7 @@ def enrich_activity_rows(rows: list[dict], client) -> list[dict]:
     enriched: list[dict] = []
     for item in rows:
         row = dict(item)
-        row["created_label"] = format_activity_timestamp(row["created_at"])
+        row["created_label"] = format_activity_timestamp(row.get("created_at"))
         row["technician"] = row.get("technician_name") or row.get("technician_username") or "—"
         diagram_id = row.get("diagram_id")
         row["url"] = client.diagram_url(int(diagram_id)) if client and diagram_id else ""

@@ -46,9 +46,22 @@ def create_admin_blueprint(limiter: Limiter) -> Blueprint:
 
         now = datetime.now(MADRID_TZ)
         all_rows = drawio_stores.activity.list_all() if hasattr(drawio_stores.activity, "list_all") else []
-        today = [r for r in all_rows if datetime.fromtimestamp(r["created_at"], MADRID_TZ).date() == now.date()]
-        week = [r for r in all_rows if datetime.fromtimestamp(r["created_at"], MADRID_TZ) >= now - timedelta(days=7)]
-        month = [r for r in all_rows if datetime.fromtimestamp(r["created_at"], MADRID_TZ) >= now - timedelta(days=30)]
+        today: list = []
+        week: list = []
+        month: list = []
+        week_start = now - timedelta(days=7)
+        month_start = now - timedelta(days=30)
+        for r in all_rows:
+            ts = r.get("created_at")
+            if not isinstance(ts, (int, float)):
+                continue
+            created = datetime.fromtimestamp(ts, MADRID_TZ)
+            if created.date() == now.date():
+                today.append(r)
+            if created >= week_start:
+                week.append(r)
+            if created >= month_start:
+                month.append(r)
         chart_periods = build_admin_chart_periods(all_rows, now)
 
         coverage_data = None
@@ -72,7 +85,12 @@ def create_admin_blueprint(limiter: Limiter) -> Blueprint:
         recent_events = drawio_stores.seclog.recent(limit=200)
         warn_count = 0
         for ev in recent_events:
-            ev["ts_label"] = datetime.fromtimestamp(ev["ts"], MADRID_TZ).strftime("%d/%m/%Y %H:%M:%S")
+            ts = ev.get("ts")
+            ev["ts_label"] = (
+                datetime.fromtimestamp(ts, MADRID_TZ).strftime("%d/%m/%Y %H:%M:%S")
+                if isinstance(ts, (int, float))
+                else ""
+            )
             clean = re.sub(
                 r'^\[[\d\-: ,]+\]\s*(WARNING|INFO|ERROR|CRITICAL)\s*\[SECURITY\]\s*',
                 "",
@@ -113,12 +131,13 @@ def create_admin_blueprint(limiter: Limiter) -> Blueprint:
         for province in catalog or []:
             for customer in province.get("clientes", []):
                 for site in customer.get("sedes", []):
-                    sid = site.get("id")
-                    if sid is not None:
-                        entity_province[int(sid)] = province.get("nombre", "")
+                    sid_str = str(site.get("id") or "").strip()
+                    if sid_str.isdigit():
+                        entity_province[int(sid_str)] = province.get("nombre", "")
         for row in rows:
             eid = row.get("entity_id")
-            row["province"] = entity_province.get(int(eid), "") if eid else ""
+            eid_str = str(eid).strip() if eid is not None else ""
+            row["province"] = entity_province.get(int(eid_str), "") if eid_str.isdigit() else ""
 
         # Los filtros (provincia/cliente/sede/técnico) los construye el frontend
         # a partir de los data-* de cada diagrama, en cascada y buscables.

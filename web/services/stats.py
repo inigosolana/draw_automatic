@@ -86,7 +86,10 @@ def build_admin_chart_periods(all_rows: list[dict], now: datetime) -> dict:
     tech_year: Counter[str] = Counter()
 
     for row in all_rows:
-        created = datetime.fromtimestamp(row["created_at"], UTC)
+        created_ts = row.get("created_at")
+        if created_ts is None:
+            continue
+        created = datetime.fromtimestamp(created_ts, UTC)
         created_day = created.date()
         technician = activity_technician_name(row)
 

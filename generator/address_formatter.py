@@ -5,10 +5,10 @@ import unicodedata
 
 _CITY_POSTCODE_SUFFIX = re.compile(
     r"([.,]\s*|\s+)"
-    r"(?:(?P<prefix>[^.,\d]+?)\s*,\s*)?"
-    r"(?P<city>[A-Za-zÁÉÍÓÚáéíóúñÑ'’\-\s]+?)\s+"
+    r"(?:(?P<prefix>[^.,\d]{1,60}?)\s*,\s*)?"
+    r"(?P<city>[A-Za-zÁÉÍÓÚáéíóúñÑ'’\-\s]{1,60}?)\s+"
     r"(?P<cp>\d{5})\s*"
-    r"(?:,\s*(?P<province>[A-Za-zÁÉÍÓÚáéíóúñÑ'’\-\s]+))?\s*$",
+    r"(?:,\s*(?P<province>[A-Za-zÁÉÍÓÚáéíóúñÑ'’\-\s]{1,60}))?\s*$",
     flags=re.UNICODE,
 )
 
@@ -26,11 +26,17 @@ def to_glpi_ascii(value: str) -> str:
     return without_marks.replace("ñ", "n").replace("Ñ", "N")
 
 
+_SUFFIX_SEARCH_WINDOW = 300
+
+
 def _strip_city_postcode_suffix(text: str) -> str:
-    match = _CITY_POSTCODE_SUFFIX.search(text)
+    # The city/postcode suffix is always at the end; only scan a bounded tail
+    # to avoid costly backtracking on very long, user-controlled inputs.
+    offset = max(0, len(text) - _SUFFIX_SEARCH_WINDOW)
+    match = _CITY_POSTCODE_SUFFIX.search(text[offset:])
     if not match:
         return text
-    return text[: match.start()].strip(" ,.;")
+    return text[: offset + match.start()].strip(" ,.;")
 
 
 def normalize_street_address(raw: str) -> str:

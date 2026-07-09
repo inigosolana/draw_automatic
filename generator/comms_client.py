@@ -237,7 +237,7 @@ class CommsClient:
                 continue
             try:
                 payload = json.loads(raw.decode("utf-8"))
-            except json.JSONDecodeError:
+            except (json.JSONDecodeError, UnicodeDecodeError):
                 continue
             if isinstance(payload, dict):
                 return payload

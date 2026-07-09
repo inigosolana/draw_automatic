@@ -26,10 +26,14 @@ security_logger = logging.getLogger("security")
 def _load_admin_users() -> set[str]:
     raw = os.environ.get("DRAWIO_ADMIN_USERS", "").strip()
     if not raw:
-        raise RuntimeError(
-            "DRAWIO_ADMIN_USERS no está configurado. "
-            "Define una lista separada por comas en el fichero .env."
+        # No abortar en tiempo de import: degradar de forma controlada para no
+        # romper create_app, los tests ni el uso en desarrollo local. Sin admins
+        # configurados nadie obtiene privilegios de administrador (fail-safe).
+        security_logger.warning(
+            "DRAWIO_ADMIN_USERS no está configurado; no habrá usuarios "
+            "administradores. Define una lista separada por comas en el .env."
         )
+        return set()
     return {u.strip().lower() for u in raw.split(",") if u.strip()}
 
 

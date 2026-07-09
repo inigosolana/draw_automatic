@@ -17,6 +17,17 @@ MISSING_SITES_HEADERS = {
 }
 
 
+_FORMULA_TRIGGERS = ("=", "+", "-", "@", "\t", "\r", "\n")
+
+
+def _sanitize_cell(value):
+    """Prevent Excel/CSV formula injection from external (GLPI) data."""
+    text = "" if value is None else str(value)
+    if text and text[0] in _FORMULA_TRIGGERS:
+        return "'" + text
+    return text
+
+
 def missing_sites_to_xlsx(rows: list[dict]) -> bytes:
     """Build an Excel workbook listing sedes without a published diagram."""
     workbook = Workbook()
@@ -30,7 +41,7 @@ def missing_sites_to_xlsx(rows: list[dict]) -> bytes:
 
     for row_index, row in enumerate(rows, start=2):
         for column_index, key in enumerate(MISSING_SITES_COLUMNS, start=1):
-            sheet.cell(row=row_index, column=column_index, value=row.get(key, ""))
+            sheet.cell(row=row_index, column=column_index, value=_sanitize_cell(row.get(key, "")))
 
     for column_index, key in enumerate(MISSING_SITES_COLUMNS, start=1):
         letter = get_column_letter(column_index)

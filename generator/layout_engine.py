@@ -7,7 +7,7 @@ from .geometry import (
     SUMMARY_X,
     canvas_bounds as _canvas_bounds,
 )
-from .parser import ValidatedEquipment, validate_input_schema
+from .parser import REQUIRED_FIELDS, ValidatedEquipment, validate_input_schema
 from .cable_routing import (
     SWITCH_ANCHOR_KEYS,
     _anchor_exit_x,
@@ -95,6 +95,9 @@ def validate_input_data(data: dict) -> list[str]:
 
 def build_layout(data: dict) -> tuple[list[NodeSpec], list[EdgeSpec]]:
     validate_input_schema(data)
+    missing = [field for field in REQUIRED_FIELDS if not data.get(field)]
+    if missing:
+        raise ValueError(f"Faltan campos obligatorios: {', '.join(missing)}")
     template = data.get("template", "oficina_simple")
     if template == "rack":
         return build_rack_layout(data)

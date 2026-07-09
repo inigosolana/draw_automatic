@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import warnings
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -38,6 +39,21 @@ class ZabbixClient:
         self.api_url = api_url.rstrip("/")
         self.api_token = api_token.strip()
         self.timeout = max(timeout_ms, 1000) / 1000.0
+        allow_insecure = os.environ.get("ZABBIX_ALLOW_INSECURE", "").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+        )
+        if (
+            self.api_url
+            and not self.api_url.lower().startswith("https://")
+            and not allow_insecure
+        ):
+            warnings.warn(
+                "ZABBIX_API_URL no usa HTTPS: el token Bearer viajara sin cifrar. "
+                "Usa https:// o define ZABBIX_ALLOW_INSECURE=1 para silenciar este aviso.",
+                stacklevel=2,
+            )
 
     @classmethod
     def from_environment(cls) -> ZabbixClient | None:
@@ -67,7 +83,7 @@ class ZabbixClient:
         )
         try:
             with urlopen(request, timeout=self.timeout) as response:
-                raw = response.read().decode("utf-8")
+                raw = response.read().decode("utf-8", errors="replace")
         except HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")[:500]
             raise ZabbixError(f"Zabbix HTTP {exc.code}: {detail}") from exc
@@ -81,7 +97,10 @@ class ZabbixClient:
 
         if "error" in data:
             error = data["error"]
-            message = error.get("data", error.get("message", "Error desconocido"))
+            if isinstance(error, dict):
+                message = error.get("data", error.get("message", "Error desconocido"))
+            else:
+                message = error
             raise ZabbixError(str(message))
         return data.get("result", {})
 

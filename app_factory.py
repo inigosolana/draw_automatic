@@ -172,8 +172,30 @@ def create_app(stores: DrawioStores | None = None) -> Flask:
             get_drawio_stores().downloads.cleanup()
 
     force_https = os.environ.get("DRAWIO_FORCE_HTTPS", "0") == "1"
-    if os.environ.get("DRAWIO_COOKIE_SECURE", "0") == "1" or force_https:
-        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+    # Numero de proxies de confianza (hops de X-Forwarded-For a respetar). Por
+    # defecto 1 cuando ProxyFix se activa. Si se usa la allowlist de IPs detras de
+    # un reverse proxy, hay que activar ProxyFix (DRAWIO_TRUSTED_PROXY_HOPS>=1)
+    # para que get_remote_address() vea la IP real del cliente y no la del proxy.
+    try:
+        _trusted_proxy_hops = int(os.environ.get("DRAWIO_TRUSTED_PROXY_HOPS", "0"))
+    except ValueError:
+        _trusted_proxy_hops = 0
+    if _trusted_proxy_hops < 0:
+        _trusted_proxy_hops = 0
+    _apply_proxy_fix = (
+        os.environ.get("DRAWIO_COOKIE_SECURE", "0") == "1"
+        or force_https
+        or _trusted_proxy_hops > 0
+    )
+    if _apply_proxy_fix:
+        _hops = _trusted_proxy_hops if _trusted_proxy_hops > 0 else 1
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=_hops, x_proto=_hops, x_host=_hops)
+    elif allowed_ips:
+        security_logger.warning(
+            "DRAWIO_ALLOWED_IPS esta configurada pero ProxyFix esta desactivado. "
+            "Detras de un reverse proxy la allowlist compara la IP del proxy: "
+            "configura DRAWIO_TRUSTED_PROXY_HOPS con el numero de proxies de confianza."
+        )
     configure_talisman(app, force_https=force_https)
     register_cache_headers(app)
 

@@ -34,6 +34,21 @@ _DRAWIO_CORS_ORIGINS = frozenset(
 )
 
 
+def _content_disposition(filename: str) -> str:
+    """Construye una cabecera Content-Disposition segura para descargas.
+
+    Evita la inyeccion de cabeceras HTTP: elimina CR/LF y caracteres de
+    control, y escapa/quita comillas del nombre ASCII. Añade filename*
+    (RFC 5987) con el nombre original codificado para preservar Unicode.
+    """
+    raw = (filename or "").strip() or "diagram.drawio"
+    # Elimina saltos de linea y caracteres de control que romperian la cabecera.
+    raw = re.sub(r"[\r\n]", "", raw)
+    ascii_name = "".join(ch for ch in raw if 32 <= ord(ch) < 127 and ch != '"') or "diagram.drawio"
+    encoded = quote(raw, safe="")
+    return f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{encoded}"
+
+
 def _validate_drawio_xml(xml: str) -> str:
     cleaned = (xml or "").strip()
     if not cleaned.startswith("<") or ("<mxfile" not in cleaned and "<mxGraphModel" not in cleaned):
@@ -370,7 +385,7 @@ def create_diagrams_blueprint(limiter: Limiter, csrf: CSRFProtect) -> Blueprint:
         return Response(
             payload["xml"],
             mimetype="application/xml; charset=utf-8",
-            headers={"Content-Disposition": f'attachment; filename="{payload["filename"]}"'},
+            headers={"Content-Disposition": _content_disposition(payload["filename"])},
         )
 
     @bp.get("/preview/<token>")

@@ -111,9 +111,11 @@
             fields.direccion.value = site.direccion || customer.direccion || "";
             glpiEntityId.value = String(site.id);
             const source = document.getElementById("address-source");
-            source.textContent = site.direccion_guardada
-              ? "Dirección exacta guardada anteriormente por un técnico. Puedes corregirla si ha cambiado."
-              : "Dirección procedente de GLPI. Complétala con la calle exacta; se guardará al generar.";
+            if (source) {
+              source.textContent = site.direccion_guardada
+                ? "Dirección exacta guardada anteriormente por un técnico. Puedes corregirla si ha cambiado."
+                : "Dirección procedente de GLPI. Complétala con la calle exacta; se guardará al generar.";
+            }
           });
 
           // Lista plana de TODOS los clientes (con su provincia) para poder
@@ -140,7 +142,7 @@
                 glpiProvincia.value = province.nombre || "";
               }
             }
-            siteControl.setItems(customer.sedes, "Selecciona una sede");
+            siteControl.setItems(customer.sedes || [], "Selecciona una sede");
           });
 
           provinceControl = createSearchSelect(document.getElementById("glpi-province"), function (province) {
@@ -148,7 +150,7 @@
             if (glpiProvincia) {
               glpiProvincia.value = province.nombre || "";
             }
-            customerControl.setItems(province.clientes, "Selecciona un cliente");
+            customerControl.setItems(province.clientes || [], "Selecciona un cliente");
             siteControl.setItems([], "Selecciona primero un cliente");
           });
 

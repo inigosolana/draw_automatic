@@ -308,6 +308,7 @@ class _DevicePlacementState:
     ordered_base_keys: list[str] | None = None
     handsets_on_base: dict[str, int] | None = None
     dect_handset_totals: dict[str, int] | None = None
+    node_index: dict[str, NodeSpec] | None = None
 
     def __post_init__(self) -> None:
         if self.switch_port_indices is None:
@@ -324,8 +325,16 @@ class _DevicePlacementState:
             self.handsets_on_base = {}
         if self.dect_handset_totals is None:
             self.dect_handset_totals = {}
+        if self.node_index is None:
+            # Índice key->NodeSpec para lookups O(1) (evita escaneos lineales
+            # repetidos sobre `nodes`, que crece con cada equipo colocado).
+            self.node_index = {node.key: node for node in self.nodes}
         if self.has_switch:
             self.router_port_index = 5 if self.has_dual_switch else 4
+
+    def _add_node(self, node: NodeSpec) -> None:
+        self.nodes.append(node)
+        self.node_index[node.key] = node
 
     def _layout_for(self, anchor_key: str) -> _DeviceRowLayout:
         if self.row_layouts is not None:
@@ -370,8 +379,8 @@ class _DevicePlacementState:
         return cable_label, port
 
     def place_edge(self, anchor_key: str, target_key: str, label: str, row_top_y: int | None = None) -> None:
-        anchor = next(node for node in self.nodes if node.key == anchor_key)
-        target = next(node for node in self.nodes if node.key == target_key)
+        anchor = self.node_index[anchor_key]
+        target = self.node_index[target_key]
         exit_x = _anchor_exit_x(anchor, target) if anchor_key in SWITCH_ANCHOR_KEYS | {"router"} else 0.5
         lane_index = self.bus_lane_counters.get(anchor_key, 0)
         self.bus_lane_counters[anchor_key] = lane_index + 1
@@ -415,7 +424,7 @@ def _create_dect_base(state: _DevicePlacementState, team: dict, normalized_model
     anchor_key = state.anchor_for(team)
     base_x, base_y, row_top_y = state.next_position(anchor_key)
     cable_label, port_label = state.next_port_labels(anchor_key)
-    state.nodes.append(
+    state._add_node(
         NodeSpec(
             key=base_key,
             kind="device",
@@ -450,7 +459,7 @@ def _place_dect_handset(
         base_key = _create_dect_base(state, team, normalized_model)
         state.team_index += 1
 
-    base_node = next(node for node in state.nodes if node.key == base_key)
+    base_node = state.node_index[base_key]
     stack_index = state.handsets_on_base.get(base_key, 0)
     registry_key = _dect_registry_key(team, normalized_model)
     total_on_base = state.dect_handset_totals.get(registry_key, stack_index + 1)
@@ -459,7 +468,7 @@ def _place_dect_handset(
     handset_x = int(base_node.x + center_offset)
     key = f"team_{state.team_index}"
     handset_label = _equipment_label(team, extension=extension)
-    state.nodes.append(
+    state._add_node(
         NodeSpec(
             key=key,
             kind="device",
@@ -502,7 +511,7 @@ def _place_device_row(
     anchor_key = state.anchor_for(team)
     node_x, node_y, row_top_y = state.next_position(anchor_key)
     cable_label, port_label = state.next_port_labels(anchor_key)
-    state.nodes.append(
+    state._add_node(
         NodeSpec(
             key=key,
             kind="device",

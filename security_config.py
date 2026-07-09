@@ -70,7 +70,10 @@ def configure_session(app: Flask) -> None:
     """Configura cookies de sesión seguras."""
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-    app.config["SESSION_COOKIE_SECURE"] = os.environ.get("DRAWIO_COOKIE_SECURE", "0") == "1"
+    app.config["SESSION_COOKIE_SECURE"] = (
+        os.environ.get("DRAWIO_COOKIE_SECURE", "0") == "1"
+        or _production_requires_secret_key()
+    )
     app.config["SESSION_COOKIE_NAME"] = "drawio_session"
     app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(
         hours=int(os.environ.get("DRAWIO_SESSION_HOURS", "8"))
@@ -97,9 +100,9 @@ def configure_talisman(app: Flask, *, force_https: bool) -> None:
         "object-src": "'none'",
         "base-uri": "'self'",
     }
-    use_security_headers = (
-        os.environ.get("DRAWIO_ENABLE_SECURITY_HEADERS", "1") == "1"
-        and os.environ.get("DRAWIO_COOKIE_SECURE", "0") == "1"
+    use_security_headers = os.environ.get("DRAWIO_ENABLE_SECURITY_HEADERS", "1") == "1" and (
+        os.environ.get("DRAWIO_COOKIE_SECURE", "0") == "1"
+        or _production_requires_secret_key()
     )
     if not use_security_headers:
         return

@@ -491,7 +491,6 @@ def import_result_from_json_payload(payload: dict, *, work_order_id: str = "") -
         normalized.get("work_order_id")
         or extract_work_order_id(work_order_id)
         or work_order_id
-        or extract_work_order_id(str(payload))
     )
 
     products = normalize_products(normalized.get("products") or [])

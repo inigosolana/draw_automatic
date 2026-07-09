@@ -96,7 +96,16 @@
         confirmResult.className = "helper-text confirm-status confirm-working";
         confirmResult.textContent = "Subiendo y asociando el diagrama a la sede…";
         try {
-          const csrfToken = document.querySelector('input[name="csrf_token"]').value;
+          const tokenEl = document.querySelector('input[name="csrf_token"]');
+          if (!tokenEl) {
+            confirmResult.className = "helper-text confirm-status confirm-error";
+            confirmResult.textContent = "Falta el token CSRF, recarga la página";
+            confirmButton.disabled = false;
+            confirmButton.classList.remove("is-busy");
+            confirmButton.innerHTML = confirmOriginalHtml;
+            return;
+          }
+          const csrfToken = tokenEl.value;
           const response = await fetch(confirmButton.dataset.confirmUrl, {
             method: "POST",
             credentials: "same-origin",

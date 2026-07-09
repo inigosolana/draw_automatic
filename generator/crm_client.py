@@ -86,7 +86,11 @@ class CrmClient:
             raise CommsError(f"No se ha podido consultar el CRM: {exc.reason}") from exc
 
         try:
-            payload = json.loads(raw.decode("utf-8"))
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            text = raw.decode("utf-8", errors="replace")
+        try:
+            payload = json.loads(text)
         except json.JSONDecodeError as exc:
             raise CommsError("El CRM no devolvio JSON valido.") from exc
         if not isinstance(payload, dict):
