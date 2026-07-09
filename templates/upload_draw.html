@@ -100,13 +100,13 @@
               {% if glpi_customers %}
               <div class="upload-field-stack">
                 <label>Provincia
-                  <div class="search-select" id="upload-province" data-placeholder="Selecciona una provincia"></div>
+                  <div class="search-select" id="upload-province" role="combobox" aria-label="Provincia" data-placeholder="Selecciona una provincia"></div>
                 </label>
                 <label>Cliente
-                  <div class="search-select disabled" id="upload-customer" data-placeholder="Selecciona primero una provincia"></div>
+                  <div class="search-select disabled" id="upload-customer" role="combobox" aria-label="Cliente" data-placeholder="Selecciona primero una provincia"></div>
                 </label>
                 <label>Sede
-                  <div class="search-select disabled" id="upload-site" data-placeholder="Selecciona primero un cliente"></div>
+                  <div class="search-select disabled" id="upload-site" role="combobox" aria-label="Sede" data-placeholder="Selecciona primero un cliente"></div>
                 </label>
                 <div class="upload-glpi-address" id="upload-glpi-address" hidden>
                   <label for="upload-direccion">Calle / direccion

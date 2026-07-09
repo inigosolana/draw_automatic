@@ -105,10 +105,11 @@ def resolve_template_id(
         return template_id, "CHATEAU 4G monitorizado"
 
     if tipo == "FIBRA + BACK UP" and is_chateau_router(router_model):
-        template_id = _env_template(
-            f"ZABBIX_TEMPLATE_CHATEAU_FIBRA_{provider_key}",
-            "ZABBIX_TEMPLATE_CHATEAU_FIBRA_BACKUP",
-        )
+        chateau_keys = []
+        if provider_key:
+            chateau_keys.append(f"ZABBIX_TEMPLATE_CHATEAU_FIBRA_{provider_key}")
+        chateau_keys.append("ZABBIX_TEMPLATE_CHATEAU_FIBRA_BACKUP")
+        template_id = _env_template(*chateau_keys)
         if not template_id:
             raise ZabbixProfileError(
                 "Falta la plantilla Zabbix para CHATEAU fibra + backup "
@@ -116,11 +117,11 @@ def resolve_template_id(
             )
         return template_id, f"CHATEAU fibra + backup ({provider or 'default'})"
 
-    template_id = _env_template(
-        f"ZABBIX_TEMPLATE_ROUTER_{provider_key}",
-        "ZABBIX_TEMPLATE_ROUTER_DEFAULT",
-        "ZABBIX_DEFAULT_TEMPLATE_ID",
-    )
+    router_keys = []
+    if provider_key:
+        router_keys.append(f"ZABBIX_TEMPLATE_ROUTER_{provider_key}")
+    router_keys.extend(("ZABBIX_TEMPLATE_ROUTER_DEFAULT", "ZABBIX_DEFAULT_TEMPLATE_ID"))
+    template_id = _env_template(*router_keys)
     if not template_id:
         raise ZabbixProfileError(
             f"Falta la plantilla Zabbix para router fibra ({provider or 'sin proveedor'})."

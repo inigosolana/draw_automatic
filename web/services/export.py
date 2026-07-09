@@ -39,16 +39,16 @@ def missing_sites_to_xlsx(rows: list[dict]) -> bytes:
         cell = sheet.cell(row=1, column=column_index, value=MISSING_SITES_HEADERS[key])
         cell.font = header_font
 
+    max_lengths = {key: len(MISSING_SITES_HEADERS[key]) for key in MISSING_SITES_COLUMNS}
     for row_index, row in enumerate(rows, start=2):
         for column_index, key in enumerate(MISSING_SITES_COLUMNS, start=1):
-            sheet.cell(row=row_index, column=column_index, value=_sanitize_cell(row.get(key, "")))
+            raw = row.get(key, "")
+            max_lengths[key] = max(max_lengths[key], len(str(raw)))
+            sheet.cell(row=row_index, column=column_index, value=_sanitize_cell(raw))
 
     for column_index, key in enumerate(MISSING_SITES_COLUMNS, start=1):
         letter = get_column_letter(column_index)
-        max_length = len(MISSING_SITES_HEADERS[key])
-        for row in rows:
-            max_length = max(max_length, len(str(row.get(key, ""))))
-        sheet.column_dimensions[letter].width = min(max(max_length + 2, 12), 60)
+        sheet.column_dimensions[letter].width = min(max(max_lengths[key] + 2, 12), 60)
 
     sheet.freeze_panes = "A2"
 

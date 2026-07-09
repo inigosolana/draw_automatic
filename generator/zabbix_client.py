@@ -130,7 +130,7 @@ class ZabbixClient:
                 return group
         for group in groups:
             name = str(group.get("name", "")).strip().casefold()
-            if normalized in name or name in normalized:
+            if name and (normalized in name or name in normalized):
                 return group
         return groups[0]
 

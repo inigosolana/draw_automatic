@@ -20,7 +20,7 @@
           <p>Identifícate con tu usuario corporativo.</p>
         </header>
         {% if error %}<div class="message error">{{ error }}</div>{% endif %}
-        <form method="post" action="{{ request.full_path }}" autocomplete="on">
+        <form method="post" action="{{ url_for('auth.login', next=request.args.get('next')) }}" autocomplete="on">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <label for="access-username">Usuario
             <input

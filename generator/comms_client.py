@@ -182,7 +182,7 @@ class CommsClient:
         api_token = os.environ.get("COMMS_API_TOKEN", "").strip()
         username = os.environ.get("COMMS_USERNAME", "").strip()
         password = os.environ.get("COMMS_PASSWORD", "")
-        if not any((api_token, username and password)):
+        if not (api_token or (username and password)):
             return None
         return cls(base_url, api_token=api_token, username=username, password=password)
 
@@ -248,7 +248,7 @@ class CommsClient:
             self._login()
         url = f"{self.base_url}/customers/work-order/{work_order_id}"
         html = self._request(url).decode("utf-8", errors="replace")
-        if "login/login" in html and "Inicie la sesión" in html:
+        if "login/login" in html and 'name="_csrfToken"' in html:
             raise CommsError("AusartaConecta ha pedido login. Revisa COMMS_USERNAME y COMMS_PASSWORD.")
         return html
 

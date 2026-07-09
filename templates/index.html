@@ -98,10 +98,12 @@
                       <a href="{{ url_for('diagrams.preview_glpi_diagram', diagram_id=diagram.id, next=url_for('glpi_import.index', pending=preview.token)) }}" target="_blank" rel="noopener">Previsualizar ↗</a>
                       ·
                       {% endif %}
-                      <a href="{{ diagram.url }}" target="_blank" rel="noopener">Abrir en GLPI</a>
                       {% if diagram.url %}
+                      <a href="{{ diagram.url }}" target="_blank" rel="noopener">Abrir en GLPI</a>
                       ·
                       <button type="button" class="copy-glpi-inline" data-copy-url="{{ diagram.url }}">Copiar enlace</button>
+                      {% else %}
+                      <span>—</span>
                       {% endif %}
                     </td>
                   </tr>

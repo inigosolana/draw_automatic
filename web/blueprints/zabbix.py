@@ -31,26 +31,6 @@ def _form_from_request_args() -> dict[str, str]:
     }
 
 
-def _form_from_post(defaults: dict[str, str]) -> dict[str, str]:
-    return {
-        "provincia": request.form.get("provincia", "").strip(),
-        "cliente": request.form.get("cliente", "").strip(),
-        "sede": request.form.get("sede", "").strip(),
-        "internet_tipo": request.form.get("internet_tipo", "").strip(),
-        "internet_proveedor": request.form.get("internet_proveedor", "").strip(),
-        "router_modelo": request.form.get("router_modelo", "").strip(),
-        "backup_modelo": request.form.get("backup_modelo", "").strip(),
-        "router_ip": strip_cidr(request.form.get("router_ip", "").strip()),
-        "backup_ip": strip_cidr(request.form.get("backup_ip", "").strip()),
-        "snmp_community": request.form.get("snmp_community", "").strip(),
-        "groupid": request.form.get("groupid", "").strip(),
-        "proxyid": request.form.get("proxyid", "").strip() or defaults["proxyid"],
-        "monitored_by": request.form.get("monitored_by", "").strip() or defaults["monitored_by"],
-        "router_username": request.form.get("router_username", "").strip() or defaults["router_username"],
-        "router_password": request.form.get("router_password", "").strip() or defaults["router_password"],
-    }
-
-
 def _plan_payload(form_data: dict[str, str]) -> dict:
     plan = build_install_plan(
         cliente=form_data.get("cliente", ""),

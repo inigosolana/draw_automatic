@@ -14,7 +14,7 @@
           function categoryById(categoryId) {
             return deviceCatalog.find(function (category) {
               return category.id === categoryId;
-            }) || deviceCatalog[deviceCatalog.length - 1];
+            }) || deviceCatalog[deviceCatalog.length - 1] || { models: [], custom: true };
           }
 
           function modelOptionsForCategory(categoryId, selectedModel) {

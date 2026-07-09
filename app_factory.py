@@ -40,19 +40,30 @@ class DrawioStores:
     learning: ConnectivityLearning
 
 
+def _env_int(name: str, default: int) -> int:
+    """int() de una variable de entorno con fallback seguro si no es numerica."""
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return default
+
+
 def build_drawio_stores(project_root: os.PathLike[str] | None = None) -> DrawioStores:
     root = project_root or PROJECT_ROOT
     return DrawioStores(
         downloads=DownloadStore(
             os.environ.get("DRAWIO_DOWNLOAD_DB", root / "data" / "downloads.sqlite3"),
-            ttl_seconds=int(os.environ.get("DRAWIO_DOWNLOAD_TTL", "86400")),
+            ttl_seconds=_env_int("DRAWIO_DOWNLOAD_TTL", 86400),
         ),
         sites=SiteDirectory(
             os.environ.get("DRAWIO_SITE_DB", root / "data" / "sites.sqlite3")
         ),
         catalog=CatalogCache(
             os.environ.get("DRAWIO_CATALOG_DB", root / "data" / "catalog.sqlite3"),
-            ttl_seconds=int(os.environ.get("DRAWIO_CATALOG_TTL", "300")),
+            ttl_seconds=_env_int("DRAWIO_CATALOG_TTL", 300),
         ),
         activity=DiagramActivity(
             os.environ.get("DRAWIO_ACTIVITY_DB", root / "data" / "activity.sqlite3")
@@ -97,7 +108,7 @@ def create_app(stores: DrawioStores | None = None) -> Flask:
     for warning in validate_library_file(app.config["DEFAULT_LIBRARY"]):
         app.logger.warning(warning)
     app.config["DEVICE_CATALOG"] = build_device_catalog(app.config["DEFAULT_LIBRARY"])
-    app.config["MAX_CONTENT_LENGTH"] = int(os.environ.get("DRAWIO_MAX_UPLOAD_BYTES", str(15 * 1024 * 1024)))
+    app.config["MAX_CONTENT_LENGTH"] = _env_int("DRAWIO_MAX_UPLOAD_BYTES", 15 * 1024 * 1024)
 
     app.config["SECRET_KEY"] = resolve_secret_key()
 
@@ -125,7 +136,7 @@ def create_app(stores: DrawioStores | None = None) -> Flask:
                 "No es compartido entre workers ni persistente: configura "
                 "DRAWIO_RATELIMIT_STORAGE=redis://..."
             )
-        _workers = int(os.environ.get("WEB_CONCURRENCY", "1"))
+        _workers = _env_int("WEB_CONCURRENCY", 1)
         if _workers > 1:
             import warnings
 
@@ -147,7 +158,8 @@ def create_app(stores: DrawioStores | None = None) -> Flask:
     # Allowlist de IPs: si DRAWIO_ALLOWED_IPS está definido, solo esas IPs (más
     # localhost para el healthcheck interno) pueden acceder; el resto recibe 403.
     # Vacío = sin restricción (default seguro, no bloquea por error de config).
-    # Se registra ANTES que cualquier otro before_request para cortar cuanto antes.
+    # Se registra antes que los demás before_request de este módulo (el del
+    # Limiter, creado arriba, se ejecuta primero por instanciarse antes).
     allowed_ips = {ip.strip() for ip in os.environ.get("DRAWIO_ALLOWED_IPS", "").split(",") if ip.strip()}
     if allowed_ips:
         allowed_ips.update({"127.0.0.1", "::1"})

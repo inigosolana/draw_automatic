@@ -668,7 +668,7 @@ def build_customer_catalog(entities: list[dict]) -> list[dict]:
         customers = []
         for customer in sorted(by_parent.get(province["id"], []), key=lambda item: item.get("name", "").lower()):
             cif, customer_name = _split_cif_and_name(customer)
-            children = sorted(by_parent.get(customer["id"], []), key=lambda item: item.get("name", "").lower())
+            children = sorted(by_parent.get(customer.get("id"), []), key=lambda item: item.get("name", "").lower())
             sites = [
                 {
                     "id": site.get("id"),

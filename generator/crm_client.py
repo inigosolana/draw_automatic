@@ -41,6 +41,10 @@ class CrmClient:
         api_token = os.environ.get("CRM_API_TOKEN", "").strip()
         if not base_url or not api_token:
             return None
+        try:
+            timeout = int(os.environ.get("CRM_API_TIMEOUT", "20") or 20)
+        except (ValueError, TypeError):
+            timeout = 20
         return cls(
             base_url,
             api_token=api_token,
@@ -48,7 +52,7 @@ class CrmClient:
                 "CRM_WORK_ORDER_PATH",
                 "/WorkOrders/getWorkOrderForDraw/{work_order_id}",
             ).strip(),
-            timeout=int(os.environ.get("CRM_API_TIMEOUT", "20")),
+            timeout=timeout,
         )
 
     def _work_order_url(self, work_order_id: str) -> str:

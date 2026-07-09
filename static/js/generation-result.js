@@ -62,20 +62,30 @@
     const filename = button.dataset.filename || "diagrama.drawio";
     const downloadMode = (resultPanel && resultPanel.dataset.downloadMode) || "fresh";
 
+    let downloadInProgress = false;
+
     async function triggerDownload() {
-      const response = await fetch(downloadUrl, { credentials: "same-origin" });
-      if (!response.ok) {
-        throw new Error("No se ha podido preparar la descarga.");
+      if (downloadInProgress) {
+        return;
       }
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = blobUrl;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(blobUrl);
+      downloadInProgress = true;
+      try {
+        const response = await fetch(downloadUrl, { credentials: "same-origin" });
+        if (!response.ok) {
+          throw new Error("No se ha podido preparar la descarga.");
+        }
+        const blob = await response.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = blobUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(blobUrl);
+      } finally {
+        downloadInProgress = false;
+      }
     }
 
     button.addEventListener("click", function () {
@@ -125,7 +135,19 @@
             err.status = response.status;
             throw err;
           }
-          const result = JSON.parse(body);
+          let result;
+          try {
+            result = JSON.parse(body);
+          } catch (parseError) {
+            // El servidor respondió OK pero con un cuerpo no-JSON (redirección,
+            // proxy, respuesta vacía). El diagrama probablemente sí se publicó,
+            // así que evitamos mostrar un error que induzca a reintentar/duplicar.
+            confirmResult.className = "helper-text confirm-status confirm-ok";
+            confirmResult.textContent =
+              "Diagrama enviado a GLPI. Verifica en GLPI si aparece publicado.";
+            confirmButton.remove();
+            return;
+          }
           confirmResult.className = "helper-text confirm-status confirm-ok";
           confirmResult.textContent = "✓ Diagrama #" + result.id + " publicado en GLPI.";
           // Inyectar botones prominentes en la fila de acciones (donde estaba el

@@ -98,9 +98,9 @@
             ontModel.disabled = is4gMonitored;
             if (is4gMonitored) {
               ontModel.value = "";
-              ontModel.options[0].textContent = "No aplica con 4G monitorizado";
+              if (ontModel.options[0]) ontModel.options[0].textContent = "No aplica con 4G monitorizado";
             } else {
-              ontModel.options[0].textContent = "Selecciona una ONT";
+              if (ontModel.options[0]) ontModel.options[0].textContent = "Selecciona una ONT";
             }
           }
 
@@ -147,7 +147,7 @@
             if (is4gMonitored) {
               backupModel.value = "";
               backupModel.disabled = true;
-              backupModel.options[0].textContent = "No aplica con 4G monitorizado";
+              if (backupModel.options[0]) backupModel.options[0].textContent = "No aplica con 4G monitorizado";
               backupHelp.textContent = "Con 4G monitorizado el router debe ser CHATEAU. No hay ONT ni equipo de backup externo.";
               return;
             }
@@ -159,7 +159,7 @@
             if (isChateau) {
               backupModel.value = "";
               backupModel.disabled = true;
-              backupModel.options[0].textContent = usesBackup
+              if (backupModel.options[0]) backupModel.options[0].textContent = usesBackup
                 ? "Integrado en CHATEAU"
                 : "No necesario con CHATEAU";
               backupHelp.textContent = usesBackup
@@ -169,7 +169,7 @@
             }
 
             backupModel.disabled = !canUseExternalBackup;
-            backupModel.options[0].textContent = canUseExternalBackup
+            if (backupModel.options[0]) backupModel.options[0].textContent = canUseExternalBackup
               ? "Selecciona WAP LTE o TELTONIKA"
               : "Sin equipo de backup";
             if (!canUseExternalBackup) {

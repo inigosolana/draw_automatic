@@ -55,6 +55,7 @@ def build_diagram_description(
     source: str,
     filename: str = "",
 ) -> str:
+    technician = technician or {}
     tech = (technician.get("name") or technician.get("username") or "desconocido").strip()
     when = now_madrid().strftime("%d/%m/%Y %H:%M")
     parts = [source, when, tech, f"{client_name} - {site_name}"]
@@ -114,7 +115,12 @@ def enrich_activity_rows(rows: list[dict], client) -> list[dict]:
         row["created_label"] = format_activity_timestamp(row.get("created_at"))
         row["technician"] = row.get("technician_name") or row.get("technician_username") or "—"
         diagram_id = row.get("diagram_id")
-        row["url"] = client.diagram_url(int(diagram_id)) if client and diagram_id else ""
+        row["url"] = ""
+        if client and diagram_id:
+            try:
+                row["url"] = client.diagram_url(int(diagram_id))
+            except (TypeError, ValueError):
+                row["url"] = ""
         source_meta = diagram_source_meta(row.get("source", ""))
         row["source_key"] = source_meta["key"]
         row["source_label"] = source_meta["label"]

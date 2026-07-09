@@ -280,7 +280,11 @@ def build_coverage_data(
         entity_id = row.get("entity_id")
         if not entity_id:
             continue
-        province_name = entity_to_province.get(entity_id)
+        try:
+            entity_key = int(entity_id)
+        except (TypeError, ValueError):
+            continue
+        province_name = entity_to_province.get(entity_key)
         if not province_name:
             continue
         technician = row.get("technician_name") or row.get("technician_username", "?")

@@ -6,7 +6,11 @@ create_network_diagram(...) + activity.add(...).
 
 from __future__ import annotations
 
+import logging
+
 from generator.diagram_metadata import build_diagram_description
+
+logger = logging.getLogger(__name__)
 
 
 def publish_diagram(
@@ -49,5 +53,9 @@ def publish_diagram(
     try:
         stores.catalog.clear("admin_coverage")
     except Exception:  # noqa: BLE001 - invalidar caché nunca debe romper la publicación
-        pass
+        logger.warning(
+            "No se pudo invalidar la caché 'admin_coverage' tras publicar el diagrama %s",
+            diagram_id,
+            exc_info=True,
+        )
     return diagram_id, client.diagram_url(diagram_id)

@@ -199,7 +199,7 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
         payload = drawio_stores.downloads.get(token)
         if not payload:
             return Response("Diagrama pendiente no encontrado.", status=404, mimetype="text/plain; charset=utf-8")
-        if payload["uploaded"]:
+        if payload.get("uploaded"):
             return Response("El diagrama ya fue subido a GLPI.", status=409, mimetype="text/plain; charset=utf-8")
         if not can_access_pending(payload):
             return Response("No autorizado para este diagrama.", status=403, mimetype="text/plain; charset=utf-8")

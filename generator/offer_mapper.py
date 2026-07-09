@@ -33,7 +33,7 @@ ACCESSORY_PATTERN = re.compile(
     r"cargador|psu|power\s*supply|fuente(?:\s+de\s+alimentaci[oó]n)?|"
     r"alimentaci[oó]n|adaptador(?:\s+de\s+corriente)?|cable|patch\s*cord|"
     r"soporte|mount|bracket|clip|tornillo|kit\s*de\s*montaje|bater[ií]a\s*de\s*respaldo|"
-    r"poe\s*injector|inyector(?:\s+de)?\s*poe|poe\s*injector|injector(?:\s+poe)?"
+    r"poe\s*injector|inyector(?:\s+de)?\s*poe|injector(?:\s+poe)?"
     r")\b",
     re.IGNORECASE,
 )

@@ -247,28 +247,19 @@ def _compute_dual_switch_row_layouts(
 ) -> dict[str, _DeviceRowLayout]:
     switch_tel = next(node for node in nodes if node.key == "switch")
     switch_datos = next(node for node in nodes if node.key == "switch_datos")
-    telefonia_equipos = [
-        eq
-        for eq in device_equipos
-        if _device_anchor(
+    telefonia_equipos = []
+    datos_equipos = []
+    for eq in device_equipos:
+        anchor = _device_anchor(
             eq,
             has_switch=True,
             has_dual_switch=True,
             switch_telefonia=switch_telefonia,
         )
-        == "switch"
-    ]
-    datos_equipos = [
-        eq
-        for eq in device_equipos
-        if _device_anchor(
-            eq,
-            has_switch=True,
-            has_dual_switch=True,
-            switch_telefonia=switch_telefonia,
-        )
-        == "switch_datos"
-    ]
+        if anchor == "switch":
+            telefonia_equipos.append(eq)
+        elif anchor == "switch_datos":
+            datos_equipos.append(eq)
     tel_left, tel_right = _dual_switch_zone_limits("switch")
     datos_left, datos_right = _dual_switch_zone_limits("switch_datos")
     return {

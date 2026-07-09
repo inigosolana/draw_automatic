@@ -89,11 +89,11 @@
             const sedeField = document.getElementById("sede");
             const direccionField = document.getElementById("direccion");
             const entityField = document.getElementById("glpi-entity-id");
-            if (item.cliente) clienteField.value = item.cliente;
-            if (item.cif) cifField.value = item.cif;
-            if (item.sede) sedeField.value = item.sede;
-            if (item.direccion) direccionField.value = item.direccion;
-            entityField.value = String(item.glpi_entity_id);
+            if (clienteField && item.cliente) clienteField.value = item.cliente;
+            if (cifField && item.cif) cifField.value = item.cif;
+            if (sedeField && item.sede) sedeField.value = item.sede;
+            if (direccionField && item.direccion) direccionField.value = item.direccion;
+            if (entityField) entityField.value = String(item.glpi_entity_id);
             if (importGlpiStatus) {
               importGlpiStatus.textContent = ok
                 ? `GLPI seleccionado: ${item.cliente} / ${item.sede}`
@@ -305,26 +305,26 @@
             const direccionField = document.getElementById("direccion");
             const entityField = document.getElementById("glpi-entity-id");
 
-            if (data.cliente) clienteField.value = data.cliente;
-            if (data.cif) cifField.value = data.cif;
-            if (data.sede) sedeField.value = data.sede;
-            if (data.direccion) direccionField.value = data.direccion;
+            if (clienteField && data.cliente) clienteField.value = data.cliente;
+            if (cifField && data.cif) cifField.value = data.cif;
+            if (sedeField && data.sede) sedeField.value = data.sede;
+            if (direccionField && data.direccion) direccionField.value = data.direccion;
 
             const confidence = data.glpi_confidence || (data.glpi_matched ? "high" : "none");
             let glpiMessage = data.glpi_message || "";
 
             if (confidence === "high" && data.glpi_entity_id) {
-              entityField.value = String(data.glpi_entity_id);
+              if (entityField) entityField.value = String(data.glpi_entity_id);
               if (window.__drawioGlpiSelectByEntityId) {
                 window.__drawioGlpiSelectByEntityId(data.glpi_entity_id);
               }
-              if (data.cliente) clienteField.value = data.cliente;
-              if (data.cif) cifField.value = data.cif;
-              if (data.sede) sedeField.value = data.sede;
-              if (data.direccion) direccionField.value = data.direccion;
+              if (clienteField && data.cliente) clienteField.value = data.cliente;
+              if (cifField && data.cif) cifField.value = data.cif;
+              if (sedeField && data.sede) sedeField.value = data.sede;
+              if (direccionField && data.direccion) direccionField.value = data.direccion;
               renderGlpiSuggestions([]);
             } else {
-              entityField.value = "";
+              if (entityField) entityField.value = "";
               renderGlpiSuggestions(data.glpi_suggestions || []);
               if (!glpiMessage && (data.glpi_suggestions || []).length) {
                 glpiMessage = "Elige una opción similar o selecciona provincia, cliente y sede manualmente.";

@@ -65,7 +65,7 @@ def _search_mxfile(blob: bytes) -> str | None:
 
 def _bounded_inflate(data: bytes) -> bytes:
     try:
-        return zlib.decompressobj().decompress(bytes(data), _MAX_INFLATE)
+        return zlib.decompressobj().decompress(data, _MAX_INFLATE)
     except zlib.error:
         return b""
 
@@ -83,7 +83,7 @@ def _from_attachments(raw: bytes) -> str | None:
     for contents in attachments.values():
         items = contents if isinstance(contents, list) else [contents]
         for item in items:
-            data = bytes(item) if not isinstance(item, (bytes, bytearray)) else bytes(item)
+            data = bytes(item)
             found = _search_mxfile(data)
             if found:
                 return found
@@ -148,11 +148,12 @@ def _from_streams(raw: bytes) -> str | None:
     if found:
         return found
     scanned = 0
+    mv = memoryview(raw)
     for match in re.finditer(rb"\x78[\x01\x5e\x9c\xda]", raw):
         scanned += 1
         if scanned > 256:  # avoid O(n^2) on pathological inputs
             break
-        inflated = _bounded_inflate(raw[match.start():])
+        inflated = _bounded_inflate(mv[match.start():])
         found = _search_mxfile(inflated)
         if found:
             return found

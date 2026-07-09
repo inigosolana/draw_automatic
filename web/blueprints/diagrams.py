@@ -470,6 +470,7 @@ def create_diagrams_blueprint(limiter: Limiter, csrf: CSRFProtect) -> Blueprint:
                 status=404,
                 mimetype="text/plain; charset=utf-8",
             )
+        name = (name or "diagrama") if isinstance(name, str) else "diagrama"
         filename = name if name.lower().endswith(".drawio") else f"{name}.drawio"
         return render_template(
             "preview.html",
