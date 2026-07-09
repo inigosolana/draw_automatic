@@ -407,6 +407,24 @@ class _DevicePlacementState:
             switch_telefonia=self.switch_telefonia,
         )
 
+    def handset_total_for_base(self, base_key: str) -> int:
+        """Total de handsets que REALMENTE se apilan sobre `base_key`.
+
+        `dect_handset_totals` está indexado por `registry_key`, pero varios
+        `registry_key` pueden compartir una misma base (fallback de base única
+        en `_place_dect_handset`). Aquí se agregan los totales de todos los
+        `registry_key` que resuelven a esta `base_key` para que el centrado del
+        abanico use el número correcto de terminales.
+        """
+        total = 0
+        for reg_key, count in self.dect_handset_totals.items():
+            resolved = self.dect_base_registry.get(reg_key)
+            if resolved is None and len(self.ordered_base_keys) == 1:
+                resolved = self.ordered_base_keys[0]
+            if resolved == base_key:
+                total += count
+        return total
+
 
 def _create_dect_base(state: _DevicePlacementState, team: dict, normalized_model: str) -> str:
     registry_key = _dect_registry_key(team, normalized_model)
@@ -452,8 +470,7 @@ def _place_dect_handset(
 
     base_node = state.node_index[base_key]
     stack_index = state.handsets_on_base.get(base_key, 0)
-    registry_key = _dect_registry_key(team, normalized_model)
-    total_on_base = state.dect_handset_totals.get(registry_key, stack_index + 1)
+    total_on_base = state.handset_total_for_base(base_key) or (stack_index + 1)
     handset_y = base_node.y + DECT_HANDSET_OFFSET_Y
     center_offset = (stack_index - (total_on_base - 1) / 2) * DECT_HANDSET_FAN_STEP
     handset_x = int(base_node.x + center_offset)
