@@ -126,6 +126,15 @@ def _init_office_nodes(data: dict) -> tuple[list[NodeSpec], list[EdgeSpec]]:
     return nodes, []
 
 
+def _provider_needs_red_ont(provider: object) -> bool:
+    """Euskaltel y MásMóvil llevan ONT ZTE marcada en rojo en el diagrama."""
+    import unicodedata
+
+    text = unicodedata.normalize("NFKD", str(provider or "")).encode("ascii", "ignore").decode()
+    compact = text.upper().replace(" ", "")
+    return "EUSKALTEL" in compact or "MASMOVIL" in compact
+
+
 def _place_internet_stack(
     data: dict,
     internet: dict,
@@ -147,17 +156,23 @@ def _place_internet_stack(
         )
         edges.append(EdgeSpec("inet", "router", exit_x=1.0, exit_y=0.5, entry_x=0.0, entry_y=0.5))
         return
+    ont_label = (
+        f"<b>ONT</b><br><b>{_safe(internet.get('tipo', ''))} "
+        f"{_internet_metric_label(internet)}</b>"
+        f"<br>{_safe(internet.get('proveedor', ''))}"
+    )
+    ont_model = data.get("ont", {}).get("modelo", "ONT")
+    if _provider_needs_red_ont(internet.get("proveedor", "")):
+        # Euskaltel y MásMóvil: ONT ZTE con las letras en rojo (aviso visual).
+        ont_model = "ONT ZTE"
+        ont_label = f"<font color='#d00000'>{ont_label}</font>"
     nodes.extend(
         [
             NodeSpec(
                 key="ont",
                 kind="device",
-                label=(
-                    f"<b>ONT</b><br><b>{_safe(internet.get('tipo', ''))} "
-                    f"{_internet_metric_label(internet)}</b>"
-                    f"<br>{_safe(internet.get('proveedor', ''))}"
-                ),
-                model=data.get("ont", {}).get("modelo", "ONT"),
+                label=ont_label,
+                model=ont_model,
                 x=240,
                 y=120,
                 width=150,

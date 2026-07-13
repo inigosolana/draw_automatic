@@ -191,6 +191,11 @@
     document.getElementById("upload-client-name").value = customer.nombre;
     document.getElementById("upload-entity-id").value = "";
     document.getElementById("upload-site-name").value = "";
+    // Al elegir cliente, rellenar su provincia sola (aunque no se hubiera puesto).
+    const prov = provinceByClient.get(customer);
+    if (prov) {
+      provinceControl.selectItem(prov, { silent: true });
+    }
     siteControl.setItems(customer.sedes, "Selecciona una sede");
     showGlpiAddress(null, customer, "cliente");
     clearExistingDiagrams();
@@ -205,7 +210,23 @@
     clearGlpiAddress();
     clearExistingDiagrams();
   });
-  provinceControl.setItems(catalog, "Selecciona una provincia");
+
+  // Lista completa de clientes (de todas las provincias) para poder buscar un
+  // cliente SIN elegir provincia primero. Se guarda su provincia para rellenarla.
+  const provinceByClient = new Map();
+  const allClients = [];
+  catalog.forEach(function (prov) {
+    (prov.clientes || []).forEach(function (client) {
+      allClients.push(client);
+      provinceByClient.set(client, prov);
+    });
+  });
+  allClients.sort(function (a, b) {
+    return String(a.nombre || "").localeCompare(String(b.nombre || ""), "es");
+  });
+
+  provinceControl.setItems(catalog, "Selecciona una provincia (opcional)");
+  customerControl.setItems(allClients, "Selecciona o busca un cliente");
 
   document.addEventListener("click", function (event) {
     if (!event.target.closest(".search-select")) {

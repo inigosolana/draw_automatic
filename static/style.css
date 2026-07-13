@@ -1286,6 +1286,35 @@ svg {
   color: #0f766e;
 }
 
+/* Buscador dentro del panel de Mis diagramas */
+.diagram-search-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 260px;
+  min-width: 220px;
+  max-width: 460px;
+  padding: 8px 14px;
+  border: 1px solid #cdd9e5;
+  border-radius: 999px;
+  background: #fff;
+  color: #5a6b78;
+}
+
+.diagram-search-field input {
+  border: none;
+  outline: none;
+  background: transparent;
+  width: 100%;
+  font: inherit;
+  color: #1f2d38;
+}
+
+.diagram-search-field:focus-within {
+  border-color: #0d789e;
+  box-shadow: 0 0 0 3px rgba(13, 120, 158, 0.15);
+}
+
 .button.danger {
   background: #fee2e2;
   border: 1px solid #fca5a5;

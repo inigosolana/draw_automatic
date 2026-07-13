@@ -49,6 +49,9 @@
               <div class="upload-success-actions">
                 <a class="button secondary quiet" href="{{ url_for('diagrams.preview_glpi_diagram', diagram_id=result.id, next=url_for('glpi_import.upload_draw')) }}">Previsualizar</a>
                 <a class="button glpi" href="{{ result.url }}" target="_blank" rel="noopener">Abrir diagrama en GLPI</a>
+                {% if result.url %}
+                <button type="button" class="button secondary" data-copy-url="{{ result.url }}">Copiar enlace</button>
+                {% endif %}
               </div>
               {% if result.url %}
               <p class="upload-success-link">
@@ -99,11 +102,11 @@
               <h2>Destino en GLPI</h2>
               {% if glpi_customers %}
               <div class="upload-field-stack">
-                <label>Provincia
-                  <div class="search-select" id="upload-province" role="combobox" aria-label="Provincia" data-placeholder="Selecciona una provincia"></div>
+                <label>Provincia (opcional)
+                  <div class="search-select" id="upload-province" role="combobox" aria-label="Provincia" data-placeholder="Selecciona una provincia (opcional)"></div>
                 </label>
                 <label>Cliente
-                  <div class="search-select disabled" id="upload-customer" role="combobox" aria-label="Cliente" data-placeholder="Selecciona primero una provincia"></div>
+                  <div class="search-select" id="upload-customer" role="combobox" aria-label="Cliente" data-placeholder="Selecciona o busca un cliente"></div>
                 </label>
                 <label>Sede
                   <div class="search-select disabled" id="upload-site" role="combobox" aria-label="Sede" data-placeholder="Selecciona primero un cliente"></div>
@@ -172,6 +175,7 @@
     <script src="{{ url_for('static', filename='js/search-select.js') }}?v={{ static_v }}"></script>
     <script src="{{ url_for('static', filename='js/upload-glpi-form.js') }}?v={{ static_v }}"></script>
     {% endif %}
+    <script src="{{ url_for('static', filename='js/copy-link.js') }}?v={{ static_v }}"></script>
     {% include "_app_footer.html" %}
   </body>
 </html>

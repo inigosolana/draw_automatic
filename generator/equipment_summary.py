@@ -29,9 +29,11 @@ def summarize_equipment(data: dict) -> str:
         qty = team.get("cantidad", 1)
         model = _display_model(_safe(team.get("modelo") or team.get("tipo", "Equipo")))
         tipo = _safe(team.get("tipo", "")).lower()
-        if tipo in {"telefono", "ata", "terminal_dect"}:
+        if tipo in {"telefono", "ata", "terminal_dect", "base_dect"}:
             # Cada extensión llega como un item independiente (cantidad 1);
             # se agrupan por modelo para no repetir "x1 W71H" varias veces.
+            # La base DECT (base_dect) también cuenta como puesto VoIP y debe
+            # aparecer en el resumen.
             if model not in voip_counts:
                 voip_order.append(model)
             voip_counts[model] = voip_counts.get(model, 0) + qty

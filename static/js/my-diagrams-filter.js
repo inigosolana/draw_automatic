@@ -1,5 +1,10 @@
 (function () {
-  const diagramFilter = document.getElementById("diagram-filter");
+  // Todas las cajas de búsqueda (la de la barra superior y la del panel);
+  // se mantienen sincronizadas y cualquiera filtra.
+  const searchInputs = Array.prototype.slice.call(
+    document.querySelectorAll("#diagram-filter, .js-diagram-search")
+  );
+  let queryStr = "";
   const sourceFilters = document.querySelectorAll("[data-source-filter]");
   const visibleCount = document.getElementById("diagram-visible-count");
   const filterEmpty = document.getElementById("diagram-filter-empty");
@@ -25,9 +30,7 @@
   }
 
   function applyFilters() {
-    const query = diagramFilter
-      ? diagramFilter.value.toLocaleLowerCase("es").trim()
-      : "";
+    const query = queryStr.toLocaleLowerCase("es").trim();
     let visible = 0;
     document.querySelectorAll(".diagram-row").forEach(function (row) {
       const matchesSource =
@@ -46,9 +49,16 @@
     }
   }
 
-  if (diagramFilter) {
-    diagramFilter.addEventListener("input", applyFilters);
-  }
+  searchInputs.forEach(function (input) {
+    input.addEventListener("input", function (e) {
+      queryStr = e.target.value || "";
+      // Sincronizar el resto de cajas para que muestren lo mismo.
+      searchInputs.forEach(function (other) {
+        if (other !== e.target) other.value = queryStr;
+      });
+      applyFilters();
+    });
+  });
 
   sourceFilters.forEach(function (button) {
     button.addEventListener("click", function () {

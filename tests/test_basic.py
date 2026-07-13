@@ -798,6 +798,47 @@ class BasicTests(unittest.TestCase):
         infer_template(data)
         self.assertEqual(data["template"], "con_switch")
 
+    def test_base_dect_appears_in_summary(self) -> None:
+        data = {
+            "internet": {},
+            "router": {"modelo": ""},
+            "ont": {"modelo": ""},
+            "equipos": [
+                {"tipo": "base_dect", "modelo": "W70B", "cantidad": 1},
+                {"tipo": "terminal_dect", "modelo": "W71H", "cantidad": 1},
+            ],
+        }
+        html = summarize_equipment(data)
+        self.assertIn("W70B", html)
+        self.assertIn("W71H", html)
+
+    def test_ont_red_and_zte_for_euskaltel(self) -> None:
+        base = {
+            "cliente": "C", "cif": "B", "sede": "S", "direccion": "D",
+            "template": "oficina_simple",
+            "internet": {"tipo": "FIBRA", "velocidad": "600 MB", "proveedor": "Euskaltel"},
+            "ont": {"modelo": "ONT ADAMO"},
+            "router": {"modelo": "hAP ac3"},
+            "equipos": [],
+        }
+        nodes, _ = build_layout(base)
+        ont = next(n for n in nodes if n.key == "ont")
+        self.assertEqual(ont.model, "ONT ZTE")
+        self.assertIn("#d00000", ont.label)
+
+    def test_ont_not_red_for_other_provider(self) -> None:
+        base = {
+            "cliente": "C", "cif": "B", "sede": "S", "direccion": "D",
+            "template": "oficina_simple",
+            "internet": {"tipo": "FIBRA", "velocidad": "600 MB", "proveedor": "AIRE"},
+            "ont": {"modelo": "ONT ZTE"},
+            "router": {"modelo": "hAP ac3"},
+            "equipos": [],
+        }
+        nodes, _ = build_layout(base)
+        ont = next(n for n in nodes if n.key == "ont")
+        self.assertNotIn("#d00000", ont.label)
+
 
 if __name__ == "__main__":
     unittest.main()

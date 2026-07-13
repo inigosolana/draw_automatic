@@ -20,6 +20,10 @@
           {% if diagrams %}
           <div class="diagram-list-toolbar">
             <span class="diagram-count-badge" id="diagram-visible-count">{{ diagrams | length }} diagrama{{ 's' if diagrams | length != 1 else '' }}</span>
+            <label class="diagram-search-field">
+              <span aria-hidden="true">&#128269;</span>
+              <input type="search" class="js-diagram-search" placeholder="Buscar por cliente, sede o nombre…" aria-label="Buscar diagrama">
+            </label>
             <div class="my-diagrams-filters" role="tablist" aria-label="Filtrar por origen">
               <button type="button" class="my-diagrams-filter active" data-source-filter="all">Todos</button>
               <button type="button" class="my-diagrams-filter" data-source-filter="generado">Generados</button>
