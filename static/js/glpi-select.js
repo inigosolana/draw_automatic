@@ -327,6 +327,63 @@
             return { matched: false, message: "No se ha encontrado el cliente en GLPI. Rellena la sede manualmente." };
           };
 
+          // Botón "Actualizar clientes/sedes": fuerza la recarga del catálogo de
+          // GLPI (sin esperar a que expire la caché de 5 min) y repuebla la
+          // cascada provincia→cliente→sede. Puede no existir en otras páginas.
+          const refreshButton = document.getElementById("refresh-glpi-catalog");
+          const refreshStatus = document.getElementById("refresh-glpi-status");
+          if (refreshButton) {
+            refreshButton.addEventListener("click", function () {
+              const tokenInput = document.getElementById("page-csrf-token");
+              const token = tokenInput ? tokenInput.value : "";
+              refreshButton.disabled = true;
+              if (refreshStatus) {
+                refreshStatus.textContent = "Actualizando…";
+              }
+              fetch("/api/refresh-catalog", {
+                method: "POST",
+                headers: { "X-CSRFToken": token },
+              })
+                .then(function (response) {
+                  return response.json().then(function (data) {
+                    return { ok: response.ok, data: data };
+                  });
+                })
+                .then(function (result) {
+                  const data = result.data || {};
+                  if (data.error) {
+                    if (refreshStatus) {
+                      refreshStatus.textContent = data.error;
+                    }
+                  }
+                  const customers = data.glpiCustomers;
+                  if (result.ok && Array.isArray(customers)) {
+                    window.__DRAWIO_PAGE_CONFIG.glpiCustomers = customers;
+                    provinceControl.setItems(customers, "Selecciona una provincia");
+                    customerControl.setItems([], "Selecciona primero una provincia");
+                    siteControl.setItems([], "Selecciona primero un cliente");
+                    if (refreshStatus && !data.error) {
+                      let count = 0;
+                      customers.forEach(function (province) {
+                        count += (province.clientes || []).length;
+                      });
+                      refreshStatus.textContent = "Actualizado (" + count + " clientes)";
+                    }
+                  } else if (refreshStatus && !data.error) {
+                    refreshStatus.textContent = "No se ha podido actualizar el catálogo.";
+                  }
+                })
+                .catch(function () {
+                  if (refreshStatus) {
+                    refreshStatus.textContent = "No se ha podido actualizar el catálogo.";
+                  }
+                })
+                .finally(function () {
+                  refreshButton.disabled = false;
+                });
+            });
+          }
+
           document.addEventListener("click", function (event) {
             if (!event.target.closest(".search-select")) {
               document.querySelectorAll(".search-select.open").forEach(element => element.classList.remove("open"));

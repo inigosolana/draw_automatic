@@ -414,6 +414,26 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
             mimetype="application/json; charset=utf-8",
         )
 
+    @bp.post("/api/refresh-catalog")
+    @login_required
+    @limiter.limit("20 per hour")
+    def refresh_catalog() -> Response:
+        """Fuerza la recarga inmediata del catálogo de clientes/sedes de GLPI,
+        invalidando la caché (que normalmente expira a los 5 min)."""
+        try:
+            stores = get_drawio_stores()
+            stores.catalog.clear("glpi_customer_catalog")
+            stores.catalog.clear("admin_coverage")
+            glpi_customers, glpi_error = load_glpi_catalog()
+        except Exception as exc:  # noqa: BLE001
+            security_logger.warning(
+                f"Refresh catalog failed: {exc} (IP: {get_remote_address()})"
+            )
+            return jsonify(
+                {"error": public_error_message(str(exc), context="catalogo GLPI")}
+            ), 502
+        return jsonify({"glpiCustomers": glpi_customers, "error": glpi_error})
+
     @bp.post("/import-work-order/create-site")
     @login_required
     @limiter.limit("60 per hour")

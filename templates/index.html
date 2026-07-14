@@ -204,6 +204,10 @@
               <div class="search-select disabled" id="glpi-site" data-placeholder="Selecciona primero un cliente"></div>
             </label>
             </div>
+            <div class="glpi-refresh-bar">
+              <button type="button" id="refresh-glpi-catalog" class="button secondary" title="Actualizar clientes y sedes desde GLPI">↻ Actualizar clientes/sedes</button>
+              <span id="refresh-glpi-status" aria-live="polite"></span>
+            </div>
             {% elif glpi_error %}
             <p class="helper-text">{{ glpi_error }} Puedes rellenar los datos manualmente.</p>
             {% endif %}
