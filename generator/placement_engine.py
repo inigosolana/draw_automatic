@@ -303,6 +303,7 @@ class _DevicePlacementState:
     team_index: int = 1
     router_port_index: int = 3
     manual_router_ports: set[int] | None = None
+    manual_switch_ports: dict[str, set[int]] | None = None
     switch_port_indices: dict[str, int] | None = None
     slot_indices: dict[str, int] | None = None
     bus_lane_counters: dict[str, int] | None = None
@@ -315,6 +316,8 @@ class _DevicePlacementState:
     def __post_init__(self) -> None:
         if self.manual_router_ports is None:
             self.manual_router_ports = set()
+        if self.manual_switch_ports is None:
+            self.manual_switch_ports = {"switch": set(), "switch_datos": set()}
         if self.switch_port_indices is None:
             self.switch_port_indices = {"switch": 1, "switch_datos": 1}
         if self.slot_indices is None:
@@ -375,7 +378,10 @@ class _DevicePlacementState:
     def next_port_labels(self, anchor_key: str, override_port: str | None = None) -> tuple[str, str]:
         if anchor_key in SWITCH_ANCHOR_KEYS:
             if override_port:
+                self.manual_switch_ports[anchor_key].add(int(override_port[3:]))
                 return override_port, override_port
+            while self.switch_port_indices[anchor_key] in self.manual_switch_ports[anchor_key]:
+                self.switch_port_indices[anchor_key] += 1
             port = f"ETH{self.switch_port_indices[anchor_key]}"
             self.switch_port_indices[anchor_key] += 1
             return port, port
@@ -426,6 +432,26 @@ class _DevicePlacementState:
             has_dual_switch=self.has_dual_switch,
             switch_telefonia=self.switch_telefonia,
         )
+
+    def register_manual_ports(self, data: dict) -> None:
+        """Pre-registra TODOS los puertos manuales (router y por switch).
+
+        Recorre `data['equipos']` una sola vez antes de la auto-asignación para
+        que ésta salte siempre cualquier puerto elegido manualmente, sin
+        importar el orden en que aparezcan los equipos con y sin override.
+        """
+        for team in data.get("equipos", []):
+            if team.get("tipo") == "switch":
+                continue
+            override = _override_port(team)
+            if not override:
+                continue
+            port_num = int(override[3:])
+            anchor_key = self.anchor_for(team)
+            if anchor_key in SWITCH_ANCHOR_KEYS:
+                self.manual_switch_ports[anchor_key].add(port_num)
+            else:
+                self.manual_router_ports.add(port_num)
 
     def handset_total_for_base(self, base_key: str) -> int:
         """Total de handsets que REALMENTE se apilan sobre `base_key`.
@@ -570,6 +596,7 @@ def _place_equipment_rows(
     data: dict,
     state: _DevicePlacementState,
 ) -> None:
+    state.register_manual_ports(data)
     for team_index_in_data, team in enumerate(data.get("equipos", [])):
         if team.get("tipo") == "switch":
             continue

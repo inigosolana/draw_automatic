@@ -20,6 +20,7 @@ from generator.site_directory import SiteDirectory
 from generator.template_store import TemplateStore
 from generator.utils import technician_is_admin
 from security_config import (
+    _production_requires_secret_key,
     configure_csrf,
     configure_security_logger,
     configure_session,
@@ -202,12 +203,25 @@ def create_app(stores: DrawioStores | None = None) -> Flask:
     if _apply_proxy_fix:
         _hops = _trusted_proxy_hops if _trusted_proxy_hops > 0 else 1
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=_hops, x_proto=_hops, x_host=_hops)
-    elif allowed_ips:
-        security_logger.warning(
-            "DRAWIO_ALLOWED_IPS esta configurada pero ProxyFix esta desactivado. "
-            "Detras de un reverse proxy la allowlist compara la IP del proxy: "
-            "configura DRAWIO_TRUSTED_PROXY_HOPS con el numero de proxies de confianza."
-        )
+    else:
+        # Sin ProxyFix, get_remote_address() devuelve la IP de la conexion directa
+        # (la del reverse proxy si lo hay). En produccion esto afecta al rate
+        # limiting (keyed por IP) y a la allowlist. No activamos ProxyFix de forma
+        # implicita porque, sin proxy real delante, confiar en X-Forwarded-For
+        # permitiria spoofing de IP: hay que declarar los hops explicitamente.
+        if allowed_ips:
+            security_logger.warning(
+                "DRAWIO_ALLOWED_IPS esta configurada pero ProxyFix esta desactivado. "
+                "Detras de un reverse proxy la allowlist compara la IP del proxy: "
+                "configura DRAWIO_TRUSTED_PROXY_HOPS con el numero de proxies de confianza."
+            )
+        elif _production_requires_secret_key():
+            security_logger.warning(
+                "Ejecutando en modo produccion con ProxyFix desactivado. Si la app "
+                "esta detras de un reverse proxy, el rate limiting y cualquier control "
+                "por IP veran la IP del proxy para todos los clientes (una sola IP): "
+                "configura DRAWIO_TRUSTED_PROXY_HOPS con el numero de proxies de confianza."
+            )
     configure_talisman(app, force_https=force_https)
     register_cache_headers(app)
 

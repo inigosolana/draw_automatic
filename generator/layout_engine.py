@@ -359,8 +359,8 @@ def _place_switch(
             entry_x=0.5,
             entry_y=0.0,
             waypoints=_router_switch_waypoints(router_node, switch_node),
-            label_offset_x=10,
-            label_offset_y=-30,
+            label_offset_x=28,
+            label_offset_y=25,
         )
     )
     return True, False

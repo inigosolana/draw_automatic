@@ -70,7 +70,11 @@ class LayoutGoldenTests(unittest.TestCase):
     def test_office_example_layout_is_stable(self) -> None:
         self.assertEqual(
             _canonical(load_input(ROOT / "examples" / "cliente_demo.json")),
-            (13, 9, "a70e0e8966e8c1d9c715e3db75bcb3393bb5ae8257efbaad741ac9a71583a7ff"),
+            # Actualizado al corregir el solapamiento de la etiqueta del cable
+            # router->dispositivo vertical (ETHn-LAN) con la etiqueta de IP del
+            # router: el offset pasa de (10,-30) a (28,25) para bajarla y
+            # desplazarla lateralmente y no pisar la IP.
+            (13, 9, "3c1bfa8c5997732659e50927607800a9e87f7e0338c0f04a084b0e1581c38742"),
         )
 
     def test_multisite_example_layout_is_stable(self) -> None:

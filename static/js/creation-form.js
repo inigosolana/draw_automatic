@@ -183,7 +183,12 @@
           internetType.addEventListener("change", updateInternetFields);
           internetProveedor.addEventListener("change", renderMetricOptions);
           routerModel.addEventListener("change", updateBackupSelector);
-          document.querySelector(".creation-form").addEventListener("submit", function () {
+          document.querySelector(".creation-form").addEventListener("submit", function (event) {
+            const btn = this.querySelector('button[type="submit"]');
+            if (btn && btn.dataset.busy) {
+              event.preventDefault();
+              return;
+            }
             if (internetType.value === "SOLO 4G MONITORIZADO") {
               routerModel.value = "CHATEAU";
               const capacity = providerCapacity(internetProveedor.value);
@@ -191,7 +196,6 @@
                 internetVelocidad.value = capacity;
               }
             }
-            const btn = this.querySelector('button[type="submit"]');
             if (btn && !btn.dataset.busy) {
               btn.dataset.busy = "1";
               setTimeout(function () {

@@ -53,6 +53,7 @@
 
           function syncDeviceRows() {
             const payload = [];
+            const usados = new Set();
             deviceRows.querySelectorAll(".device-row").forEach(function (row) {
               const categoryId = row.querySelector('[data-field="category"]').value;
               const category = categoryById(categoryId);
@@ -64,6 +65,18 @@
               setDeviceBrand(row, modelo);
               const cantidad = Math.max(1, parseInt(row.querySelector('[data-field="quantity"]').value || "1", 10));
               const propiedad = row.querySelector('[data-field="ownership"]').value;
+              // Detectar puertos ETH duplicados (ignorando '' = Auto). Marca la fila
+              // en conflicto para dar feedback al usuario; no se altera el payload.
+              const puertoField = row.querySelector('[data-field="puerto"]');
+              const puerto = puertoField ? puertoField.value : "";
+              if (puerto && usados.has(puerto)) {
+                row.classList.add("dup-port");
+              } else {
+                row.classList.remove("dup-port");
+                if (puerto) {
+                  usados.add(puerto);
+                }
+              }
               if (!modelo) return;
               payload.push({
                 category: categoryId,
@@ -71,11 +84,15 @@
                 modelo: modelo,
                 cantidad: cantidad,
                 propiedad: propiedad,
-                puerto: (row.querySelector('[data-field="puerto"]') ? row.querySelector('[data-field="puerto"]').value : ""),
+                puerto: puerto,
               });
             });
             devicesJson.value = JSON.stringify(payload);
             updateSwitchTelefoniaVisibility();
+          }
+
+          function hasDuplicatePorts() {
+            return deviceRows.querySelectorAll(".device-row.dup-port").length > 0;
           }
 
           function updateSwitchTelefoniaVisibility() {
@@ -194,7 +211,13 @@
             addDeviceRow({ category: "switch" });
             deviceRows.lastElementChild.querySelector('[data-field="category"]').focus();
           });
-          document.querySelector(".creation-form").addEventListener("submit", syncDeviceRows);
+          document.querySelector(".creation-form").addEventListener("submit", function (event) {
+            syncDeviceRows();
+            if (hasDuplicatePorts()) {
+              event.preventDefault();
+              window.alert("Hay puertos ETH asignados al mismo valor en varios dispositivos. Corrige los puertos duplicados (marcados) o dejalos en Auto.");
+            }
+          });
           loadExistingDeviceRows();
           const switchTelefoniaCheckbox = document.getElementById("switch-telefonia");
           if (switchTelefoniaCheckbox) {

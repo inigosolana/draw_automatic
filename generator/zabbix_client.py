@@ -149,12 +149,14 @@ class ZabbixClient:
         router_password: str = "",
     ) -> dict:
         macros = [
-            {"macro": "{$SNMP_COMMUNITY}", "value": snmp_community},
+            {"macro": "{$SNMP_COMMUNITY}", "value": snmp_community, "type": "1"},
         ]
         if router_username:
             macros.append({"macro": "{$ROUTEROS_USERNAME}", "value": router_username})
         if router_password:
-            macros.append({"macro": "{$ROUTEROS_PASSWORD}", "value": router_password})
+            macros.append(
+                {"macro": "{$ROUTEROS_PASSWORD}", "value": router_password, "type": "1"}
+            )
 
         params = {
             "host": host,

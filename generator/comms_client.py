@@ -136,12 +136,23 @@ def parse_work_order_html(html: str) -> dict:
                     products.append({"name": row[0], "quantity": 1})
 
     script_products: list[dict] = []
+    _decoder = json.JSONDecoder()
     for match in re.finditer(r"<script[^>]*>(.*?)</script>", html, re.IGNORECASE | re.DOTALL):
         block = match.group(1)
-        for json_match in re.finditer(r"(\{[^{}]*\"products?\"[^{}]*\})", block, re.IGNORECASE):
+        # Decodificar los objetos JSON del bloque con raw_decode (admite
+        # anidamiento) y quedarse con los que expongan una clave "product(s)".
+        pos = 0
+        while True:
+            start = block.find("{", pos)
+            if start == -1:
+                break
             try:
-                payload = json.loads(json_match.group(1))
+                payload, end = _decoder.raw_decode(block, start)
             except json.JSONDecodeError:
+                pos = start + 1
+                continue
+            pos = end
+            if not isinstance(payload, dict):
                 continue
             raw = payload.get("products") or payload.get("product")
             if isinstance(raw, list):
