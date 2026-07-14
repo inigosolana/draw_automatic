@@ -13,7 +13,6 @@ SWITCH_MODELS: list[str] = [
     "DGS 108GL A1 Front",
     "SW tp-link basico",
     "SW_TP-LINK_16PORTs",
-    "FIREBOX",
     "TP-Link 8P",
 ]
 
@@ -23,6 +22,12 @@ DEVICE_CATEGORIES: list[dict] = [
         "label": "Switch",
         "tipo": "switch",
         "models": SWITCH_MODELS,
+    },
+    {
+        "id": "firewall",
+        "label": "Firewall",
+        "tipo": "otro",
+        "models": ["Fortinet", "Check Point", "FIREBOX"],
     },
     {
         "id": "ap",
@@ -106,7 +111,7 @@ def _unique_models(*groups: list[str]) -> list[str]:
 
 
 def _switch_titles_from_library(library) -> list[str]:
-    switch_keywords = ("switch", "swtich", "tp-link", "tp link", "dgs", "firebox", "ls105g")
+    switch_keywords = ("switch", "swtich", "tp-link", "tp link", "dgs", "ls105g")
     discovered: list[str] = []
     for item in library.items:
         title = (item.title or "").strip()
