@@ -53,6 +53,15 @@
             if (!showDect) {
               dectField.value = "";
             }
+            const puertoField = row.querySelector('[data-field="puerto"]');
+            if (puertoField) {
+              // Inverso al de DECT: el puerto solo aplica a terminales VoIP (no DECT).
+              puertoField.disabled = showDect;
+              puertoField.classList.toggle("is-hidden", showDect);
+              if (showDect) {
+                puertoField.value = "";
+              }
+            }
           }
 
           function syncTerminalRows() {
@@ -66,12 +75,18 @@
               const mac = row.querySelector('[data-field="mac"]').value.trim();
               const ip = row.querySelector('[data-field="ip"]').value.trim();
               const ownership = row.querySelector('[data-field="ownership"]').value;
+              const puertoField = row.querySelector('[data-field="puerto"]');
+              const puerto = puertoField ? puertoField.value.trim() : "";
               if (!model && !extension && !serial && !mac && !ip) return;
-              detailLines.push([model, extension, serial, mac, ip, ownership, dectBase].join(" | "));
+              // El puerto ETH (8º campo) solo se guarda para terminales VoIP (no DECT).
+              const puertoDetail = !isDectHandset(model) ? puerto : "";
+              detailLines.push([model, extension, serial, mac, ip, ownership, dectBase, puertoDetail].join(" | "));
               if (model) {
                 const extensionText = extension ? `, extension ${extension}` : "";
                 const baseText = isDectHandset(model) && dectBase ? `, base ${dectBase}` : "";
-                equipmentLines.push(`1 ${model}${extensionText}${baseText} ${ownership}`);
+                // El puerto ETH solo aplica a terminales VoIP (no DECT) y solo si se ha elegido.
+                const puertoText = !isDectHandset(model) && puerto ? `, puerto ${puerto}` : "";
+                equipmentLines.push(`1 ${model}${extensionText}${baseText}${puertoText} ${ownership}`);
               }
             });
             terminalDetails.value = detailLines.join("\n");
@@ -95,6 +110,7 @@
               ip: values.ip || "",
               ownership: values.ownership || "propio",
               dectBase: values.dectBase || values.dect_base || "",
+              puerto: values.puerto || "",
             };
           }
 
@@ -110,6 +126,12 @@
             const dectBaseOptions = ['<option value="">—</option>']
               .concat(DECT_BASE_MODELS.map(function (baseModel) {
                 return `<option value="${baseModel}"${values.dectBase === baseModel ? " selected" : ""}>${baseModel}</option>`;
+              }))
+              .join("");
+            const puertoValues = ["ETH3", "ETH4", "ETH5"];
+            const puertoOptions = ['<option value="">Auto</option>']
+              .concat(puertoValues.map(function (puertoOption) {
+                return `<option value="${puertoOption}"${values.puerto === puertoOption ? " selected" : ""}>${puertoOption}</option>`;
               }))
               .join("");
             row.innerHTML = `
@@ -136,6 +158,10 @@
               <label class="row-field">
                 <span class="field-mobile-label">IP</span>
                 <input data-field="ip" type="text" placeholder="IP" value="${escapeAttribute(values.ip)}" aria-label="IP">
+              </label>
+              <label class="row-field">
+                <span class="field-mobile-label">Puerto</span>
+                <select data-field="puerto" class="puerto-field${isDectHandset(values.model) ? " is-hidden" : ""}" aria-label="Puerto ETH">${puertoOptions}</select>
               </label>
               <label class="row-field">
                 <span class="field-mobile-label">Propiedad</span>

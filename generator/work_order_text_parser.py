@@ -10,6 +10,7 @@ from .offer_mapper import (
     parse_extension_tokens,
     parse_product_lines,
     strip_inline_extensions,
+    strip_puerto_token,
 )
 from .utils import dedupe_preserving_order
 
@@ -212,9 +213,10 @@ def _extract_products(lines: list[str]) -> list[OfferProduct]:
             pending_servicio = ""
             servicio = combined.group("servicio").strip()
             name = combined.group("producto").strip()
+            name, puerto = strip_puerto_token(name)
             name, inline_extensions = strip_inline_extensions(name)
             extensions = _extensions_from_servicio(servicio) or list(inline_extensions)
-            products.append(OfferProduct(name=name, quantity=1, extensions=extensions))
+            products.append(OfferProduct(name=name, quantity=1, extensions=extensions, puerto=puerto))
             continue
 
         servicio_match = SERVICE_LINE_PATTERN.search(line)
@@ -240,6 +242,7 @@ def _extract_products(lines: list[str]) -> list[OfferProduct]:
                 break
 
         name = product_match.group(1).strip()
+        name, puerto = strip_puerto_token(name)
         name, inline_extensions = strip_inline_extensions(name)
         extensions = list(inline_extensions)
         if pending_servicio:
@@ -247,7 +250,7 @@ def _extract_products(lines: list[str]) -> list[OfferProduct]:
             pending_servicio = ""
         extensions.extend(_product_block_extensions(lines[index + 1 : end]))
         deduped = dedupe_preserving_order(extensions)
-        products.append(OfferProduct(name=name, quantity=1, extensions=deduped))
+        products.append(OfferProduct(name=name, quantity=1, extensions=deduped, puerto=puerto))
 
     return products
 

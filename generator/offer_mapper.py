@@ -27,6 +27,8 @@ EXTENSION_INLINE_PATTERN = re.compile(
     r"[,(\s]+(?:ext|extensi[oó]n)\.?\s*(\d{2,6})",
     re.IGNORECASE,
 )
+# Token de puerto ETH elegido manualmente para terminales VoIP: ", puerto ETH4".
+PUERTO_TOKEN_PATTERN = re.compile(r",\s*puerto\s+(ETH[345])\b", re.IGNORECASE)
 
 ACCESSORY_PATTERN = re.compile(
     r"\b("
@@ -52,6 +54,7 @@ class OfferProduct:
     name: str
     quantity: int = 1
     extensions: list[str] = field(default_factory=list)
+    puerto: str = ""
 
 
 @dataclass
@@ -115,6 +118,23 @@ def strip_inline_extensions(name: str) -> tuple[str, list[str]]:
     return cleaned, extensions
 
 
+def strip_puerto_token(name: str) -> tuple[str, str]:
+    """Extrae el token ", puerto ETH<n>" (VoIP) del nombre y lo devuelve por separado.
+
+    Devuelve (nombre_sin_token, puerto). Si no hay token, puerto="" y el nombre
+    no cambia (comportamiento idéntico al actual).
+    """
+    if not name:
+        return name or "", ""
+    match = PUERTO_TOKEN_PATTERN.search(name)
+    if not match:
+        return name, ""
+    puerto = match.group(1).upper()
+    cleaned = PUERTO_TOKEN_PATTERN.sub("", name)
+    cleaned = re.sub(r"\s{2,}", " ", cleaned).strip(" ,")
+    return cleaned, puerto
+
+
 def _extensions_from_item_fields(item: dict) -> list[str]:
     extensions: list[str] = []
     raw_extensions = item.get("extensions")
@@ -148,6 +168,8 @@ def _offer_product_from_text_line(line: str) -> OfferProduct | None:
     if qty_match:
         quantity = max(1, int(qty_match.group(1)))
         text = qty_match.group(2).strip()
+    # El token de puerto ETH se extrae antes de parsear para no ensuciar el modelo.
+    text, puerto = strip_puerto_token(text)
     name, inline_extensions = strip_inline_extensions(text)
     equipment = parse_equipment_line(text if re.match(r"^\d+\s", text) else f"1 {text}")
     if equipment:
@@ -159,8 +181,8 @@ def _offer_product_from_text_line(line: str) -> OfferProduct | None:
         for value in inline_extensions:
             if value not in extensions:
                 extensions.append(value)
-        return OfferProduct(name=model_name, quantity=quantity, extensions=extensions)
-    return OfferProduct(name=name or text, quantity=quantity, extensions=inline_extensions)
+        return OfferProduct(name=model_name, quantity=quantity, extensions=extensions, puerto=puerto)
+    return OfferProduct(name=name or text, quantity=quantity, extensions=inline_extensions, puerto=puerto)
 
 
 def normalize_products(raw_products: list[object]) -> list[OfferProduct]:
@@ -331,17 +353,20 @@ def map_offer_to_form(
                         extension = product_extensions[index]
                     elif len(product_extensions) == 1:
                         extension = product_extensions[0]
-                result.terminals.append(
-                    {
-                        "model": terminal_model,
-                        "dect_base": assigned_base,
-                        "extension": extension,
-                        "serial": "",
-                        "mac": "",
-                        "ip": "",
-                        "ownership": "propio",
-                    }
-                )
+                terminal_entry = {
+                    "model": terminal_model,
+                    "dect_base": assigned_base,
+                    "extension": extension,
+                    "serial": "",
+                    "mac": "",
+                    "ip": "",
+                    "ownership": "propio",
+                }
+                # El puerto ETH solo aplica a terminales VoIP (no DECT). Sin puerto
+                # elegido, no se añade la clave: comportamiento idéntico al actual.
+                if not is_dect_handset and product.puerto:
+                    terminal_entry["puerto"] = product.puerto
+                result.terminals.append(terminal_entry)
             continue
 
         # Productos de conectividad (backup/router/ONT): se dan por clasificados
