@@ -71,6 +71,7 @@
                 modelo: modelo,
                 cantidad: cantidad,
                 propiedad: propiedad,
+                puerto: (row.querySelector('[data-field="puerto"]') ? row.querySelector('[data-field="puerto"]').value : ""),
               });
             });
             devicesJson.value = JSON.stringify(payload);
@@ -141,6 +142,7 @@
                   <option value="ajeno"${values.propiedad === "ajeno" ? " selected" : ""}>Ajeno</option>
                 </select>
               </label>
+              <label class="row-field"><span class="field-mobile-label">Puerto</span><select data-field="puerto" aria-label="Puerto ETH"><option value="">Auto</option><option value="ETH3"${values.puerto === "ETH3" ? " selected" : ""}>ETH3</option><option value="ETH4"${values.puerto === "ETH4" ? " selected" : ""}>ETH4</option><option value="ETH5"${values.puerto === "ETH5" ? " selected" : ""}>ETH5</option></select></label>
               <button type="button" class="remove-device" title="Eliminar dispositivo" aria-label="Eliminar dispositivo">×</button>`;
             const categoryField = row.querySelector('[data-field="category"]');
             if (values.category) {

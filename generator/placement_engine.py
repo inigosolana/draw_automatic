@@ -53,6 +53,16 @@ DECT_ROW_CLEARANCE = 28
 TELEPHONY_TYPES = {"telefono", "terminal_dect", "base_dect", "ata"}
 
 
+_VALID_OVERRIDE_PORTS = {"ETH3", "ETH4", "ETH5"}
+
+
+def _override_port(team: dict) -> str | None:
+    override = _safe(team.get("puerto", "")).strip() or None
+    if override not in _VALID_OVERRIDE_PORTS:
+        return None
+    return override
+
+
 def _is_telephony_equipment(team: dict) -> bool:
     tipo = _safe(team.get("tipo", "")).lower()
     if tipo in TELEPHONY_TYPES:
@@ -292,6 +302,7 @@ class _DevicePlacementState:
     slot_index: int = 0
     team_index: int = 1
     router_port_index: int = 3
+    manual_router_ports: set[int] | None = None
     switch_port_indices: dict[str, int] | None = None
     slot_indices: dict[str, int] | None = None
     bus_lane_counters: dict[str, int] | None = None
@@ -302,6 +313,8 @@ class _DevicePlacementState:
     node_index: dict[str, NodeSpec] | None = None
 
     def __post_init__(self) -> None:
+        if self.manual_router_ports is None:
+            self.manual_router_ports = set()
         if self.switch_port_indices is None:
             self.switch_port_indices = {"switch": 1, "switch_datos": 1}
         if self.slot_indices is None:
@@ -359,11 +372,18 @@ class _DevicePlacementState:
             self.slot_index += 1
         return x, y, row_top_y
 
-    def next_port_labels(self, anchor_key: str) -> tuple[str, str]:
+    def next_port_labels(self, anchor_key: str, override_port: str | None = None) -> tuple[str, str]:
         if anchor_key in SWITCH_ANCHOR_KEYS:
+            if override_port:
+                return override_port, override_port
             port = f"ETH{self.switch_port_indices[anchor_key]}"
             self.switch_port_indices[anchor_key] += 1
             return port, port
+        if override_port:
+            self.manual_router_ports.add(int(override_port[3:]))
+            return f"{override_port}-LAN", override_port
+        while self.router_port_index in self.manual_router_ports:
+            self.router_port_index += 1
         port = f"ETH{self.router_port_index}"
         cable_label = f"{port}-LAN"
         self.router_port_index += 1
@@ -432,7 +452,7 @@ def _create_dect_base(state: _DevicePlacementState, team: dict, normalized_model
     base_key = f"team_{state.team_index}"
     anchor_key = state.anchor_for(team)
     base_x, base_y, row_top_y = state.next_position(anchor_key)
-    cable_label, port_label = state.next_port_labels(anchor_key)
+    cable_label, port_label = state.next_port_labels(anchor_key, override_port=_override_port(team))
     state._add_node(
         NodeSpec(
             key=base_key,
@@ -518,7 +538,7 @@ def _place_device_row(
     key = f"team_{state.team_index}"
     anchor_key = state.anchor_for(team)
     node_x, node_y, row_top_y = state.next_position(anchor_key)
-    cable_label, port_label = state.next_port_labels(anchor_key)
+    cable_label, port_label = state.next_port_labels(anchor_key, override_port=_override_port(team))
     state._add_node(
         NodeSpec(
             key=key,
