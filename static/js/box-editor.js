@@ -242,6 +242,7 @@
     }
     function clearCanvas() {
       boxes.forEach(function (b) { b.remove(); });
+      if (typeof clearFloors === "function") clearFloors();
       boxes = []; links = []; linkSrc = null; selBox = null; selLink = null; draw();
     }
 
@@ -324,7 +325,8 @@
         var m = r.querySelector('[data-field="model"]');
         var ext = r.querySelector('[data-field="extension"]');
         var p = r.querySelector('[data-field="puerto"]');
-        return { model: m ? m.value.trim() : "", ext: ext ? ext.value.trim() : "", puerto: p ? p.value.trim() : "" };
+        var pi = r.querySelector('[data-field="piso"]');
+        return { model: m ? m.value.trim() : "", ext: ext ? ext.value.trim() : "", puerto: p ? p.value.trim() : "", piso: pi ? pi.value.trim() : "" };
       }).filter(function (t) { return t.model; });
       var devices = [];
       Array.prototype.forEach.call(document.querySelectorAll("#device-rows .device-row"), function (r) {
@@ -340,25 +342,94 @@
         var conectar = cEl ? cEl.value.trim() : "router";
         // Expandir por cantidad: 2 switches (o 1 fila con cantidad 2) => 2 cajas,
         // igual que en el diagrama final.
+        var piEl = r.querySelector('[data-field="piso"]');
+        var piso = piEl ? piEl.value.trim() : "";
         var qEl = r.querySelector('[data-field="quantity"]');
         var qty = Math.max(1, parseInt((qEl && qEl.value) || "1", 10) || 1);
-        for (var i = 0; i < qty; i++) devices.push({ category: c, model: model, puerto: puerto, conectar: conectar });
+        for (var i = 0; i < qty; i++) devices.push({ category: c, model: model, puerto: puerto, conectar: conectar, piso: piso });
       });
+      var rp = document.getElementById("router-piso");
+      var tp = document.getElementById("tiene-pisos");
       return {
         internet: val("internet-tipo"), ont: val("ont-modelo"),
         router: val("router-modelo"), backup: val("backup-modelo"),
-        terminals: terminals, devices: devices
+        terminals: terminals, devices: devices,
+        tienePisos: tp ? tp.checked : false,
+        routerPiso: rp ? rp.value.trim() : ""
       };
     }
     var COL = [40, 240, 450, 670, 890, 1110];
+    var floorEls = [];
+    var FLOOR_COLORS = [
+      ["#dae8fc", "#6c8ebf", "#1a3c6b"], ["#d5e8d4", "#82b366", "#2d5a2d"],
+      ["#fff2cc", "#d6b656", "#7a5c00"], ["#ffe6cc", "#d79b00", "#8a4b00"],
+      ["#e1d5e7", "#9673a6", "#5b3a6b"], ["#f8cecc", "#b85450", "#7a2320"],
+      ["#d0f0f0", "#3a9b9b", "#164f4f"], ["#f5f0d0", "#a39b56", "#5c5320"]
+    ];
+    function clearFloors() {
+      floorEls.forEach(function (el) { el.remove(); });
+      floorEls = [];
+    }
+    // Dibuja un rectángulo de fondo por piso, con color propio y semitransparente,
+    // englobando sus cajas y con la etiqueta "Piso N" grande. Parecido al diagrama final.
+    function drawFloors(boxFloor) {
+      clearFloors();
+      var groups = {};
+      boxFloor.forEach(function (piso, el) {
+        if (!piso) return;
+        (groups[piso] = groups[piso] || []).push(el);
+      });
+      var PAD = 26;
+      Object.keys(groups).forEach(function (piso) {
+        var els = groups[piso];
+        var minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
+        els.forEach(function (el) {
+          minx = Math.min(minx, el.offsetLeft);
+          miny = Math.min(miny, el.offsetTop);
+          maxx = Math.max(maxx, el.offsetLeft + el.offsetWidth);
+          maxy = Math.max(maxy, el.offsetTop + el.offsetHeight);
+        });
+        if (!isFinite(minx)) return;
+        var digits = String(piso).replace(/\D/g, "");
+        var idx = (digits ? parseInt(digits, 10) - 1 : 0) % FLOOR_COLORS.length;
+        var c = FLOOR_COLORS[idx < 0 ? 0 : idx];
+        var box = document.createElement("div");
+        box.className = "efloor";
+        box.style.position = "absolute";
+        box.style.left = (minx - PAD) + "px";
+        box.style.top = (miny - PAD - 24) + "px";
+        box.style.width = (maxx - minx + PAD * 2) + "px";
+        box.style.height = (maxy - miny + PAD * 2 + 24) + "px";
+        box.style.background = c[0];
+        box.style.opacity = "0.35";
+        box.style.border = "2px dashed " + c[1];
+        box.style.borderRadius = "10px";
+        box.style.zIndex = "0";
+        box.style.pointerEvents = "none";
+        var label = document.createElement("div");
+        label.textContent = String(piso).toLowerCase().indexOf("piso") === 0 ? piso : ("Piso " + piso);
+        label.style.position = "absolute";
+        label.style.left = (minx - PAD + 10) + "px";
+        label.style.top = (miny - PAD - 22) + "px";
+        label.style.fontWeight = "bold";
+        label.style.fontSize = "20px";
+        label.style.color = c[2];
+        label.style.zIndex = "1";
+        label.style.pointerEvents = "none";
+        stage.appendChild(box);
+        stage.appendChild(label);
+        floorEls.push(box, label);
+      });
+    }
     function buildFromForm() {
       if (drag) return; // no reconstruir mientras se arrastra
       clearCanvas();
       var f = readForm();
+      var boxFloor = new Map(); // el -> piso (para los contenedores de piso)
       var col = 0, prev = null, router = null;
       if (f.internet) { prev = addBox("🌐 " + f.internet, COL[col++], 210, "internet"); }
       if (f.ont) { var o = addBox(f.ont, COL[col++], 210, "ont", f.ont); if (prev) links.push({ a: prev, b: o }); prev = o; }
-      if (f.router) { router = addBox(f.router, COL[col++], 210, "router", f.router); if (prev) links.push({ a: prev, b: router }); }
+      if (f.router) { router = addBox(f.router, COL[col++], 210, "router", f.router); if (prev) links.push({ a: prev, b: router }); if (f.routerPiso) boxFloor.set(router, f.routerPiso); }
       if (f.backup && router) { var bk = addBox("Backup: " + f.backup, COL[Math.max(0, col - 1)], 80, "backup", f.backup); links.push({ a: router, b: bk }); }
       var switchDevs = f.devices.filter(function (d) { return d.category === "switch"; });
       var otherDevs = f.devices.filter(function (d) { return d.category !== "switch"; });
@@ -379,15 +450,16 @@
           var sw = addBox(sd.model, sx, sy, "switch", sd.model);
           if (cascada) links.push({ a: switchNodes[0].node, b: sw });
           else if (router) links.push({ a: router, b: sw });
+          if (sd.piso) boxFloor.set(sw, sd.piso);
           switchNodes.push({ node: sw, x: sx, y: sy });
         });
       }
 
       var terminals = f.terminals.map(function (t) {
-        return { label: "📞 " + t.model + (t.ext ? " " + t.ext : ""), type: "terminal", model: t.model, puerto: t.puerto || "" };
+        return { label: "📞 " + t.model + (t.ext ? " " + t.ext : ""), type: "terminal", model: t.model, puerto: t.puerto || "", piso: t.piso || "" };
       });
       var devs = otherDevs.map(function (d) {
-        return { label: d.model, type: d.category === "ap" ? "ap" : "device", model: d.model, puerto: d.puerto || "" };
+        return { label: d.model, type: d.category === "ap" ? "ap" : "device", model: d.model, puerto: d.puerto || "", piso: d.piso || "" };
       });
 
       // Reparte una lista de endpoints en FILAS centradas bajo un ancla (no en
@@ -406,6 +478,9 @@
           var y = ey0 + row * stepY;
           var e = addBox(ep.label, x, y, ep.type, ep.model);
           if (anchor && anchor.node) links.push({ a: anchor.node, b: e });
+          // Piso: propio o heredado del anclaje (switch/router).
+          var piso = ep.piso || (anchor && anchor.node ? boxFloor.get(anchor.node) : "");
+          if (piso) boxFloor.set(e, piso);
         });
       }
 
@@ -434,7 +509,11 @@
       setMode("move");
       dirty = false;
       draw();
-      setTimeout(function () { draw(); fitToView(); }, 40);
+      setTimeout(function () {
+        draw();
+        if (f.tienePisos) drawFloors(boxFloor);
+        fitToView();
+      }, 40);
       resetHistory();
     }
     var rebuildTimer = null;
