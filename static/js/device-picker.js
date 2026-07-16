@@ -36,10 +36,11 @@
             return 8;
           }
 
-          // Recorre las filas y devuelve el mayor switchPortCount de los
-          // switches presentes, o 0 si no hay ningún switch.
-          function currentSwitchPorts() {
-            let max = 0;
+          // Recorre las filas de categoría "switch" EN ORDEN de aparición y
+          // devuelve un array [{ports}] con el nº de puertos de cada switch.
+          // Solo los 2 primeros importan para el anclaje (telefonía/datos).
+          function switchList() {
+            const list = [];
             deviceRows.querySelectorAll(".device-row").forEach(function (row) {
               const categoryField = row.querySelector('[data-field="category"]');
               if (!categoryField || categoryField.value !== "switch") {
@@ -51,30 +52,76 @@
               const modelo = category.custom
                 ? (customField ? customField.value.trim() : "")
                 : (modelField ? modelField.value.trim() : "");
-              const ports = switchPortCount(modelo);
-              if (ports > max) {
-                max = ports;
+              list.push({ ports: switchPortCount(modelo) });
+            });
+            return list;
+          }
+
+          // Estado de switches derivado de switchList(): count y puertos del
+          // switch de telefonía (1º) y de datos (2º).
+          function currentSwitchState() {
+            const list = switchList();
+            const count = list.length;
+            return {
+              count: count,
+              telPorts: count >= 1 ? list[0].ports : 0,
+              datPorts: count >= 2 ? list[1].ports : 0,
+            };
+          }
+
+          // Recorre las filas y devuelve el mayor switchPortCount de los
+          // switches presentes, o 0 si no hay ningún switch. Compat con el
+          // esquema previo (usado en el caso de 0/1 switch).
+          function currentSwitchPorts() {
+            const list = switchList();
+            let max = 0;
+            list.forEach(function (sw) {
+              if (sw.ports > max) {
+                max = sw.ports;
               }
             });
             return max;
           }
 
-          // Genera el HTML de <option> del select de puerto según haya o no
-          // switch. Con switch: Auto + ETH1..ETHn. Sin switch: Auto + ETH3/4/5.
-          function puertoOptionsHtml(selectedValue, switchPorts) {
+          function optionHtml(value, label, selectedValue) {
+            return `<option value="${value}"${selectedValue === value ? " selected" : ""}>${label}</option>`;
+          }
+
+          // Genera el HTML de <option> del select de puerto según el estado de
+          // switches:
+          //   0 switches → Auto + ETH3/ETH4/ETH5.
+          //   1 switch   → Auto + ETH1..ETHn (sin prefijo).
+          //   2+ switches → Auto + optgroup Telefonía (TEL-ETH1..) + optgroup
+          //                 Datos (DAT-ETH1..).
+          function puertoOptionsHtml(selectedValue, state) {
+            const options = ['<option value="">Auto</option>'];
+            if (state.count >= 2) {
+              const tel = [];
+              for (let i = 1; i <= state.telPorts; i += 1) {
+                tel.push(optionHtml("TEL-ETH" + i, "ETH" + i, selectedValue));
+              }
+              const dat = [];
+              for (let i = 1; i <= state.datPorts; i += 1) {
+                dat.push(optionHtml("DAT-ETH" + i, "ETH" + i, selectedValue));
+              }
+              options.push(
+                `<optgroup label="Switch 1 · Telefonía">${tel.join("")}</optgroup>`
+              );
+              options.push(
+                `<optgroup label="Switch 2 · Datos">${dat.join("")}</optgroup>`
+              );
+              return options.join("");
+            }
             const values = [];
-            if (switchPorts > 0) {
-              for (let i = 1; i <= switchPorts; i += 1) {
+            if (state.count === 1) {
+              for (let i = 1; i <= state.telPorts; i += 1) {
                 values.push("ETH" + i);
               }
             } else {
               values.push("ETH3", "ETH4", "ETH5");
             }
-            const options = ['<option value="">Auto</option>'];
             values.forEach(function (value) {
-              options.push(
-                `<option value="${value}"${selectedValue === value ? " selected" : ""}>${value}</option>`
-              );
+              options.push(optionHtml(value, value, selectedValue));
             });
             return options.join("");
           }
@@ -83,22 +130,35 @@
           // preservando el valor elegido si sigue siendo válido (o "Auto"), y
           // notifica a terminales vía window + CustomEvent.
           function refreshPortOptions() {
-            const switchPorts = currentSwitchPorts();
+            const state = currentSwitchState();
             deviceRows.querySelectorAll(".device-row").forEach(function (row) {
               const puertoField = row.querySelector('[data-field="puerto"]');
               if (!puertoField) {
                 return;
               }
               const previous = puertoField.value;
-              puertoField.innerHTML = puertoOptionsHtml(previous, switchPorts);
+              puertoField.innerHTML = puertoOptionsHtml(previous, state);
               // Si el valor previo ya no existe entre las opciones, vuelve a Auto.
               if (puertoField.value !== previous) {
                 puertoField.value = "";
               }
             });
-            window.__DRAWIO_SWITCH_PORTS = switchPorts;
+            // Compat: número de puertos "máximo" (0/1 switch lo usan tal cual).
+            window.__DRAWIO_SWITCH_PORTS = state.count >= 2 ? state.telPorts : currentSwitchPorts();
+            // Estado completo agrupado por switch para 2+ switches.
+            window.__DRAWIO_SWITCHES = {
+              count: state.count,
+              telPorts: state.telPorts,
+              datPorts: state.datPorts,
+            };
             document.dispatchEvent(
-              new CustomEvent("drawio:switch-ports-changed", { detail: { ports: switchPorts } })
+              new CustomEvent("drawio:switch-ports-changed", {
+                detail: {
+                  count: state.count,
+                  telPorts: state.telPorts,
+                  datPorts: state.datPorts,
+                },
+              })
             );
           }
 
@@ -253,7 +313,7 @@
                   <option value="ajeno"${values.propiedad === "ajeno" ? " selected" : ""}>Ajeno</option>
                 </select>
               </label>
-              <label class="row-field"><span class="field-mobile-label">Puerto</span><select data-field="puerto" aria-label="Puerto ETH"><option value="">Auto</option><option value="ETH3"${values.puerto === "ETH3" ? " selected" : ""}>ETH3</option><option value="ETH4"${values.puerto === "ETH4" ? " selected" : ""}>ETH4</option><option value="ETH5"${values.puerto === "ETH5" ? " selected" : ""}>ETH5</option></select></label>
+              <label class="row-field"><span class="field-mobile-label">Puerto</span><select data-field="puerto" aria-label="Puerto ETH">${puertoOptionsHtml(values.puerto, currentSwitchState())}</select></label>
               <button type="button" class="remove-device" title="Eliminar dispositivo" aria-label="Eliminar dispositivo">×</button>`;
             const categoryField = row.querySelector('[data-field="category"]');
             if (values.category) {

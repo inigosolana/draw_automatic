@@ -41,29 +41,64 @@
             return DECT_HANDSET_MODELS.includes(model);
           }
 
-          // Opciones de puerto dinámicas, coordinadas con device-picker vía
-          // window.__DRAWIO_SWITCH_PORTS. Con switch: Auto + ETH1..ETHn.
-          // Sin switch (o si device-picker no cargó): Auto + ETH3/4/5.
-          function currentSwitchPorts() {
+          // Estado de switches publicado por device-picker. Preferimos el
+          // objeto agrupado (__DRAWIO_SWITCHES); si no está, caemos al número
+          // de compat (__DRAWIO_SWITCH_PORTS) tratándolo como 1 switch.
+          function currentSwitchState() {
+            const sw = window.__DRAWIO_SWITCHES;
+            if (sw && typeof sw === "object") {
+              const count = typeof sw.count === "number" ? sw.count : 0;
+              return {
+                count: count,
+                telPorts: typeof sw.telPorts === "number" ? sw.telPorts : 0,
+                datPorts: typeof sw.datPorts === "number" ? sw.datPorts : 0,
+              };
+            }
             const ports = window.__DRAWIO_SWITCH_PORTS;
-            return typeof ports === "number" && ports > 0 ? ports : 0;
+            if (typeof ports === "number" && ports > 0) {
+              return { count: 1, telPorts: ports, datPorts: 0 };
+            }
+            return { count: 0, telPorts: 0, datPorts: 0 };
           }
 
+          function optionHtml(value, label, selectedValue) {
+            return `<option value="${value}"${selectedValue === value ? " selected" : ""}>${label}</option>`;
+          }
+
+          // Mismo esquema que device-picker:
+          //   0 switches → Auto + ETH3/4/5.
+          //   1 switch   → Auto + ETH1..ETHn (sin prefijo).
+          //   2+ switches → Auto + optgroups TEL-/DAT-.
           function puertoOptionsHtml(selectedValue) {
-            const switchPorts = currentSwitchPorts();
+            const state = currentSwitchState();
+            const options = ['<option value="">Auto</option>'];
+            if (state.count >= 2) {
+              const tel = [];
+              for (let i = 1; i <= state.telPorts; i += 1) {
+                tel.push(optionHtml("TEL-ETH" + i, "ETH" + i, selectedValue));
+              }
+              const dat = [];
+              for (let i = 1; i <= state.datPorts; i += 1) {
+                dat.push(optionHtml("DAT-ETH" + i, "ETH" + i, selectedValue));
+              }
+              options.push(
+                `<optgroup label="Switch 1 · Telefonía">${tel.join("")}</optgroup>`
+              );
+              options.push(
+                `<optgroup label="Switch 2 · Datos">${dat.join("")}</optgroup>`
+              );
+              return options.join("");
+            }
             const values = [];
-            if (switchPorts > 0) {
-              for (let i = 1; i <= switchPorts; i += 1) {
+            if (state.count === 1) {
+              for (let i = 1; i <= state.telPorts; i += 1) {
                 values.push("ETH" + i);
               }
             } else {
               values.push("ETH3", "ETH4", "ETH5");
             }
-            const options = ['<option value="">Auto</option>'];
             values.forEach(function (value) {
-              options.push(
-                `<option value="${value}"${selectedValue === value ? " selected" : ""}>${value}</option>`
-              );
+              options.push(optionHtml(value, value, selectedValue));
             });
             return options.join("");
           }

@@ -54,14 +54,23 @@ DECT_ROW_CLEARANCE = 28
 TELEPHONY_TYPES = {"telefono", "terminal_dect", "base_dect", "ata"}
 
 
-_OVERRIDE_PORT_RE = re.compile(r"^ETH(\d+)$", re.IGNORECASE)
+_OVERRIDE_PORT_RE = re.compile(r"^(?:(TEL|DAT)-)?ETH(\d+)$", re.IGNORECASE)
+
+_OVERRIDE_PREFIX_ANCHOR = {"TEL": "switch", "DAT": "switch_datos"}
 
 
-def _override_port(team: dict) -> str | None:
-    """Normaliza un puerto elegido manualmente a "ETH<n>" (n = 1..48).
+def _override_port(team: dict) -> dict | None:
+    """Normaliza el puerto elegido manualmente a un dict o None.
 
-    Acepta cualquier "ETH<n>" (case-insensitive); antes solo ETH3/4/5. La
-    validación por ancla (router vs switch) se aplica en `next_port_labels`.
+    Acepta:
+      * "TEL-ETHn" → {"anchor": "switch", "port": "ETHn"}
+      * "DAT-ETHn" → {"anchor": "switch_datos", "port": "ETHn"}
+      * "ETHn"     → {"anchor": None, "port": "ETHn"}  (sin prefijo)
+      * inválido/vacío → None
+
+    n es entero 1..48. Los prefijos TEL/DAT solo tienen sentido con 2 switches;
+    la decisión de honrarlos (anclaje manual) se toma en `_device_anchor`. La
+    validación por ancla (router exige n>=3) se aplica en `next_port_labels`.
     """
     override = _safe(team.get("puerto", "")).strip()
     if not override:
@@ -69,10 +78,12 @@ def _override_port(team: dict) -> str | None:
     match = _OVERRIDE_PORT_RE.match(override)
     if not match:
         return None
-    n = int(match.group(1))
+    n = int(match.group(2))
     if n < 1 or n > 48:
         return None
-    return f"ETH{n}"
+    prefix = match.group(1)
+    anchor = _OVERRIDE_PREFIX_ANCHOR.get(prefix.upper()) if prefix else None
+    return {"anchor": anchor, "port": f"ETH{n}"}
 
 
 def _is_telephony_equipment(team: dict) -> bool:
@@ -125,6 +136,11 @@ def _device_anchor(
     if not has_switch:
         return "router"
     if has_dual_switch:
+        # Anclaje manual: si el usuario eligió TEL-/DAT- (prefijo en el puerto),
+        # respeta el switch indicado. Solo aplica con 2 switches.
+        override = _override_port(team)
+        if override and override["anchor"] in SWITCH_ANCHOR_KEYS:
+            return override["anchor"]
         return "switch" if _is_telephony_equipment(team) else "switch_datos"
     if switch_telefonia:
         return "switch"
@@ -459,7 +475,7 @@ class _DevicePlacementState:
             override = _override_port(team)
             if not override:
                 continue
-            port_num = int(override[3:])
+            port_num = int(override["port"][3:])
             anchor_key = self.anchor_for(team)
             if anchor_key in SWITCH_ANCHOR_KEYS:
                 self.manual_switch_ports[anchor_key].add(port_num)
@@ -492,7 +508,11 @@ def _create_dect_base(state: _DevicePlacementState, team: dict, normalized_model
     base_key = f"team_{state.team_index}"
     anchor_key = state.anchor_for(team)
     base_x, base_y, row_top_y = state.next_position(anchor_key)
-    cable_label, port_label = state.next_port_labels(anchor_key, override_port=_override_port(team))
+    _base_override = _override_port(team)
+    cable_label, port_label = state.next_port_labels(
+        anchor_key,
+        override_port=_base_override["port"] if _base_override else None,
+    )
     state._add_node(
         NodeSpec(
             key=base_key,
@@ -578,7 +598,11 @@ def _place_device_row(
     key = f"team_{state.team_index}"
     anchor_key = state.anchor_for(team)
     node_x, node_y, row_top_y = state.next_position(anchor_key)
-    cable_label, port_label = state.next_port_labels(anchor_key, override_port=_override_port(team))
+    _row_override = _override_port(team)
+    cable_label, port_label = state.next_port_labels(
+        anchor_key,
+        override_port=_row_override["port"] if _row_override else None,
+    )
     state._add_node(
         NodeSpec(
             key=key,
