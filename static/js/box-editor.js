@@ -450,7 +450,11 @@
         switchDevs.forEach(function (sd, i) {
           // Cascada: el 2º switch con conectar="switch1" cuelga del 1er switch
           // (debajo) en vez del router.
-          var cascada = i >= 1 && sd.conectar === "switch1" && switchNodes.length >= 1;
+          // Cascada: el 2º switch cuelga del 1º si su puerto es del switch de
+          // telefonía (TEL-ETHn) o si el campo conectar lo indica.
+          var puertoSw = (sd.puerto || "").toUpperCase();
+          var cascada = i >= 1 && switchNodes.length >= 1 &&
+            (puertoSw.indexOf("TEL-") === 0 || sd.conectar === "switch1");
           var sx = cascada ? switchNodes[0].x : Math.max(20, startX + i * SW_SPACING);
           var sy = cascada ? SW_Y + 150 : SW_Y;
           var sw = addBox(sd.model, sx, sy, "switch", sd.model);

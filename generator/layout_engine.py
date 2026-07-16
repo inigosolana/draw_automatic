@@ -483,7 +483,10 @@ def _place_floor_containers(nodes: list[NodeSpec], edges: list[EdgeSpec]) -> Non
         if es_switch or n.key == "router":
             for t in targets_by_source.get(n.key, []):
                 tn = node_by_key.get(t)
-                if tn is not None and not _piso(tn):
+                # Solo heredan los DISPOSITIVOS. Un switch colgante NO hereda el
+                # piso del padre: puede estar en otra planta (cable entre plantas).
+                t_es_switch = t in {"switch", "switch_datos"} or (tn.meta or {}).get("tipo") == "switch" if tn else False
+                if tn is not None and not _piso(tn) and not t_es_switch:
                     floors[piso].add(t)
     if not floors:
         return
