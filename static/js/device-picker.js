@@ -508,6 +508,34 @@
           }
           updateSwitchTelefoniaVisibility();
           updateFloorVisibility();
+
+          // Unicidad de puertos GLOBAL (terminales + dispositivos): si eliges un
+          // puerto ya ocupado, avisa; si confirmas, se lo quita al otro (queda Auto).
+          function portLabel(v) {
+            if (/^ETH[345]$/.test(v)) return "Router · " + v;
+            if (v.indexOf("TEL-") === 0) return "Switch 1 · " + v.slice(4);
+            if (v.indexOf("DAT-") === 0) return "Switch 2 · " + v.slice(4);
+            return v;
+          }
+          document.addEventListener("change", function (e) {
+            var t = e.target;
+            if (!t || !t.getAttribute || t.getAttribute("data-field") !== "puerto") return;
+            var v = t.value;
+            if (!v) return; // Auto: no hay conflicto
+            var all = document.querySelectorAll('#device-rows [data-field="puerto"], #terminal-rows [data-field="puerto"]');
+            var others = [];
+            all.forEach(function (s) { if (s !== t && s.value === v) others.push(s); });
+            if (!others.length) return;
+            var ok = window.confirm("El puerto " + portLabel(v) + " ya está asignado a otro equipo.\n\n¿Asignárselo a este? Se lo quitaré al otro (quedará en Auto).");
+            if (ok) {
+              others.forEach(function (s) { s.value = ""; });
+            } else {
+              t.value = "";
+            }
+            if (typeof syncDeviceRows === "function") syncDeviceRows();
+            document.dispatchEvent(new CustomEvent("drawio:pisos-changed"));
+          });
+
           window.__drawioDevices = {
             rows: deviceRows,
             addRow: addDeviceRow,
