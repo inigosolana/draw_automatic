@@ -370,6 +370,42 @@
       floorEls.forEach(function (el) { el.remove(); });
       floorEls = [];
     }
+    // Reorganiza las cajas para que cada piso ocupe su propia BANDA horizontal
+    // (así los cuadros de piso no se solapan). Los equipos sin piso (internet,
+    // ONT, backup) se quedan arriba. Dentro de cada banda: router/switch en la
+    // fila superior y los dispositivos debajo.
+    function arrangeByFloor(boxFloor) {
+      var groups = {};
+      boxFloor.forEach(function (piso, el) {
+        if (!piso) return;
+        (groups[piso] = groups[piso] || []).push(el);
+      });
+      var pisos = Object.keys(groups).sort(function (a, b) {
+        return (parseInt(a, 10) || 99) - (parseInt(b, 10) || 99);
+      });
+      var BAND_TOP = 330, BAND_H = 320, ROW_H = 100, PER_ROW = 6, STEP_X = 160, X0 = 90;
+      pisos.forEach(function (piso, bi) {
+        var els = groups[piso].slice();
+        // Primero router/switch (fila superior), luego dispositivos.
+        els.sort(function (a, b) {
+          var ra = (a.dataset.type === "router" || a.dataset.type === "switch") ? 0 : 1;
+          var rb = (b.dataset.type === "router" || b.dataset.type === "switch") ? 0 : 1;
+          return ra - rb;
+        });
+        var heads = els.filter(function (e) { return e.dataset.type === "router" || e.dataset.type === "switch"; });
+        var leaves = els.filter(function (e) { return e.dataset.type !== "router" && e.dataset.type !== "switch"; });
+        var yBase = BAND_TOP + bi * BAND_H;
+        heads.forEach(function (el, i) {
+          el.style.left = (X0 + i * STEP_X) + "px";
+          el.style.top = yBase + "px";
+        });
+        leaves.forEach(function (el, i) {
+          var row = Math.floor(i / PER_ROW), col = i % PER_ROW;
+          el.style.left = (X0 + col * STEP_X) + "px";
+          el.style.top = (yBase + ROW_H + row * ROW_H) + "px";
+        });
+      });
+    }
     // Dibuja un rectángulo de fondo por piso, con color propio y semitransparente,
     // englobando sus cajas y con la etiqueta "Piso N" grande. Parecido al diagrama final.
     function drawFloors(boxFloor) {
@@ -520,8 +556,13 @@
       dirty = false;
       draw();
       setTimeout(function () {
-        draw();
-        if (f.tienePisos) drawFloors(boxFloor);
+        if (f.tienePisos) {
+          arrangeByFloor(boxFloor);
+          draw();
+          drawFloors(boxFloor);
+        } else {
+          draw();
+        }
         fitToView();
       }, 40);
       resetHistory();
