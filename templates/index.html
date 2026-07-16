@@ -363,6 +363,13 @@
                   <input type="number" name="num_pisos" id="num-pisos" min="2" max="6" step="1"
                          value="{{ form_data.get('num_pisos', '2') }}" style="width:60px;margin-left:6px">
                 </label>
+                <label class="switch-telefonia-option" id="router-piso-wrap" style="display:none">
+                  Piso del router (hAP):
+                  <select name="router_piso" id="router-piso" style="margin-left:6px">
+                    <option value="">— sin piso —</option>
+                    <option value="1"{% if form_data.get('router_piso') == '1' %} selected{% endif %}>Piso 1</option><option value="2"{% if form_data.get('router_piso') == '2' %} selected{% endif %}>Piso 2</option><option value="3"{% if form_data.get('router_piso') == '3' %} selected{% endif %}>Piso 3</option><option value="4"{% if form_data.get('router_piso') == '4' %} selected{% endif %}>Piso 4</option><option value="5"{% if form_data.get('router_piso') == '5' %} selected{% endif %}>Piso 5</option><option value="6"{% if form_data.get('router_piso') == '6' %} selected{% endif %}>Piso 6</option>
+                  </select>
+                </label>
               </div>
           </section>
 

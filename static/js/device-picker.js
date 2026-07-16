@@ -273,6 +273,8 @@
             const tienePisos = cb ? cb.checked : false;
             const wrap = document.getElementById("num-pisos-wrap");
             if (wrap) wrap.style.display = tienePisos ? "" : "none";
+            const rpWrap = document.getElementById("router-piso-wrap");
+            if (rpWrap) rpWrap.style.display = tienePisos ? "" : "none";
             deviceRows.querySelectorAll(".device-row").forEach(function (row) {
               const floor = row.querySelector(".device-floor");
               if (!floor) return;

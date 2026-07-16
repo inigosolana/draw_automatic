@@ -293,6 +293,7 @@ def _form_to_legacy_data(form: dict) -> dict:
     router = data.setdefault("router", {})
     router["modelo"] = _clean_text(form.get("router_modelo")) or router.get("modelo", "")
     router["ip"] = _clean_text(form.get("router_ip")) or router.get("ip", "")
+    router["piso"] = _clean_text(form.get("router_piso")) or router.get("piso", "")
 
     merged_model, merged_ip = _parse_router_ip(router.get("modelo", ""), router.get("ip", ""))
     router["modelo"] = merged_model
