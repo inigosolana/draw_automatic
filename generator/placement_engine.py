@@ -10,6 +10,7 @@ de modo que cualquier cambio de comportamiento aquí se detecta.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from .cable_routing import (
@@ -53,14 +54,25 @@ DECT_ROW_CLEARANCE = 28
 TELEPHONY_TYPES = {"telefono", "terminal_dect", "base_dect", "ata"}
 
 
-_VALID_OVERRIDE_PORTS = {"ETH3", "ETH4", "ETH5"}
+_OVERRIDE_PORT_RE = re.compile(r"^ETH(\d+)$", re.IGNORECASE)
 
 
 def _override_port(team: dict) -> str | None:
-    override = _safe(team.get("puerto", "")).strip() or None
-    if override not in _VALID_OVERRIDE_PORTS:
+    """Normaliza un puerto elegido manualmente a "ETH<n>" (n = 1..48).
+
+    Acepta cualquier "ETH<n>" (case-insensitive); antes solo ETH3/4/5. La
+    validación por ancla (router vs switch) se aplica en `next_port_labels`.
+    """
+    override = _safe(team.get("puerto", "")).strip()
+    if not override:
         return None
-    return override
+    match = _OVERRIDE_PORT_RE.match(override)
+    if not match:
+        return None
+    n = int(match.group(1))
+    if n < 1 or n > 48:
+        return None
+    return f"ETH{n}"
 
 
 def _is_telephony_equipment(team: dict) -> bool:
@@ -385,7 +397,8 @@ class _DevicePlacementState:
             port = f"ETH{self.switch_port_indices[anchor_key]}"
             self.switch_port_indices[anchor_key] += 1
             return port, port
-        if override_port:
+        # Para el router, ETH1/ETH2 son WAN/ONT: solo se acepta override >= 3.
+        if override_port and int(override_port[3:]) >= 3:
             self.manual_router_ports.add(int(override_port[3:]))
             return f"{override_port}-LAN", override_port
         while self.router_port_index in self.manual_router_ports:
@@ -450,7 +463,8 @@ class _DevicePlacementState:
             anchor_key = self.anchor_for(team)
             if anchor_key in SWITCH_ANCHOR_KEYS:
                 self.manual_switch_ports[anchor_key].add(port_num)
-            else:
+            elif port_num >= 3:
+                # ETH1/ETH2 del router son WAN/ONT: se ignoran (auto).
                 self.manual_router_ports.add(port_num)
 
     def handset_total_for_base(self, base_key: str) -> int:

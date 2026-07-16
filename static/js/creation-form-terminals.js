@@ -41,6 +41,49 @@
             return DECT_HANDSET_MODELS.includes(model);
           }
 
+          // Opciones de puerto dinámicas, coordinadas con device-picker vía
+          // window.__DRAWIO_SWITCH_PORTS. Con switch: Auto + ETH1..ETHn.
+          // Sin switch (o si device-picker no cargó): Auto + ETH3/4/5.
+          function currentSwitchPorts() {
+            const ports = window.__DRAWIO_SWITCH_PORTS;
+            return typeof ports === "number" && ports > 0 ? ports : 0;
+          }
+
+          function puertoOptionsHtml(selectedValue) {
+            const switchPorts = currentSwitchPorts();
+            const values = [];
+            if (switchPorts > 0) {
+              for (let i = 1; i <= switchPorts; i += 1) {
+                values.push("ETH" + i);
+              }
+            } else {
+              values.push("ETH3", "ETH4", "ETH5");
+            }
+            const options = ['<option value="">Auto</option>'];
+            values.forEach(function (value) {
+              options.push(
+                `<option value="${value}"${selectedValue === value ? " selected" : ""}>${value}</option>`
+              );
+            });
+            return options.join("");
+          }
+
+          // Re-genera las opciones de puerto de todas las filas de terminal,
+          // preservando el valor elegido si sigue siendo válido (o Auto).
+          function refreshPortOptions() {
+            terminalRows.querySelectorAll(".terminal-row").forEach(function (row) {
+              const puertoField = row.querySelector('[data-field="puerto"]');
+              if (!puertoField) {
+                return;
+              }
+              const previous = puertoField.value;
+              puertoField.innerHTML = puertoOptionsHtml(previous);
+              if (puertoField.value !== previous) {
+                puertoField.value = "";
+              }
+            });
+          }
+
           function updateDectBaseField(row) {
             const model = row.querySelector('[data-field="model"]').value.trim();
             const dectField = row.querySelector('[data-field="dect-base"]');
@@ -128,12 +171,7 @@
                 return `<option value="${baseModel}"${values.dectBase === baseModel ? " selected" : ""}>${baseModel}</option>`;
               }))
               .join("");
-            const puertoValues = ["ETH3", "ETH4", "ETH5"];
-            const puertoOptions = ['<option value="">Auto</option>']
-              .concat(puertoValues.map(function (puertoOption) {
-                return `<option value="${puertoOption}"${values.puerto === puertoOption ? " selected" : ""}>${puertoOption}</option>`;
-              }))
-              .join("");
+            const puertoOptions = puertoOptionsHtml(values.puerto);
             row.innerHTML = `
               <label class="row-field">
                 <span class="field-mobile-label">Modelo</span>
@@ -259,6 +297,9 @@
             terminalRows.lastElementChild.querySelector('[data-field="model"]').focus();
           });
           document.querySelector(".creation-form").addEventListener("submit", syncTerminalRows);
+          // Coordinación con device-picker: al cambiar los puertos del switch,
+          // re-genera las opciones de puerto de todas las filas de terminal.
+          document.addEventListener("drawio:switch-ports-changed", refreshPortOptions);
           loadExistingTerminalRows();
           window.__drawioTerminals = {
             clear: function () {

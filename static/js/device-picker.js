@@ -11,6 +11,97 @@
               .replaceAll(">", "&gt;");
           }
 
+          // Deriva el nº de puertos de un switch a partir del nombre del modelo.
+          // Patrones (case-insensitive) + casos especiales. Devuelve 8 por
+          // defecto si no detecta un número válido (2..48).
+          function switchPortCount(modelo) {
+            const name = String(modelo || "");
+            if (/108GL/i.test(name) || /DGS[\s_-]*108/i.test(name)) {
+              return 8;
+            }
+            const patterns = [
+              /(\d+)\s*P\b/i,
+              /(\d+)[_ ]?PORTS?\b/i,
+              /(\d+)\s*-?\s*puertos/i,
+            ];
+            for (let i = 0; i < patterns.length; i += 1) {
+              const match = name.match(patterns[i]);
+              if (match) {
+                const n = parseInt(match[1], 10);
+                if (n >= 2 && n <= 48) {
+                  return n;
+                }
+              }
+            }
+            return 8;
+          }
+
+          // Recorre las filas y devuelve el mayor switchPortCount de los
+          // switches presentes, o 0 si no hay ningún switch.
+          function currentSwitchPorts() {
+            let max = 0;
+            deviceRows.querySelectorAll(".device-row").forEach(function (row) {
+              const categoryField = row.querySelector('[data-field="category"]');
+              if (!categoryField || categoryField.value !== "switch") {
+                return;
+              }
+              const category = categoryById(categoryField.value);
+              const modelField = row.querySelector('[data-field="model"]');
+              const customField = row.querySelector('[data-field="custom-model"]');
+              const modelo = category.custom
+                ? (customField ? customField.value.trim() : "")
+                : (modelField ? modelField.value.trim() : "");
+              const ports = switchPortCount(modelo);
+              if (ports > max) {
+                max = ports;
+              }
+            });
+            return max;
+          }
+
+          // Genera el HTML de <option> del select de puerto según haya o no
+          // switch. Con switch: Auto + ETH1..ETHn. Sin switch: Auto + ETH3/4/5.
+          function puertoOptionsHtml(selectedValue, switchPorts) {
+            const values = [];
+            if (switchPorts > 0) {
+              for (let i = 1; i <= switchPorts; i += 1) {
+                values.push("ETH" + i);
+              }
+            } else {
+              values.push("ETH3", "ETH4", "ETH5");
+            }
+            const options = ['<option value="">Auto</option>'];
+            values.forEach(function (value) {
+              options.push(
+                `<option value="${value}"${selectedValue === value ? " selected" : ""}>${value}</option>`
+              );
+            });
+            return options.join("");
+          }
+
+          // Re-genera las opciones de puerto de TODAS las filas de dispositivo,
+          // preservando el valor elegido si sigue siendo válido (o "Auto"), y
+          // notifica a terminales vía window + CustomEvent.
+          function refreshPortOptions() {
+            const switchPorts = currentSwitchPorts();
+            deviceRows.querySelectorAll(".device-row").forEach(function (row) {
+              const puertoField = row.querySelector('[data-field="puerto"]');
+              if (!puertoField) {
+                return;
+              }
+              const previous = puertoField.value;
+              puertoField.innerHTML = puertoOptionsHtml(previous, switchPorts);
+              // Si el valor previo ya no existe entre las opciones, vuelve a Auto.
+              if (puertoField.value !== previous) {
+                puertoField.value = "";
+              }
+            });
+            window.__DRAWIO_SWITCH_PORTS = switchPorts;
+            document.dispatchEvent(
+              new CustomEvent("drawio:switch-ports-changed", { detail: { ports: switchPorts } })
+            );
+          }
+
           function categoryById(categoryId) {
             return deviceCatalog.find(function (category) {
               return category.id === categoryId;
@@ -52,6 +143,9 @@
           }
 
           function syncDeviceRows() {
+            // Recalcula las opciones de puerto (dispositivos + terminales) antes
+            // de recolectar el payload, por si cambió algún switch.
+            refreshPortOptions();
             const payload = [];
             const usados = new Set();
             deviceRows.querySelectorAll(".device-row").forEach(function (row) {
