@@ -52,13 +52,25 @@
                 count: count,
                 telPorts: typeof sw.telPorts === "number" ? sw.telPorts : 0,
                 datPorts: typeof sw.datPorts === "number" ? sw.datPorts : 0,
+                telPiso: sw.telPiso || "",
+                datPiso: sw.datPiso || "",
+                routerPiso: sw.routerPiso || "",
               };
             }
             const ports = window.__DRAWIO_SWITCH_PORTS;
             if (typeof ports === "number" && ports > 0) {
-              return { count: 1, telPorts: ports, datPorts: 0 };
+              return { count: 1, telPorts: ports, datPorts: 0, telPiso: "", datPiso: "", routerPiso: "" };
             }
-            return { count: 0, telPorts: 0, datPorts: 0 };
+            return { count: 0, telPorts: 0, datPorts: 0, telPiso: "", datPiso: "", routerPiso: "" };
+          }
+
+          function pisoDePuerto(puerto, state) {
+            const p = String(puerto || "").toUpperCase();
+            if (p.indexOf("TEL-") === 0) return state.telPiso || "";
+            if (p.indexOf("DAT-") === 0) return state.datPiso || "";
+            if (/^ETH[345]$/.test(p)) return state.routerPiso || "";
+            if (/^ETH\d+$/.test(p) && state.count === 1) return state.telPiso || "";
+            return "";
           }
 
           function optionHtml(value, label, selectedValue) {
@@ -74,12 +86,13 @@
             const options = ['<option value="">Auto</option>'];
             // Router principal (hAP) SIEMPRE disponible (ETH3/4/5).
             const routerPorts = ["ETH3", "ETH4", "ETH5"]
-              .map(function (v) { return optionHtml(v, v, selectedValue); }).join("");
+              .map(function (v) { return optionHtml(v, "Router · " + v, selectedValue); }).join("");
             options.push(`<optgroup label="Router principal (hAP)">${routerPorts}</optgroup>`);
             if (state.count >= 1) {
+              const swLabel = state.count >= 2 ? "Switch 1" : "Switch";
               const tel = [];
               for (let i = 1; i <= state.telPorts; i += 1) {
-                tel.push(optionHtml("TEL-ETH" + i, "ETH" + i, selectedValue));
+                tel.push(optionHtml("TEL-ETH" + i, swLabel + " · ETH" + i, selectedValue));
               }
               const label = state.count >= 2 ? "Switch 1 · Telefonía" : "Switch";
               options.push(`<optgroup label="${label}">${tel.join("")}</optgroup>`);
@@ -87,7 +100,7 @@
             if (state.count >= 2) {
               const dat = [];
               for (let i = 1; i <= state.datPorts; i += 1) {
-                dat.push(optionHtml("DAT-ETH" + i, "ETH" + i, selectedValue));
+                dat.push(optionHtml("DAT-ETH" + i, "Switch 2 · ETH" + i, selectedValue));
               }
               options.push(`<optgroup label="Switch 2 · Datos">${dat.join("")}</optgroup>`);
             }
@@ -152,6 +165,7 @@
           function updateFloorVisibility() {
             const cb = document.getElementById("tiene-pisos");
             const tienePisos = cb ? cb.checked : false;
+            const state = currentSwitchState();
             terminalRows.querySelectorAll(".terminal-row").forEach(function (row) {
               const floor = row.querySelector(".terminal-floor");
               if (!floor) return;
@@ -162,10 +176,22 @@
                   const prev = sel.value;
                   sel.innerHTML = floorOptionsHtml(prev);
                   if (sel.value !== prev) sel.value = "";
+                  // Piso automático: el terminal hereda el piso del switch/router
+                  // al que se conecta (según su puerto). Se muestra deshabilitado.
+                  const pf = row.querySelector('[data-field="puerto"]');
+                  const heredado = pisoDePuerto(pf ? pf.value : "", state);
+                  if (heredado) {
+                    sel.value = heredado;
+                    sel.disabled = true;
+                    sel.title = "Piso heredado del equipo al que se conecta";
+                  } else {
+                    sel.disabled = false;
+                    sel.title = "";
+                  }
                 }
               } else {
                 floor.style.display = "none";
-                if (sel) sel.value = "";
+                if (sel) { sel.value = ""; sel.disabled = false; }
               }
             });
           }
