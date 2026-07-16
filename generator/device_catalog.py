@@ -160,12 +160,15 @@ def devices_json_to_equipos(raw_json: str) -> list[dict]:
             tipo = "switch"
             if "switch" not in modelo.lower():
                 modelo = f"switch {modelo}"
-        equipos.append(
-            {
-                "tipo": tipo,
-                "modelo": modelo,
-                "cantidad": cantidad,
-                "propiedad": propiedad,
-            }
-        )
+        equipo = {
+            "tipo": tipo,
+            "modelo": modelo,
+            "cantidad": cantidad,
+            "propiedad": propiedad,
+        }
+        # Puerto ETH elegido manualmente (ETH3/4/5); el layout lo respeta.
+        puerto = str(item.get("puerto", "")).strip().upper()
+        if puerto in ("ETH3", "ETH4", "ETH5"):
+            equipo["puerto"] = puerto
+        equipos.append(equipo)
     return equipos
