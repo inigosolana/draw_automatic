@@ -474,6 +474,17 @@
           const tienePisosCheckbox = document.getElementById("tiene-pisos");
           if (tienePisosCheckbox) {
             tienePisosCheckbox.addEventListener("change", function () {
+              // Al activar pisos: cada switch y el router arrancan con Piso 1 por
+              // defecto (para que ninguno quede sin piso; el usuario lo cambia).
+              if (tienePisosCheckbox.checked) {
+                deviceRows.querySelectorAll(".device-row").forEach(function (row) {
+                  const cat = row.querySelector('[data-field="category"]');
+                  const sel = row.querySelector('[data-field="piso"]');
+                  if (cat && cat.value === "switch" && sel && !sel.value) sel.value = "1";
+                });
+                const rp = document.getElementById("router-piso");
+                if (rp && !rp.value) rp.value = "1";
+              }
               updateFloorVisibility();
               syncDeviceRows();
               document.dispatchEvent(new CustomEvent("drawio:pisos-changed"));
