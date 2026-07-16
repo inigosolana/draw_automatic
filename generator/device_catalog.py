@@ -171,12 +171,14 @@ def devices_json_to_equipos(raw_json: str) -> list[dict]:
         # Puerto ETH elegido manualmente. Formatos válidos: ETH<n> (router/switch),
         # TEL-ETH<n> / DAT-ETH<n> (switch telefonía/datos). El layout (_override_port) valida.
         puerto = str(item.get("puerto", "")).strip().upper()
-        if re.match(r"^(?:(?:TEL|DAT)-)?ETH\d{1,2}$", puerto):
-            equipo["puerto"] = puerto
-        # Switch: a qué se conecta (router por defecto, o el 1er switch en cascada).
         if tipo == "switch":
-            conectar = str(item.get("conectar", item.get("conectar_a", "router"))).strip().lower()
-            if conectar in ("switch1", "switch"):
+            # El "puerto" de un switch indica a qué se conecta: si elige un puerto
+            # del switch de telefonía (TEL-ETHn) -> cascada colgando del 1er switch;
+            # en otro caso (router ETH3/4/5 o Auto) -> router (default). El switch no
+            # usa override de puerto de dispositivo (se coloca por _place_switch).
+            if puerto.startswith("TEL-"):
                 equipo["conectar_a"] = "switch1"
+        elif re.match(r"^(?:(?:TEL|DAT)-)?ETH\d{1,2}$", puerto):
+            equipo["puerto"] = puerto
         equipos.append(equipo)
     return equipos

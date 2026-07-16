@@ -72,34 +72,25 @@
           function puertoOptionsHtml(selectedValue) {
             const state = currentSwitchState();
             const options = ['<option value="">Auto</option>'];
-            if (state.count >= 2) {
+            // Router principal (hAP) SIEMPRE disponible (ETH3/4/5).
+            const routerPorts = ["ETH3", "ETH4", "ETH5"]
+              .map(function (v) { return optionHtml(v, v, selectedValue); }).join("");
+            options.push(`<optgroup label="Router principal (hAP)">${routerPorts}</optgroup>`);
+            if (state.count >= 1) {
               const tel = [];
               for (let i = 1; i <= state.telPorts; i += 1) {
                 tel.push(optionHtml("TEL-ETH" + i, "ETH" + i, selectedValue));
               }
+              const label = state.count >= 2 ? "Switch 1 · Telefonía" : "Switch";
+              options.push(`<optgroup label="${label}">${tel.join("")}</optgroup>`);
+            }
+            if (state.count >= 2) {
               const dat = [];
               for (let i = 1; i <= state.datPorts; i += 1) {
                 dat.push(optionHtml("DAT-ETH" + i, "ETH" + i, selectedValue));
               }
-              options.push(
-                `<optgroup label="Switch 1 · Telefonía">${tel.join("")}</optgroup>`
-              );
-              options.push(
-                `<optgroup label="Switch 2 · Datos">${dat.join("")}</optgroup>`
-              );
-              return options.join("");
+              options.push(`<optgroup label="Switch 2 · Datos">${dat.join("")}</optgroup>`);
             }
-            const values = [];
-            if (state.count === 1) {
-              for (let i = 1; i <= state.telPorts; i += 1) {
-                values.push("ETH" + i);
-              }
-            } else {
-              values.push("ETH3", "ETH4", "ETH5");
-            }
-            values.forEach(function (value) {
-              options.push(optionHtml(value, value, selectedValue));
-            });
             return options.join("");
           }
 

@@ -93,36 +93,28 @@
           //   1 switch   → Auto + ETH1..ETHn (sin prefijo).
           //   2+ switches → Auto + optgroup Telefonía (TEL-ETH1..) + optgroup
           //                 Datos (DAT-ETH1..).
-          function puertoOptionsHtml(selectedValue, state) {
+          // excludeSwitch: 1 o 2 para NO ofrecer ese switch (si la fila ES ese
+          // switch, no puede conectarse a sí mismo). Router (hAP) SIEMPRE presente.
+          function puertoOptionsHtml(selectedValue, state, excludeSwitch) {
             const options = ['<option value="">Auto</option>'];
-            if (state.count >= 2) {
+            const routerPorts = ["ETH3", "ETH4", "ETH5"]
+              .map(function (v) { return optionHtml(v, v, selectedValue); }).join("");
+            options.push(`<optgroup label="Router principal (hAP)">${routerPorts}</optgroup>`);
+            if (state.count >= 1 && excludeSwitch !== 1) {
               const tel = [];
               for (let i = 1; i <= state.telPorts; i += 1) {
                 tel.push(optionHtml("TEL-ETH" + i, "ETH" + i, selectedValue));
               }
+              const label = state.count >= 2 ? "Switch 1 · Telefonía" : "Switch";
+              options.push(`<optgroup label="${label}">${tel.join("")}</optgroup>`);
+            }
+            if (state.count >= 2 && excludeSwitch !== 2) {
               const dat = [];
               for (let i = 1; i <= state.datPorts; i += 1) {
                 dat.push(optionHtml("DAT-ETH" + i, "ETH" + i, selectedValue));
               }
-              options.push(
-                `<optgroup label="Switch 1 · Telefonía">${tel.join("")}</optgroup>`
-              );
-              options.push(
-                `<optgroup label="Switch 2 · Datos">${dat.join("")}</optgroup>`
-              );
-              return options.join("");
+              options.push(`<optgroup label="Switch 2 · Datos">${dat.join("")}</optgroup>`);
             }
-            const values = [];
-            if (state.count === 1) {
-              for (let i = 1; i <= state.telPorts; i += 1) {
-                values.push("ETH" + i);
-              }
-            } else {
-              values.push("ETH3", "ETH4", "ETH5");
-            }
-            values.forEach(function (value) {
-              options.push(optionHtml(value, value, selectedValue));
-            });
             return options.join("");
           }
 
@@ -131,13 +123,22 @@
           // notifica a terminales vía window + CustomEvent.
           function refreshPortOptions() {
             const state = currentSwitchState();
+            let switchSeen = 0;
             deviceRows.querySelectorAll(".device-row").forEach(function (row) {
+              const cat = row.querySelector('[data-field="category"]');
+              // Índice del switch de esta fila (1 o 2) para excluirlo de su propio
+              // desplegable; las filas no-switch reciben todas las opciones.
+              let excludeSwitch = null;
+              if (cat && cat.value === "switch") {
+                switchSeen += 1;
+                if (switchSeen <= 2) excludeSwitch = switchSeen;
+              }
               const puertoField = row.querySelector('[data-field="puerto"]');
               if (!puertoField) {
                 return;
               }
               const previous = puertoField.value;
-              puertoField.innerHTML = puertoOptionsHtml(previous, state);
+              puertoField.innerHTML = puertoOptionsHtml(previous, state, excludeSwitch);
               // Si el valor previo ya no existe entre las opciones, vuelve a Auto.
               if (puertoField.value !== previous) {
                 puertoField.value = "";
