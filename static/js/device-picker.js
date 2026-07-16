@@ -232,8 +232,6 @@
                 }
               }
               if (!modelo) return;
-              const conectarField = row.querySelector('[data-field="conectar"]');
-              const conectar = conectarField ? conectarField.value : "router";
               payload.push({
                 category: categoryId,
                 tipo: category.tipo,
@@ -241,41 +239,14 @@
                 cantidad: cantidad,
                 propiedad: propiedad,
                 puerto: puerto,
-                conectar: conectar,
               });
             });
-            updateSwitchConnectVisibility();
             devicesJson.value = JSON.stringify(payload);
             updateSwitchTelefoniaVisibility();
           }
 
           function hasDuplicatePorts() {
             return deviceRows.querySelectorAll(".device-row.dup-port").length > 0;
-          }
-
-          function updateSwitchConnectVisibility() {
-            // El selector "Conectar a" solo aparece en el 2º switch (y posteriores):
-            // el 1er switch siempre va al router, y un switch nunca se ofrece a sí mismo.
-            const rows = Array.from(deviceRows.querySelectorAll(".device-row"));
-            let switchSeen = 0;
-            rows.forEach(function (row) {
-              const cat = row.querySelector('[data-field="category"]');
-              const conn = row.querySelector(".device-connect");
-              if (!conn) return;
-              const isSwitch = cat && cat.value === "switch";
-              if (isSwitch) {
-                switchSeen += 1;
-                if (switchSeen >= 2) {
-                  conn.style.display = "";
-                } else {
-                  conn.style.display = "none";
-                  const sel = conn.querySelector('[data-field="conectar"]');
-                  if (sel) sel.value = "router";
-                }
-              } else {
-                conn.style.display = "none";
-              }
-            });
           }
 
           function updateSwitchTelefoniaVisibility() {
@@ -343,8 +314,7 @@
                 </select>
               </label>
               <label class="row-field"><span class="field-mobile-label">Puerto</span><select data-field="puerto" aria-label="Puerto ETH">${puertoOptionsHtml(values.puerto, currentSwitchState())}</select></label>
-              <button type="button" class="remove-device" title="Eliminar dispositivo" aria-label="Eliminar dispositivo">×</button>
-              <label class="row-field device-connect" style="grid-column:1/-1;display:none"><span class="field-mobile-label">Conectar a</span><select data-field="conectar" aria-label="Conectar a"><option value="router"${values.conectar === "switch1" ? "" : " selected"}>Router principal (hAP)</option><option value="switch1"${values.conectar === "switch1" ? " selected" : ""}>Switch 1</option></select></label>`;
+              <button type="button" class="remove-device" title="Eliminar dispositivo" aria-label="Eliminar dispositivo">×</button>`;
             const categoryField = row.querySelector('[data-field="category"]');
             if (values.category) {
               categoryField.value = values.category;
