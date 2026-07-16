@@ -400,8 +400,9 @@
         box.style.top = (miny - PAD - 24) + "px";
         box.style.width = (maxx - minx + PAD * 2) + "px";
         box.style.height = (maxy - miny + PAD * 2 + 24) + "px";
-        box.style.background = c[0];
-        box.style.opacity = "0.35";
+        // Fondo semitransparente por color-alpha (#RRGGBBAA): así el RELLENO es
+        // translúcido pero el BORDE queda nítido (no usamos opacity global).
+        box.style.background = c[0] + "40";
         box.style.border = "2px dashed " + c[1];
         box.style.borderRadius = "10px";
         box.style.zIndex = "0";
@@ -409,14 +410,19 @@
         var label = document.createElement("div");
         label.textContent = String(piso).toLowerCase().indexOf("piso") === 0 ? piso : ("Piso " + piso);
         label.style.position = "absolute";
-        label.style.left = (minx - PAD + 10) + "px";
-        label.style.top = (miny - PAD - 22) + "px";
+        label.style.left = (minx - PAD + 8) + "px";
+        label.style.top = (miny - PAD - 24) + "px";
         label.style.fontWeight = "bold";
         label.style.fontSize = "20px";
         label.style.color = c[2];
-        label.style.zIndex = "1";
+        label.style.background = "rgba(255,255,255,0.85)";
+        label.style.padding = "1px 8px";
+        label.style.borderRadius = "6px";
+        label.style.zIndex = "2";
         label.style.pointerEvents = "none";
-        stage.appendChild(box);
+        // El cuadro va al PRINCIPIO del stage (detrás de las cajas); la etiqueta
+        // encima para que se lea siempre.
+        stage.insertBefore(box, stage.firstChild);
         stage.appendChild(label);
         floorEls.push(box, label);
       });
