@@ -121,12 +121,28 @@ def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryI
             _text_cell(root, label_id, f"<font><b>{node.label}</b></font>", TEXT_STYLE, node.x + 25, node.y + 25, 70, 25)
             continue
         if node.kind == "floor":
-            # Contenedor de piso/planta: rectángulo de fondo con la etiqueta arriba.
+            # Contenedor de piso/planta: rectángulo de fondo semitransparente, un
+            # color distinto por piso, con la etiqueta grande y en negrita arriba.
             # Se añade directo al root (no diferido) para quedar DETRÁS de los equipos.
+            # Paleta de colores claros (fill, borde, texto) por piso:
+            _FLOOR_PALETTE = [
+                ("#dae8fc", "#6c8ebf", "#1a3c6b"),  # azul
+                ("#d5e8d4", "#82b366", "#2d5a2d"),  # verde
+                ("#fff2cc", "#d6b656", "#7a5c00"),  # amarillo
+                ("#ffe6cc", "#d79b00", "#8a4b00"),  # naranja
+                ("#e1d5e7", "#9673a6", "#5b3a6b"),  # morado
+                ("#f8cecc", "#b85450", "#7a2320"),  # rojo
+                ("#d0f0f0", "#3a9b9b", "#164f4f"),  # turquesa
+                ("#f5f0d0", "#a39b56", "#5c5320"),  # oliva
+            ]
+            idx = int((node.meta or {}).get("color_idx", 0)) % len(_FLOOR_PALETTE)
+            fill, stroke, font = _FLOOR_PALETTE[idx]
             style = (
-                "rounded=1;whiteSpace=wrap;html=1;fillColor=#eef4fb;strokeColor=#4a6b8a;"
-                "dashed=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=6;"
-                "fontStyle=1;fontColor=#33526b;fontSize=13;opacity=70;"
+                f"rounded=1;whiteSpace=wrap;html=1;fillColor={fill};strokeColor={stroke};"
+                "dashed=1;verticalAlign=top;align=left;spacingLeft=12;spacingTop=8;"
+                # fillOpacity solo hace transparente el RELLENO: el borde y el texto
+                # (grande, en negrita) quedan nítidos y bien visibles.
+                f"fontStyle=1;fontColor={font};fontSize=22;fillOpacity=35;strokeWidth=2;"
             )
             cell = etree.SubElement(root, "mxCell", {"id": cell_id, "value": node.label, "style": style, "parent": "1", "vertex": "1"})
             _geom(cell, node.x, node.y, node.width, node.height)

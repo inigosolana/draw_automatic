@@ -498,9 +498,13 @@ def _place_floor_containers(nodes: list[NodeSpec], edges: list[EdgeSpec]) -> Non
         maxx = max(m.x + m.width for m in ns) + pad
         maxy = max(m.y + m.height for m in ns) + pad
         label = piso if piso.lower().startswith("piso") else f"Piso {piso}"
+        # Índice de color: por el número de piso si es numérico, si no por orden.
+        digits = "".join(ch for ch in piso if ch.isdigit())
+        color_idx = (int(digits) - 1) if digits else len(containers)
         containers.append(
             NodeSpec(key=f"floor_{piso}", kind="floor", label=label,
-                     x=int(minx), y=int(miny), width=int(maxx - minx), height=int(maxy - miny))
+                     x=int(minx), y=int(miny), width=int(maxx - minx), height=int(maxy - miny),
+                     meta={"color_idx": color_idx})
         )
     nodes[:0] = containers
 
