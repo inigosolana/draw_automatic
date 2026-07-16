@@ -323,7 +323,8 @@
       var terminals = Array.prototype.map.call(document.querySelectorAll("#terminal-rows .terminal-row"), function (r) {
         var m = r.querySelector('[data-field="model"]');
         var ext = r.querySelector('[data-field="extension"]');
-        return { model: m ? m.value.trim() : "", ext: ext ? ext.value.trim() : "" };
+        var p = r.querySelector('[data-field="puerto"]');
+        return { model: m ? m.value.trim() : "", ext: ext ? ext.value.trim() : "", puerto: p ? p.value.trim() : "" };
       }).filter(function (t) { return t.model; });
       var devices = [];
       Array.prototype.forEach.call(document.querySelectorAll("#device-rows .device-row"), function (r) {
@@ -333,11 +334,13 @@
         var c = cat ? cat.value : "";
         var model = c === "otros" ? (cm ? cm.value.trim() : "") : (m ? m.value.trim() : "");
         if (!model) return;
+        var pEl = r.querySelector('[data-field="puerto"]');
+        var puerto = pEl ? pEl.value.trim() : "";
         // Expandir por cantidad: 2 switches (o 1 fila con cantidad 2) => 2 cajas,
         // igual que en el diagrama final.
         var qEl = r.querySelector('[data-field="quantity"]');
         var qty = Math.max(1, parseInt((qEl && qEl.value) || "1", 10) || 1);
-        for (var i = 0; i < qty; i++) devices.push({ category: c, model: model });
+        for (var i = 0; i < qty; i++) devices.push({ category: c, model: model, puerto: puerto });
       });
       return {
         internet: val("internet-tipo"), ont: val("ont-modelo"),
@@ -374,10 +377,10 @@
       }
 
       var terminals = f.terminals.map(function (t) {
-        return { label: "📞 " + t.model + (t.ext ? " " + t.ext : ""), type: "terminal", model: t.model };
+        return { label: "📞 " + t.model + (t.ext ? " " + t.ext : ""), type: "terminal", model: t.model, puerto: t.puerto || "" };
       });
       var devs = otherDevs.map(function (d) {
-        return { label: d.model, type: d.category === "ap" ? "ap" : "device", model: d.model };
+        return { label: d.model, type: d.category === "ap" ? "ap" : "device", model: d.model, puerto: d.puerto || "" };
       });
 
       // Reparte una lista de endpoints en FILAS centradas bajo un ancla (no en
@@ -401,10 +404,20 @@
 
       var routerAnchor = router ? { node: router, x: routerX, y: 210 } : null;
       if (switchNodes.length >= 2) {
-        // Como en el diagrama final: teléfonos al switch de telefonía (1º) y el
-        // resto de dispositivos al switch de datos (2º).
-        placeEndpoints(terminals, switchNodes[0]);
-        placeEndpoints(devs, switchNodes[1]);
+        // Respetar el switch elegido por puerto (como el diagrama final):
+        // "TEL-*" -> switch de telefonía (1º); "DAT-*" -> switch de datos (2º).
+        // Sin prefijo/Auto -> por defecto: teléfonos al 1º, resto al 2º.
+        function switchFor(ep, isTerminal) {
+          var p = (ep.puerto || "").toUpperCase();
+          if (p.indexOf("DAT-") === 0) return switchNodes[1];
+          if (p.indexOf("TEL-") === 0) return switchNodes[0];
+          return isTerminal ? switchNodes[0] : switchNodes[1];
+        }
+        var g0 = [], g1 = [];
+        terminals.forEach(function (t) { (switchFor(t, true) === switchNodes[1] ? g1 : g0).push(t); });
+        devs.forEach(function (d) { (switchFor(d, false) === switchNodes[0] ? g0 : g1).push(d); });
+        placeEndpoints(g0, switchNodes[0]);
+        placeEndpoints(g1, switchNodes[1]);
       } else if (switchNodes.length === 1) {
         placeEndpoints(terminals.concat(devs), switchNodes[0]);
       } else {
