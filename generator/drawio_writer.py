@@ -120,6 +120,17 @@ def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryI
             label_id = ids.next()
             _text_cell(root, label_id, f"<font><b>{node.label}</b></font>", TEXT_STYLE, node.x + 25, node.y + 25, 70, 25)
             continue
+        if node.kind == "floor":
+            # Contenedor de piso/planta: rectángulo de fondo con la etiqueta arriba.
+            # Se añade directo al root (no diferido) para quedar DETRÁS de los equipos.
+            style = (
+                "rounded=1;whiteSpace=wrap;html=1;fillColor=#eef4fb;strokeColor=#4a6b8a;"
+                "dashed=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=6;"
+                "fontStyle=1;fontColor=#33526b;fontSize=13;opacity=70;"
+            )
+            cell = etree.SubElement(root, "mxCell", {"id": cell_id, "value": node.label, "style": style, "parent": "1", "vertex": "1"})
+            _geom(cell, node.x, node.y, node.width, node.height)
+            continue
 
         item = library.find(node.icon_model or node.model or "")
         if not item and node.icon_model and node.model and node.icon_model != node.model:

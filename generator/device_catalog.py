@@ -180,5 +180,9 @@ def devices_json_to_equipos(raw_json: str) -> list[dict]:
                 equipo["conectar_a"] = "switch1"
         elif re.match(r"^(?:(?:TEL|DAT)-)?ETH\d{1,2}$", puerto):
             equipo["puerto"] = puerto
+        # Piso/planta asignado (para dibujar el contenedor de piso en el diagrama).
+        piso = str(item.get("piso", "")).strip()
+        if piso:
+            equipo["piso"] = piso
         equipos.append(equipo)
     return equipos

@@ -274,7 +274,8 @@ def _make_switch_node(key: str, switch_eq: dict, x: int, y: int) -> NodeSpec:
         y=y,
         width=DEVICE_WIDTH,
         height=DEVICE_HEIGHT,
-        meta={"propiedad": _ownership(switch_eq), "label_above": True},
+        meta={"propiedad": _ownership(switch_eq), "label_above": True,
+              "piso": _safe(switch_eq.get("piso", "")).strip()},
         icon_model=display_name,
     )
 
@@ -452,8 +453,44 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
         dect_handset_totals=count_dect_handsets_per_base(device_equipos),
     )
     _place_equipment_rows(data, state)
+    _place_floor_containers(nodes, edges)
     _place_summary_nodes(data, nodes)
     return nodes, edges
+
+
+def _place_floor_containers(nodes: list[NodeSpec], edges: list[EdgeSpec]) -> None:
+    """Dibuja un rectángulo 'Piso N' que engloba cada switch con piso asignado y
+    los equipos que cuelgan de él. Los contenedores se insertan al principio de
+    `nodes` para quedar DETRÁS del resto (z-order). Sin pisos asignados no hace nada."""
+    targets_by_source: dict[str, list[str]] = {}
+    for e in edges:
+        targets_by_source.setdefault(e.source, []).append(e.target)
+    node_by_key = {n.key: n for n in nodes}
+    floors: dict[str, set[str]] = {}
+    for n in nodes:
+        piso = (n.meta or {}).get("piso") if n.meta else ""
+        if n.kind == "device" and piso:
+            keys = {n.key}
+            keys.update(targets_by_source.get(n.key, []))
+            floors.setdefault(str(piso), set()).update(keys)
+    if not floors:
+        return
+    pad = 30
+    containers: list[NodeSpec] = []
+    for piso, keys in floors.items():
+        ns = [node_by_key[k] for k in keys if k in node_by_key]
+        if not ns:
+            continue
+        minx = min(m.x for m in ns) - pad
+        miny = min(m.y for m in ns) - pad - 22
+        maxx = max(m.x + m.width for m in ns) + pad
+        maxy = max(m.y + m.height for m in ns) + pad
+        label = piso if piso.lower().startswith("piso") else f"Piso {piso}"
+        containers.append(
+            NodeSpec(key=f"floor_{piso}", kind="floor", label=label,
+                     x=int(minx), y=int(miny), width=int(maxx - minx), height=int(maxy - miny))
+        )
+    nodes[:0] = containers
 
 
 def build_rack_layout(data: dict) -> tuple[list[NodeSpec], list[EdgeSpec]]:
