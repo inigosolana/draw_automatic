@@ -336,11 +336,13 @@
         if (!model) return;
         var pEl = r.querySelector('[data-field="puerto"]');
         var puerto = pEl ? pEl.value.trim() : "";
+        var cEl = r.querySelector('[data-field="conectar"]');
+        var conectar = cEl ? cEl.value.trim() : "router";
         // Expandir por cantidad: 2 switches (o 1 fila con cantidad 2) => 2 cajas,
         // igual que en el diagrama final.
         var qEl = r.querySelector('[data-field="quantity"]');
         var qty = Math.max(1, parseInt((qEl && qEl.value) || "1", 10) || 1);
-        for (var i = 0; i < qty; i++) devices.push({ category: c, model: model, puerto: puerto });
+        for (var i = 0; i < qty; i++) devices.push({ category: c, model: model, puerto: puerto, conectar: conectar });
       });
       return {
         internet: val("internet-tipo"), ont: val("ont-modelo"),
@@ -369,10 +371,15 @@
       if (switchDevs.length) {
         var startX = routerX - (switchDevs.length - 1) * SW_SPACING / 2;
         switchDevs.forEach(function (sd, i) {
-          var sx = Math.max(20, startX + i * SW_SPACING);
-          var sw = addBox(sd.model, sx, SW_Y, "switch", sd.model);
-          if (router) links.push({ a: router, b: sw });
-          switchNodes.push({ node: sw, x: sx, y: SW_Y });
+          // Cascada: el 2º switch con conectar="switch1" cuelga del 1er switch
+          // (debajo) en vez del router.
+          var cascada = i >= 1 && sd.conectar === "switch1" && switchNodes.length >= 1;
+          var sx = cascada ? switchNodes[0].x : Math.max(20, startX + i * SW_SPACING);
+          var sy = cascada ? SW_Y + 150 : SW_Y;
+          var sw = addBox(sd.model, sx, sy, "switch", sd.model);
+          if (cascada) links.push({ a: switchNodes[0].node, b: sw });
+          else if (router) links.push({ a: router, b: sw });
+          switchNodes.push({ node: sw, x: sx, y: sy });
         });
       }
 

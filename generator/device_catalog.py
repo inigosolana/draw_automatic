@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from .library_loader import load_library
 
 SWITCH_MODELS: list[str] = [
@@ -166,9 +168,15 @@ def devices_json_to_equipos(raw_json: str) -> list[dict]:
             "cantidad": cantidad,
             "propiedad": propiedad,
         }
-        # Puerto ETH elegido manualmente (ETH3/4/5); el layout lo respeta.
+        # Puerto ETH elegido manualmente. Formatos válidos: ETH<n> (router/switch),
+        # TEL-ETH<n> / DAT-ETH<n> (switch telefonía/datos). El layout (_override_port) valida.
         puerto = str(item.get("puerto", "")).strip().upper()
-        if puerto in ("ETH3", "ETH4", "ETH5"):
+        if re.match(r"^(?:(?:TEL|DAT)-)?ETH\d{1,2}$", puerto):
             equipo["puerto"] = puerto
+        # Switch: a qué se conecta (router por defecto, o el 1er switch en cascada).
+        if tipo == "switch":
+            conectar = str(item.get("conectar", item.get("conectar_a", "router"))).strip().lower()
+            if conectar in ("switch1", "switch"):
+                equipo["conectar_a"] = "switch1"
         equipos.append(equipo)
     return equipos

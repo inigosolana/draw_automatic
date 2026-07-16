@@ -294,6 +294,8 @@ def _place_switch(
     switch_y = router_node.y + router_node.height + ROUTER_SWITCH_GAP
 
     if has_dual_switch:
+        # ¿El 2º switch cuelga del 1º (cascada) en vez del router?
+        cascada = str(switches[1].get("conectar_a", "")).strip().lower() == "switch1"
         canvas_left, canvas_right = _canvas_bounds()
         usable = canvas_right - canvas_left
         switch_tel = _make_switch_node(
@@ -302,15 +304,23 @@ def _place_switch(
             int(canvas_left + usable * 0.30 - DEVICE_WIDTH / 2),
             switch_y,
         )
-        switch_datos = _make_switch_node(
-            "switch_datos",
-            switches[1],
-            int(canvas_left + usable * 0.70 - DEVICE_WIDTH / 2),
-            switch_y,
-        )
+        if cascada:
+            # switch_datos debajo del switch_tel, colgando de él (cascada vertical).
+            switch_datos = _make_switch_node(
+                "switch_datos",
+                switches[1],
+                switch_tel.x,
+                switch_y + DEVICE_HEIGHT + ROUTER_SWITCH_GAP,
+            )
+        else:
+            switch_datos = _make_switch_node(
+                "switch_datos",
+                switches[1],
+                int(canvas_left + usable * 0.70 - DEVICE_WIDTH / 2),
+                switch_y,
+            )
         nodes.extend([switch_tel, switch_datos])
         exit_tel = _anchor_exit_x(router_node, switch_tel)
-        exit_datos = _anchor_exit_x(router_node, switch_datos)
         edges.append(
             EdgeSpec(
                 "router",
@@ -325,20 +335,37 @@ def _place_switch(
                 label_offset_y=-32,
             )
         )
-        edges.append(
-            EdgeSpec(
-                "router",
-                "switch_datos",
-                label="ETH4-LAN",
-                exit_x=exit_datos,
-                exit_y=1.0,
-                entry_x=0.5,
-                entry_y=0.0,
-                waypoints=_router_switch_waypoints(router_node, switch_datos, exit_x=exit_datos, lane_index=1),
-                label_offset_x=24,
-                label_offset_y=-36,
+        if cascada:
+            # El 2º switch cuelga en vertical del 1º.
+            edges.append(
+                EdgeSpec(
+                    "switch",
+                    "switch_datos",
+                    label="ETH1",
+                    exit_x=0.5,
+                    exit_y=1.0,
+                    entry_x=0.5,
+                    entry_y=0.0,
+                    label_offset_x=10,
+                    label_offset_y=25,
+                )
             )
-        )
+        else:
+            exit_datos = _anchor_exit_x(router_node, switch_datos)
+            edges.append(
+                EdgeSpec(
+                    "router",
+                    "switch_datos",
+                    label="ETH4-LAN",
+                    exit_x=exit_datos,
+                    exit_y=1.0,
+                    entry_x=0.5,
+                    entry_y=0.0,
+                    waypoints=_router_switch_waypoints(router_node, switch_datos, exit_x=exit_datos, lane_index=1),
+                    label_offset_x=24,
+                    label_offset_y=-36,
+                )
+            )
         return True, True
 
     switch = switches[0]
