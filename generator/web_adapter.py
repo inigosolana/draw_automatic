@@ -107,6 +107,8 @@ def _terminal_detail_keys(parts: list[str]) -> tuple[str, ...]:
         and any(char.isalpha() for char in parts[0])
     )
     if has_model:
+        if len(parts) >= 9:
+            return ("model", "extension", "serial_number", "mac", "ip", "propiedad", "dect_base", "puerto", "piso")
         if len(parts) >= 8:
             return ("model", "extension", "serial_number", "mac", "ip", "propiedad", "dect_base", "puerto")
         if len(parts) >= 7:
@@ -170,7 +172,7 @@ def _expand_terminal_equipment(equipos: list[dict], details: list[dict]) -> list
             extension = detail.get("extension") or (extensions[index] if index < len(extensions) else "")
             if extension:
                 item["extension"] = extension
-            for key in ("serial_number", "mac", "ip", "propiedad", "dect_base", "puerto"):
+            for key in ("serial_number", "mac", "ip", "propiedad", "dect_base", "puerto", "piso"):
                 if detail.get(key):
                     item[key] = detail[key]
             expanded.append(item)

@@ -133,7 +133,50 @@
             }
           }
 
+          function numPisos() {
+            const inp = document.getElementById("num-pisos");
+            let n = inp ? parseInt(inp.value, 10) : 2;
+            if (!(n >= 1)) n = 2;
+            return Math.min(n, 20);
+          }
+
+          function floorOptionsHtml(selected) {
+            const opts = ['<option value="">— sin piso —</option>'];
+            const n = numPisos();
+            for (let i = 1; i <= n; i += 1) {
+              opts.push('<option value="' + i + '"' + (String(selected) === String(i) ? " selected" : "") + ">Piso " + i + "</option>");
+            }
+            return opts.join("");
+          }
+
+          function updateFloorVisibility() {
+            const cb = document.getElementById("tiene-pisos");
+            const tienePisos = cb ? cb.checked : false;
+            terminalRows.querySelectorAll(".terminal-row").forEach(function (row) {
+              const floor = row.querySelector(".terminal-floor");
+              if (!floor) return;
+              const sel = floor.querySelector('[data-field="piso"]');
+              if (tienePisos) {
+                floor.style.display = "";
+                if (sel) {
+                  const prev = sel.value;
+                  sel.innerHTML = floorOptionsHtml(prev);
+                  if (sel.value !== prev) sel.value = "";
+                }
+              } else {
+                floor.style.display = "none";
+                if (sel) sel.value = "";
+              }
+            });
+          }
+
+          document.addEventListener("drawio:pisos-changed", function () {
+            updateFloorVisibility();
+            syncTerminalRows();
+          });
+
           function syncTerminalRows() {
+            updateFloorVisibility();
             const detailLines = [];
             const equipmentLines = [];
             terminalRows.querySelectorAll(".terminal-row").forEach(function (row) {
@@ -146,10 +189,13 @@
               const ownership = row.querySelector('[data-field="ownership"]').value;
               const puertoField = row.querySelector('[data-field="puerto"]');
               const puerto = puertoField ? puertoField.value.trim() : "";
+              const pisoField = row.querySelector('[data-field="piso"]');
+              const piso = pisoField ? pisoField.value.trim() : "";
               if (!model && !extension && !serial && !mac && !ip) return;
               // El puerto ETH (8º campo) solo se guarda para terminales VoIP (no DECT).
               const puertoDetail = !isDectHandset(model) ? puerto : "";
-              detailLines.push([model, extension, serial, mac, ip, ownership, dectBase, puertoDetail].join(" | "));
+              // Piso (9º campo) para el contenedor de piso en el diagrama.
+              detailLines.push([model, extension, serial, mac, ip, ownership, dectBase, puertoDetail, piso].join(" | "));
               if (model) {
                 const extensionText = extension ? `, extension ${extension}` : "";
                 const baseText = isDectHandset(model) && dectBase ? `, base ${dectBase}` : "";
@@ -180,6 +226,7 @@
               ownership: values.ownership || "propio",
               dectBase: values.dectBase || values.dect_base || "",
               puerto: values.puerto || "",
+              piso: values.piso || "",
             };
           }
 
@@ -234,7 +281,8 @@
                   <option value="ajeno"${values.ownership === "ajeno" ? " selected" : ""}>Ajeno</option>
                 </select>
               </label>
-              <button type="button" class="remove-terminal" title="Eliminar terminal" aria-label="Eliminar terminal">×</button>`;
+              <button type="button" class="remove-terminal" title="Eliminar terminal" aria-label="Eliminar terminal">×</button>
+              <label class="row-field terminal-floor" style="grid-column:1/-1;display:none"><span class="field-mobile-label">Piso</span><select data-field="piso" aria-label="Piso">${floorOptionsHtml(values.piso)}</select></label>`;
             row.querySelectorAll("input, select").forEach(function (field) {
               field.addEventListener("input", syncTerminalRows);
               field.addEventListener("change", syncTerminalRows);
