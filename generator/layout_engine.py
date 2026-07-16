@@ -455,27 +455,27 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
         dect_handset_totals=count_dect_handsets_per_base(device_equipos),
     )
     _place_equipment_rows(data, state)
+    _separate_floors(nodes, edges)
     _place_floor_containers(nodes, edges)
     _place_summary_nodes(data, nodes)
     return nodes, edges
 
 
-def _place_floor_containers(nodes: list[NodeSpec], edges: list[EdgeSpec]) -> None:
-    """Dibuja un rectángulo 'Piso N' que engloba todos los equipos de ese piso.
-    Cada nodo con meta['piso'] cuenta; además un switch (o el router) con piso
-    arrastra los equipos colgados que no tienen piso propio. Los contenedores se
-    insertan al principio de `nodes` (z detrás). Sin pisos asignados no hace nada."""
+def _piso_of(node: NodeSpec) -> str:
+    return str((node.meta or {}).get("piso") or "").strip() if node.meta else ""
+
+
+def _compute_floors(nodes: list[NodeSpec], edges: list[EdgeSpec]) -> dict[str, set[str]]:
+    """Agrupa las keys de nodos por piso. Cada nodo con meta['piso'] cuenta;
+    un switch/router con piso arrastra sus colgantes SIN piso (los switches
+    colgantes no heredan). Devuelve {piso: set(keys)}."""
     targets_by_source: dict[str, list[str]] = {}
     for e in edges:
         targets_by_source.setdefault(e.source, []).append(e.target)
     node_by_key = {n.key: n for n in nodes}
-
-    def _piso(node: NodeSpec) -> str:
-        return str((node.meta or {}).get("piso") or "").strip() if node.meta else ""
-
     floors: dict[str, set[str]] = {}
     for n in nodes:
-        piso = _piso(n)
+        piso = _piso_of(n)
         if not piso:
             continue
         floors.setdefault(piso, set()).add(n.key)
@@ -483,11 +483,45 @@ def _place_floor_containers(nodes: list[NodeSpec], edges: list[EdgeSpec]) -> Non
         if es_switch or n.key == "router":
             for t in targets_by_source.get(n.key, []):
                 tn = node_by_key.get(t)
-                # Solo heredan los DISPOSITIVOS. Un switch colgante NO hereda el
-                # piso del padre: puede estar en otra planta (cable entre plantas).
-                t_es_switch = t in {"switch", "switch_datos"} or (tn.meta or {}).get("tipo") == "switch" if tn else False
-                if tn is not None and not _piso(tn) and not t_es_switch:
+                t_es_switch = (t in {"switch", "switch_datos"} or (tn.meta or {}).get("tipo") == "switch") if tn else False
+                if tn is not None and not _piso_of(tn) and not t_es_switch:
                     floors[piso].add(t)
+    return floors
+
+
+def _separate_floors(nodes: list[NodeSpec], edges: list[EdgeSpec]) -> None:
+    """Separa los pisos en BANDAS verticales para que sus cuadros no se solapen.
+    Apila los pisos por orden numérico, desplazando hacia abajo los que invaden
+    la banda del piso anterior. Solo actúa si hay >=2 pisos. No mueve nodos sin piso."""
+    floors = _compute_floors(nodes, edges)
+    if len(floors) < 2:
+        return
+    node_by_key = {n.key: n for n in nodes}
+    order = sorted(floors.keys(), key=lambda p: (int("".join(c for c in p if c.isdigit()) or "999")))
+    GAP = 90
+    cursor = None  # borde inferior ocupado
+    for piso in order:
+        ns = [node_by_key[k] for k in floors[piso] if k in node_by_key]
+        if not ns:
+            continue
+        ymin = min(n.y for n in ns)
+        ymax = max(n.y + n.height for n in ns)
+        if cursor is None:
+            cursor = ymax
+            continue
+        if ymin < cursor + GAP:
+            delta = int(cursor + GAP - ymin)
+            for n in ns:
+                n.y += delta
+            ymax += delta
+        cursor = ymax
+
+
+def _place_floor_containers(nodes: list[NodeSpec], edges: list[EdgeSpec]) -> None:
+    """Dibuja un rectángulo 'Piso N' que engloba los equipos de cada piso.
+    Se inserta al principio de `nodes` (z detrás). Sin pisos no hace nada."""
+    node_by_key = {n.key: n for n in nodes}
+    floors = _compute_floors(nodes, edges)
     if not floors:
         return
     pad = 30
