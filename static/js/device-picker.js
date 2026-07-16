@@ -300,6 +300,13 @@
             if (wrap) wrap.style.display = tienePisos ? "" : "none";
             const rpWrap = document.getElementById("router-piso-wrap");
             if (rpWrap) rpWrap.style.display = tienePisos ? "" : "none";
+            // El desplegable de piso del router respeta el Nº de pisos (Piso 1..N).
+            const rpSel = document.getElementById("router-piso");
+            if (rpSel) {
+              const prevRp = rpSel.value;
+              rpSel.innerHTML = floorOptionsHtml(prevRp);
+              if (rpSel.value !== prevRp) rpSel.value = "";
+            }
             const state = currentSwitchState();
             deviceRows.querySelectorAll(".device-row").forEach(function (row) {
               const floor = row.querySelector(".device-floor");
