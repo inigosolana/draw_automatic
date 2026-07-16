@@ -250,24 +250,44 @@
             updateFloorVisibility();
           }
 
+          function numPisos() {
+            const inp = document.getElementById("num-pisos");
+            let n = inp ? parseInt(inp.value, 10) : 2;
+            if (!(n >= 1)) n = 2;
+            return Math.min(n, 20);
+          }
+
+          function floorOptionsHtml(selected) {
+            const opts = ['<option value="">— sin piso —</option>'];
+            const n = numPisos();
+            for (let i = 1; i <= n; i += 1) {
+              opts.push('<option value="' + i + '"' + (selected === String(i) ? " selected" : "") + ">Piso " + i + "</option>");
+            }
+            return opts.join("");
+          }
+
           function updateFloorVisibility() {
-            // El desplegable de piso solo aparece en filas de SWITCH cuando el
-            // checkbox "El cliente tiene varios pisos" está activado.
-            const tienePisos = (function () {
-              const cb = document.getElementById("tiene-pisos");
-              return cb ? cb.checked : false;
-            })();
+            // Con el tick activo, el desplegable de piso aparece en TODAS las filas
+            // (switches y dispositivos). También muestra/oculta el input Nº de pisos.
+            const cb = document.getElementById("tiene-pisos");
+            const tienePisos = cb ? cb.checked : false;
+            const wrap = document.getElementById("num-pisos-wrap");
+            if (wrap) wrap.style.display = tienePisos ? "" : "none";
             deviceRows.querySelectorAll(".device-row").forEach(function (row) {
-              const cat = row.querySelector('[data-field="category"]');
               const floor = row.querySelector(".device-floor");
               if (!floor) return;
-              const isSwitch = cat && cat.value === "switch";
-              if (tienePisos && isSwitch) {
+              const sel = floor.querySelector('[data-field="piso"]');
+              if (tienePisos) {
                 floor.style.display = "";
+                // Regenera opciones Piso 1..N preservando el valor si sigue válido.
+                if (sel) {
+                  const prev = sel.value;
+                  sel.innerHTML = floorOptionsHtml(prev);
+                  if (sel.value !== prev) sel.value = "";
+                }
               } else {
                 floor.style.display = "none";
-                const sel = floor.querySelector('[data-field="piso"]');
-                if (sel && !isSwitch) sel.value = "";
+                if (sel) sel.value = "";
               }
             });
           }
@@ -342,7 +362,7 @@
               </label>
               <label class="row-field"><span class="field-mobile-label">Puerto</span><select data-field="puerto" aria-label="Puerto ETH">${puertoOptionsHtml(values.puerto, currentSwitchState())}</select></label>
               <button type="button" class="remove-device" title="Eliminar dispositivo" aria-label="Eliminar dispositivo">×</button>
-              <label class="row-field device-floor" style="grid-column:1/-1;display:none"><span class="field-mobile-label">Piso</span><select data-field="piso" aria-label="Piso"><option value="">— sin piso —</option><option value="1"${values.piso === "1" ? " selected" : ""}>Piso 1</option><option value="2"${values.piso === "2" ? " selected" : ""}>Piso 2</option><option value="3"${values.piso === "3" ? " selected" : ""}>Piso 3</option><option value="4"${values.piso === "4" ? " selected" : ""}>Piso 4</option><option value="5"${values.piso === "5" ? " selected" : ""}>Piso 5</option><option value="6"${values.piso === "6" ? " selected" : ""}>Piso 6</option></select></label>`;
+              <label class="row-field device-floor" style="grid-column:1/-1;display:none"><span class="field-mobile-label">Piso</span><select data-field="piso" aria-label="Piso">${floorOptionsHtml(values.piso)}</select></label>`;
             const categoryField = row.querySelector('[data-field="category"]');
             if (values.category) {
               categoryField.value = values.category;
@@ -410,7 +430,17 @@
             tienePisosCheckbox.addEventListener("change", function () {
               updateFloorVisibility();
               syncDeviceRows();
+              document.dispatchEvent(new CustomEvent("drawio:pisos-changed"));
             });
+          }
+          const numPisosInput = document.getElementById("num-pisos");
+          if (numPisosInput) {
+            numPisosInput.addEventListener("change", function () {
+              updateFloorVisibility();
+              syncDeviceRows();
+              document.dispatchEvent(new CustomEvent("drawio:pisos-changed"));
+            });
+            numPisosInput.addEventListener("input", updateFloorVisibility);
           }
           updateSwitchTelefoniaVisibility();
           updateFloorVisibility();

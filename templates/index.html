@@ -358,6 +358,11 @@
                   >
                   El cliente tiene varios pisos/plantas
                 </label>
+                <label class="switch-telefonia-option" id="num-pisos-wrap" style="display:none">
+                  Nº de pisos/plantas:
+                  <input type="number" name="num_pisos" id="num-pisos" min="2" max="6" step="1"
+                         value="{{ form_data.get('num_pisos', '2') }}" style="width:60px;margin-left:6px">
+                </label>
               </div>
           </section>
 

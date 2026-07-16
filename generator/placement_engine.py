@@ -570,6 +570,7 @@ def _place_dect_handset(
                 "tipo": team.get("tipo"),
                 "dect_role": "handset",
                 "propiedad": _ownership(team),
+                "piso": _safe(team.get("piso", "")).strip(),
             },
         )
     )
@@ -617,6 +618,7 @@ def _place_device_row(
                 "tipo": team.get("tipo"),
                 "dect_role": "base" if is_dect_base else "",
                 "propiedad": _ownership(team),
+                "piso": _safe(team.get("piso", "")).strip(),
             },
         )
     )

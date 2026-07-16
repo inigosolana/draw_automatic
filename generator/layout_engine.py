@@ -152,6 +152,7 @@ def _place_internet_stack(
                 y=120,
                 width=150,
                 height=150,
+                meta={"piso": _safe(data.get("router", {}).get("piso", "")).strip()},
             )
         )
         edges.append(EdgeSpec("inet", "router", exit_x=1.0, exit_y=0.5, entry_x=0.0, entry_y=0.5))
@@ -187,6 +188,7 @@ def _place_internet_stack(
                 y=120,
                 width=150,
                 height=150,
+                meta={"piso": _safe(data.get("router", {}).get("piso", "")).strip()},
             ),
         ]
     )
@@ -459,20 +461,30 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
 
 
 def _place_floor_containers(nodes: list[NodeSpec], edges: list[EdgeSpec]) -> None:
-    """Dibuja un rectángulo 'Piso N' que engloba cada switch con piso asignado y
-    los equipos que cuelgan de él. Los contenedores se insertan al principio de
-    `nodes` para quedar DETRÁS del resto (z-order). Sin pisos asignados no hace nada."""
+    """Dibuja un rectángulo 'Piso N' que engloba todos los equipos de ese piso.
+    Cada nodo con meta['piso'] cuenta; además un switch (o el router) con piso
+    arrastra los equipos colgados que no tienen piso propio. Los contenedores se
+    insertan al principio de `nodes` (z detrás). Sin pisos asignados no hace nada."""
     targets_by_source: dict[str, list[str]] = {}
     for e in edges:
         targets_by_source.setdefault(e.source, []).append(e.target)
     node_by_key = {n.key: n for n in nodes}
+
+    def _piso(node: NodeSpec) -> str:
+        return str((node.meta or {}).get("piso") or "").strip() if node.meta else ""
+
     floors: dict[str, set[str]] = {}
     for n in nodes:
-        piso = (n.meta or {}).get("piso") if n.meta else ""
-        if n.kind == "device" and piso:
-            keys = {n.key}
-            keys.update(targets_by_source.get(n.key, []))
-            floors.setdefault(str(piso), set()).update(keys)
+        piso = _piso(n)
+        if not piso:
+            continue
+        floors.setdefault(piso, set()).add(n.key)
+        es_switch = n.key in {"switch", "switch_datos"} or (n.meta or {}).get("tipo") == "switch"
+        if es_switch or n.key == "router":
+            for t in targets_by_source.get(n.key, []):
+                tn = node_by_key.get(t)
+                if tn is not None and not _piso(tn):
+                    floors[piso].add(t)
     if not floors:
         return
     pad = 30
