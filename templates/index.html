@@ -347,6 +347,17 @@
                   >
                   Switch conectado a telefonía
                 </label>
+                <label class="switch-telefonia-option" id="tiene-pisos-wrap">
+                  <input type="hidden" name="tiene_pisos" value="0">
+                  <input
+                    type="checkbox"
+                    name="tiene_pisos"
+                    id="tiene-pisos"
+                    value="1"
+                    {% if form_data.get('tiene_pisos', '0') in ('1', 'true', 'on', 'yes') %}checked{% endif %}
+                  >
+                  El cliente tiene varios pisos/plantas
+                </label>
               </div>
           </section>
 

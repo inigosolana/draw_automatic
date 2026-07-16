@@ -233,6 +233,8 @@
                 }
               }
               if (!modelo) return;
+              const pisoField = row.querySelector('[data-field="piso"]');
+              const piso = pisoField ? pisoField.value : "";
               payload.push({
                 category: categoryId,
                 tipo: category.tipo,
@@ -240,10 +242,34 @@
                 cantidad: cantidad,
                 propiedad: propiedad,
                 puerto: puerto,
+                piso: piso,
               });
             });
             devicesJson.value = JSON.stringify(payload);
             updateSwitchTelefoniaVisibility();
+            updateFloorVisibility();
+          }
+
+          function updateFloorVisibility() {
+            // El desplegable de piso solo aparece en filas de SWITCH cuando el
+            // checkbox "El cliente tiene varios pisos" está activado.
+            const tienePisos = (function () {
+              const cb = document.getElementById("tiene-pisos");
+              return cb ? cb.checked : false;
+            })();
+            deviceRows.querySelectorAll(".device-row").forEach(function (row) {
+              const cat = row.querySelector('[data-field="category"]');
+              const floor = row.querySelector(".device-floor");
+              if (!floor) return;
+              const isSwitch = cat && cat.value === "switch";
+              if (tienePisos && isSwitch) {
+                floor.style.display = "";
+              } else {
+                floor.style.display = "none";
+                const sel = floor.querySelector('[data-field="piso"]');
+                if (sel && !isSwitch) sel.value = "";
+              }
+            });
           }
 
           function hasDuplicatePorts() {
@@ -315,7 +341,8 @@
                 </select>
               </label>
               <label class="row-field"><span class="field-mobile-label">Puerto</span><select data-field="puerto" aria-label="Puerto ETH">${puertoOptionsHtml(values.puerto, currentSwitchState())}</select></label>
-              <button type="button" class="remove-device" title="Eliminar dispositivo" aria-label="Eliminar dispositivo">×</button>`;
+              <button type="button" class="remove-device" title="Eliminar dispositivo" aria-label="Eliminar dispositivo">×</button>
+              <label class="row-field device-floor" style="grid-column:1/-1;display:none"><span class="field-mobile-label">Piso</span><select data-field="piso" aria-label="Piso"><option value="">— sin piso —</option><option value="1"${values.piso === "1" ? " selected" : ""}>Piso 1</option><option value="2"${values.piso === "2" ? " selected" : ""}>Piso 2</option><option value="3"${values.piso === "3" ? " selected" : ""}>Piso 3</option><option value="4"${values.piso === "4" ? " selected" : ""}>Piso 4</option><option value="5"${values.piso === "5" ? " selected" : ""}>Piso 5</option><option value="6"${values.piso === "6" ? " selected" : ""}>Piso 6</option></select></label>`;
             const categoryField = row.querySelector('[data-field="category"]');
             if (values.category) {
               categoryField.value = values.category;
@@ -378,7 +405,15 @@
           if (switchTelefoniaCheckbox) {
             switchTelefoniaCheckbox.addEventListener("change", updateSwitchTelefoniaVisibility);
           }
+          const tienePisosCheckbox = document.getElementById("tiene-pisos");
+          if (tienePisosCheckbox) {
+            tienePisosCheckbox.addEventListener("change", function () {
+              updateFloorVisibility();
+              syncDeviceRows();
+            });
+          }
           updateSwitchTelefoniaVisibility();
+          updateFloorVisibility();
           window.__drawioDevices = {
             rows: deviceRows,
             addRow: addDeviceRow,
