@@ -320,14 +320,32 @@
 
     // ---- autorrelleno desde el formulario ----
     function val(id) { var e = document.getElementById(id); return e ? String(e.value || "").trim() : ""; }
+    // Clave de orden equivalente a _ext_ip_sort_key del backend: con extensión
+    // primero (numérica ascendente), luego por IP; los sin extensión al final.
+    // Devuelve una cadena de ancho fijo para comparar con localeCompare.
+    function _termOrderKey(t) {
+      var digits = (t.ext || "").replace(/\D/g, "");
+      var hasExt = digits ? "0" : "1";
+      var extNum = digits ? ("0000000000" + digits).slice(-10) : "9999999999";
+      var parts = (t.ip || "").split(".");
+      var ipKey = (parts.length === 4 && parts.every(function (p) { return /^\d+$/.test(p); }))
+        ? parts.map(function (p) { return ("000" + p).slice(-3); }).join(".")
+        : "999.999.999.999";
+      return hasExt + "|" + extNum + "|" + ipKey;
+    }
     function readForm() {
       var terminals = Array.prototype.map.call(document.querySelectorAll("#terminal-rows .terminal-row"), function (r) {
         var m = r.querySelector('[data-field="model"]');
         var ext = r.querySelector('[data-field="extension"]');
         var p = r.querySelector('[data-field="puerto"]');
         var pi = r.querySelector('[data-field="piso"]');
-        return { model: m ? m.value.trim() : "", ext: ext ? ext.value.trim() : "", puerto: p ? p.value.trim() : "", piso: pi ? pi.value.trim() : "" };
+        var ip = r.querySelector('[data-field="ip"]');
+        return { model: m ? m.value.trim() : "", ext: ext ? ext.value.trim() : "", puerto: p ? p.value.trim() : "", piso: pi ? pi.value.trim() : "", ip: ip ? ip.value.trim() : "" };
       }).filter(function (t) { return t.model; });
+      // Ordenar por extensión (numérica) y luego IP, igual que el diagrama final
+      // (_ext_ip_sort_key): así la vista previa muestra los teléfonos en el mismo
+      // orden (3001, 3002, …) que el .drawio y no en el orden crudo del CRM.
+      terminals.sort(function (a, b) { return _termOrderKey(a).localeCompare(_termOrderKey(b)); });
       var devices = [];
       Array.prototype.forEach.call(document.querySelectorAll("#device-rows .device-row"), function (r) {
         var cat = r.querySelector('[data-field="category"]');
