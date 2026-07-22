@@ -452,6 +452,7 @@ class _DevicePlacementState:
     switch_port_indices: dict[str, int] | None = None
     slot_indices: dict[str, int] | None = None
     bus_lane_counters: dict[str, int] | None = None
+    lower_lane_counters: dict[str, int] | None = None
     dect_base_registry: dict[str, str] | None = None
     ordered_base_keys: list[str] | None = None
     handsets_on_base: dict[str, int] | None = None
@@ -469,6 +470,8 @@ class _DevicePlacementState:
             self.slot_indices = {}
         if self.bus_lane_counters is None:
             self.bus_lane_counters = {}
+        if self.lower_lane_counters is None:
+            self.lower_lane_counters = {}
         if self.dect_base_registry is None:
             self.dect_base_registry = {}
         if self.ordered_base_keys is None:
@@ -544,6 +547,7 @@ class _DevicePlacementState:
     def place_edge(self, anchor_key: str, target_key: str, label: str, row_top_y: int | None = None) -> None:
         anchor = self.node_index[anchor_key]
         target = self.node_index[target_key]
+        layout = self._layout_for(anchor_key)
         lane_index = self.bus_lane_counters.get(anchor_key, 0)
         self.bus_lane_counters[anchor_key] = lane_index + 1
         if anchor_key in SWITCH_ANCHOR_KEYS | {"router"}:
@@ -553,11 +557,22 @@ class _DevicePlacementState:
             # SATURABA en los extremos (0.06/0.94) cuando los equipos quedaban lejos
             # del switch estrecho: varios cables salían del mismo punto y parecía
             # que unas líneas salían de otras. Ahora cada línea arranca del switch.
-            total = max(1, self._layout_for(anchor_key).total_slots)
+            total = max(1, layout.total_slots)
             exit_x = (lane_index + 1) / (total + 1)
         else:
             exit_x = 0.5
-        bus_y = _device_bus_y(anchor, target, row_top_y, lane_index=lane_index)
+        # Si el equipo está en una fila POR DEBAJO de la primera, el cable NO puede
+        # bajar en vertical desde el switch (cruzaría los equipos de arriba). Gira
+        # en una banda JUSTO bajo el switch (encima de la primera fila) y baja por
+        # el centro del equipo, que cae en el HUECO entre los equipos de arriba.
+        first_row_top = layout.equipo_y
+        if target.y > first_row_top + 20:
+            j = self.lower_lane_counters.get(anchor_key, 0)
+            self.lower_lane_counters[anchor_key] = j + 1
+            band_top = anchor.y + anchor.height + 24
+            bus_y = min(band_top + j * 18, first_row_top - 28)
+        else:
+            bus_y = _device_bus_y(anchor, target, row_top_y, lane_index=lane_index)
         waypoints = _bus_waypoints(anchor, target, exit_x=exit_x, bus_y=bus_y)
         label_offset_x, label_offset_y = _cable_label_offset(
             label,

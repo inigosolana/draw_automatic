@@ -74,7 +74,7 @@ class LayoutGoldenTests(unittest.TestCase):
             # Cada cable de dispositivo sale de un punto PROPIO y distinto del
             # switch/router (repartidos a lo ancho del borde inferior), para que
             # ninguna línea parezca salir de otra.
-            (13, 9, "504af351dc203710b72cf7fee900fb42f5f50f0e7c06d875410ab95e060b4719"),
+            (13, 9, "e57432698db7039f919ef99c310881c1303f6701ffe731c27d6665c2e9ab2baa"),
         )
 
     def test_multisite_example_layout_is_stable(self) -> None:
