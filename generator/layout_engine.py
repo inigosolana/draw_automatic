@@ -151,13 +151,24 @@ def _init_office_nodes(data: dict) -> tuple[list[NodeSpec], list[EdgeSpec]]:
     return nodes, []
 
 
-def _provider_needs_red_ont(provider: object) -> bool:
-    """Euskaltel y MásMóvil llevan ONT ZTE marcada en rojo en el diagrama."""
+def _norm_provider(value: object) -> str:
     import unicodedata
 
-    text = unicodedata.normalize("NFKD", str(provider or "")).encode("ascii", "ignore").decode()
-    compact = text.upper().replace(" ", "")
+    text = unicodedata.normalize("NFKD", str(value or "")).encode("ascii", "ignore").decode()
+    return text.upper().replace(" ", "")
+
+
+def _provider_needs_red_ont(provider: object) -> bool:
+    """Euskaltel y MásMóvil llevan ONT ZTE marcada en rojo en el diagrama."""
+    compact = _norm_provider(provider)
     return "EUSKALTEL" in compact or "MASMOVIL" in compact
+
+
+def _ont_is_provider_owned(ont_model: object, provider: object) -> bool:
+    """ONT que es PROPIEDAD del proveedor (p. ej. ADAMO): se dibuja con un icono
+    de ONT normal (genérico) pero con el NOMBRE en rojo, porque el equipo es del
+    proveedor, no del cliente."""
+    return "ADAMO" in _norm_provider(ont_model) or "ADAMO" in _norm_provider(provider)
 
 
 def _place_internet_stack(
@@ -188,9 +199,17 @@ def _place_internet_stack(
         f"<br>{_safe(internet.get('proveedor', ''))}"
     )
     ont_model = data.get("ont", {}).get("modelo", "ONT")
-    if _provider_needs_red_ont(internet.get("proveedor", "")):
+    proveedor = internet.get("proveedor", "")
+    ont_icon: str | None = None  # por defecto el icono se resuelve del modelo
+    if _provider_needs_red_ont(proveedor):
         # Euskaltel y MásMóvil: ONT ZTE con las letras en rojo (aviso visual).
         ont_model = "ONT ZTE"
+        ont_label = f"<font color='#d00000'>{ont_label}</font>"
+    elif _ont_is_provider_owned(ont_model, proveedor):
+        # ADAMO: la ONT no tiene icono propio (salía como caja vacía). Usamos el
+        # icono de ONT normal (genérico) y ponemos el NOMBRE en rojo porque el
+        # equipo es del proveedor, no del cliente.
+        ont_icon = "ONT"
         ont_label = f"<font color='#d00000'>{ont_label}</font>"
     nodes.extend(
         [
@@ -199,6 +218,7 @@ def _place_internet_stack(
                 kind="device",
                 label=ont_label,
                 model=ont_model,
+                icon_model=ont_icon,
                 x=240,
                 y=120,
                 width=150,

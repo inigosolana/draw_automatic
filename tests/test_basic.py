@@ -710,6 +710,24 @@ class BasicTests(unittest.TestCase):
             self.assertGreater(x, 0.0)
             self.assertLess(x, 1.0)
 
+    def test_adamo_ont_uses_normal_icon_with_red_name(self) -> None:
+        data = {
+            "cliente": "Demo",
+            "sede": "Central",
+            "direccion": "Bilbao",
+            "template": "con_switch",
+            "internet": {"tipo": "FIBRA + BACK UP", "velocidad": "300 MB", "proveedor": "ADAMO"},
+            "ont": {"modelo": "ONT ADAMO"},
+            "router": {"modelo": "MikroTik hAP ac2"},
+            "equipos": [{"tipo": "telefono", "modelo": "T-33", "cantidad": 1, "extensiones": ["3001"]}],
+        }
+        nodes, _ = build_layout(data)
+        ont = next(n for n in nodes if n.key == "ont")
+        # Icono de ONT normal (generico), no la caja vacia de "ONT ADAMO".
+        self.assertEqual(ont.icon_model, "ONT")
+        # Nombre en rojo porque el equipo es del proveedor (ADAMO).
+        self.assertIn("#d00000", ont.label)
+
     def test_dual_switches_route_telephony_and_data_separately(self) -> None:
         data = {
             "cliente": "INMOBILIARIA HUMEDO SL",
