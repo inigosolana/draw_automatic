@@ -258,7 +258,8 @@ class CrmImportTests(unittest.TestCase):
                 }
             )
 
-    def test_import_result_requires_mac_on_crm_terminals(self) -> None:
+    def test_import_result_warns_but_imports_terminal_without_mac(self) -> None:
+        # Antes bloqueaba; ahora importa y avisa para completar la MAC a mano.
         payload = {
             **SAMPLE_CRM_PAYLOAD,
             "terminals": [
@@ -269,10 +270,12 @@ class CrmImportTests(unittest.TestCase):
                 }
             ],
         }
-        with self.assertRaisesRegex(CommsError, "MAC"):
-            import_result_from_json_payload(payload)
+        result = import_result_from_json_payload(payload)
+        self.assertEqual(len(result.terminals), 1)
+        self.assertEqual(result.terminals[0]["extension"], "3001")
+        self.assertTrue(any("MAC" in w for w in result.warnings))
 
-    def test_import_result_requires_serial_on_crm_terminals(self) -> None:
+    def test_import_result_warns_but_imports_terminal_without_serial(self) -> None:
         payload = {
             **SAMPLE_CRM_PAYLOAD,
             "terminals": [
@@ -283,8 +286,9 @@ class CrmImportTests(unittest.TestCase):
                 }
             ],
         }
-        with self.assertRaisesRegex(CommsError, "serie"):
-            import_result_from_json_payload(payload)
+        result = import_result_from_json_payload(payload)
+        self.assertEqual(len(result.terminals), 1)
+        self.assertTrue(any("serie" in w for w in result.warnings))
 
     def test_import_result_from_crm_equipments_payload(self) -> None:
         result = import_result_from_json_payload(RESTAURACION_ALBENZAIRE_CRM_PAYLOAD, work_order_id="9012")
@@ -295,7 +299,7 @@ class CrmImportTests(unittest.TestCase):
         self.assertEqual(result.sede, "Sede 1 - PRINCIPAL")
         self.assertEqual(
             result.direccion,
-            "Calle Nueva, 5, Bajo",
+            "Calle Nueva, 5, Bajo. Fuensanta, Pinos Puente 18328, Granada",
         )
         self.assertEqual(result.internet_proveedor, "AIRE")
         self.assertEqual(result.internet_tipo, "FIBRA + BACK UP")
@@ -303,13 +307,22 @@ class CrmImportTests(unittest.TestCase):
         self.assertEqual(result.ont_modelo, "ONT ZTE")
         self.assertEqual(result.router_modelo, "MikroTik hAP ac2")
         self.assertEqual(result.backup_modelo, "WAP LTE")
-        self.assertEqual(len(result.terminals), 3)
-        self.assertEqual(result.terminals[0]["model"], "W71H")
-        self.assertEqual(result.terminals[0]["extension"], "3001")
-        self.assertEqual(result.terminals[0]["dect_base"], "W70B")
-        self.assertEqual(result.terminals[1]["model"], "T-33")
-        self.assertEqual(result.terminals[1]["mac"], "44:DB:D2:9A:A9:6D")
-        self.assertEqual(result.terminals[2]["serial"], "301046H090045964")
+        # La base DECT (W70B) ahora se incluye como terminal con SU propio SN/MAC
+        # (antes se perdía y la base salía en blanco en el diagrama).
+        self.assertEqual(len(result.terminals), 4)
+        by_model = {}
+        for t in result.terminals:
+            by_model.setdefault(t["model"], []).append(t)
+        base = by_model["W70B"][0]
+        self.assertEqual(base["serial"], "202017H052426904")
+        self.assertEqual(base["mac"], "44:DB:D2:F4:12:0A")
+        w71h = by_model["W71H"][0]
+        self.assertEqual(w71h["extension"], "3001")
+        self.assertEqual(w71h["dect_base"], "W70B")
+        t33_macs = {t["mac"] for t in by_model["T-33"]}
+        t33_serials = {t["serial"] for t in by_model["T-33"]}
+        self.assertIn("44:DB:D2:9A:A9:6D", t33_macs)
+        self.assertIn("301046H090045964", t33_serials)
         self.assertTrue(any(device["tipo"] == "wifi" for device in result.devices_json))
         wifi_devices = [device for device in result.devices_json if device["tipo"] == "wifi"]
         self.assertEqual(len(wifi_devices), 1)
@@ -322,7 +335,8 @@ class CrmImportTests(unittest.TestCase):
         )
         self.assertEqual(result.cliente, "RESTAURACION ALBENZAIRE SL")
         self.assertEqual(result.sede, "Sede 1 - PRINCIPAL")
-        self.assertEqual(len(result.terminals), 3)
+        # 3 terminales + la base DECT (W70B) = 4.
+        self.assertEqual(len(result.terminals), 4)
 
     @patch("generator.crm_client.urlopen")
     def test_crm_client_unwraps_status_result_response(self, urlopen_mock) -> None:
@@ -333,14 +347,16 @@ class CrmImportTests(unittest.TestCase):
         result = client.import_work_order("9012")
 
         self.assertEqual(result.sede, "Sede 1 - PRINCIPAL")
-        self.assertEqual(result.terminals[0]["dect_base"], "W70B")
+        # El handset W71H sigue enlazado a su base W70B.
+        w71h = next(t for t in result.terminals if t["model"] == "W71H")
+        self.assertEqual(w71h["dect_base"], "W70B")
 
     def test_sede_ignores_crm_metadata_fields(self) -> None:
         normalized = normalize_work_order_payload(RESTAURACION_ALBENZAIRE_CRM_PAYLOAD)
         self.assertEqual(normalized["sede"], "Sede 1 - PRINCIPAL")
         self.assertEqual(
             normalized["direccion"],
-            "Calle Nueva, 5, Bajo",
+            "Calle Nueva, 5, Bajo. Fuensanta, Pinos Puente 18328, Granada",
         )
         self.assertNotIn("address_id", normalized)
         self.assertNotIn("contact", normalized)

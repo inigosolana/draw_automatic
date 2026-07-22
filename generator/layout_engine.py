@@ -29,13 +29,13 @@ from .equipment_summary import summarize_equipment
 from .placement_engine import (
     _DevicePlacementState,
     _DeviceRowLayout,
+    _append_router_row_layout,
     _compute_device_row_layout,
     _compute_dual_switch_row_layouts,
+    _compute_single_switch_row_layouts,
     _count_device_slots,
-    _device_anchor,
-    _is_telephony_equipment,
-    _layout_anchor_node,
     _place_equipment_rows,
+    _router_anchored_equipos,
 )
 
 # Re-exportados para compatibilidad: drawio_writer importa NodeSpec/EdgeSpec/
@@ -71,6 +71,15 @@ def _parse_switch_telefonia(value: object, *, default: bool = True) -> bool:
     return str(value).strip().lower() in {"1", "on", "true", "yes", "si", "sí"}
 
 
+def _router_lan_ports(model: str) -> int:
+    """Bocas LAN útiles del router. En el hAP ac2/ac3, ETH1=WAN y ETH2=ONT/backup,
+    así que quedan ETH3, ETH4 y ETH5 = 3 bocas. El CHATEAU tiene alguna más."""
+    m = (model or "").lower()
+    if "chateau" in m:
+        return 4
+    return 3
+
+
 def validate_input_data(data: dict) -> list[str]:
     validate_input_schema(data)
     warnings: list[str] = []
@@ -89,6 +98,19 @@ def validate_input_data(data: dict) -> list[str]:
         if qty > len(extensions) and extensions:
             warnings.append(
                 f"El equipo '{team.get('modelo', team.get('tipo', 'Equipo'))}' tiene cantidad {qty} y solo {len(extensions)} extension(es)."
+            )
+    # ¿Más equipos que bocas LAN del router y SIN switch? -> hace falta un switch.
+    equipos = data.get("equipos", [])
+    if not _expand_switch_equipment(equipos):
+        device_equipos = [team for team in equipos if team.get("tipo") != "switch"]
+        slots = _count_device_slots(device_equipos)
+        lan_ports = _router_lan_ports(router_model)
+        if slots > lan_ports:
+            warnings.append(
+                f"Hay {slots} equipos para conectar y el router "
+                f"{router_model or 'hAP'} solo tiene {lan_ports} bocas LAN "
+                f"(ETH3–ETH{lan_ports + 2}). NECESITAS AÑADIR UN SWITCH para "
+                "conectarlos todos."
             )
     return warnings
 
@@ -224,12 +246,16 @@ def _place_backup(
         router_node.label += "<br>BACKUP 4G INTEGRADO"
     elif has_backup_service and backup_model:
         router_node = next(node for node in nodes if node.key == "router")
-        backup_height = 120
+        backup_mac = _safe(internet.get("backup_mac", "")).strip()
+        backup_label = f"<b>{backup_model}</b><br>BACKUP"
+        if backup_mac:
+            backup_label += f"<br>MAC {backup_mac}"
+        backup_height = 140 if backup_mac else 120
         nodes.append(
             NodeSpec(
                 key="backup",
                 kind="device",
-                label=f"<b>{backup_model}</b><br>BACKUP",
+                label=backup_label,
                 model=backup_model,
                 x=router_node.x + router_node.width + ROUTER_BACKUP_GAP,
                 y=router_node.y + max(0, (router_node.height - backup_height) // 2),
@@ -297,78 +323,76 @@ def _place_switch(
     switch_y = router_node.y + router_node.height + ROUTER_SWITCH_GAP
 
     if has_dual_switch:
-        # ¿El 2º switch cuelga del 1º (cascada) en vez del router?
-        cascada = str(switches[1].get("conectar_a", "")).strip().lower() == "switch1"
+        sw1_eq, sw2_eq = switches[0], switches[1]
+        eq_by_key = {"switch": sw1_eq, "switch_datos": sw2_eq}
+        c1 = str(sw1_eq.get("conectar_a", "")).strip().lower()  # "switch2" o ""
+        c2 = str(sw2_eq.get("conectar_a", "")).strip().lower()  # "switch1" o ""
         canvas_left, canvas_right = _canvas_bounds()
         usable = canvas_right - canvas_left
-        switch_tel = _make_switch_node(
-            "switch",
-            switches[0],
-            int(canvas_left + usable * 0.30 - DEVICE_WIDTH / 2),
-            switch_y,
+        center_x = int(canvas_left + usable * 0.30 - DEVICE_WIDTH / 2)
+
+        # ¿Cascada? Un switch cuelga del otro (en cualquier sentido).
+        parent_key = child_key = None
+        if c2 == "switch1":
+            parent_key, child_key = "switch", "switch_datos"       # sw2 cuelga de sw1
+        elif c1 == "switch2":
+            parent_key, child_key = "switch_datos", "switch"       # sw1 cuelga de sw2
+
+        if parent_key:
+            child_eq = eq_by_key[child_key]
+            parent_node = _make_switch_node(parent_key, eq_by_key[parent_key], center_x, switch_y)
+            child_node = _make_switch_node(
+                child_key, child_eq, center_x, switch_y + DEVICE_HEIGHT + ROUTER_SWITCH_GAP
+            )
+            node_switch = parent_node if parent_key == "switch" else child_node
+            node_datos = parent_node if parent_key == "switch_datos" else child_node
+            nodes.extend([node_switch, node_datos])
+            # Router -> switch PADRE (el que sube al router).
+            exit_p = _anchor_exit_x(router_node, parent_node)
+            router_port = str(eq_by_key[parent_key].get("conectar_puerto_router", "")).strip().upper() or "ETH3"
+            edges.append(
+                EdgeSpec(
+                    "router", parent_key, label=f"{router_port}-LAN",
+                    exit_x=exit_p, exit_y=1.0, entry_x=0.5, entry_y=0.0,
+                    waypoints=_router_switch_waypoints(router_node, parent_node, exit_x=exit_p, lane_index=0),
+                    label_offset_x=-24, label_offset_y=-32,
+                )
+            )
+            # Switch PADRE -> switch HIJO (cascada vertical), con el puerto elegido.
+            casc_port = str(child_eq.get("conectar_puerto", "ETH1")).strip().upper() or "ETH1"
+            edges.append(
+                EdgeSpec(
+                    parent_key, child_key, label=casc_port,
+                    exit_x=0.5, exit_y=1.0, entry_x=0.5, entry_y=0.0,
+                    label_offset_x=10, label_offset_y=25,
+                )
+            )
+            return True, True
+
+        # Sin cascada: los dos switches cuelgan del router.
+        switch_tel = _make_switch_node("switch", sw1_eq, center_x, switch_y)
+        switch_datos = _make_switch_node(
+            "switch_datos", sw2_eq, int(canvas_left + usable * 0.70 - DEVICE_WIDTH / 2), switch_y
         )
-        if cascada:
-            # switch_datos debajo del switch_tel, colgando de él (cascada vertical).
-            switch_datos = _make_switch_node(
-                "switch_datos",
-                switches[1],
-                switch_tel.x,
-                switch_y + DEVICE_HEIGHT + ROUTER_SWITCH_GAP,
-            )
-        else:
-            switch_datos = _make_switch_node(
-                "switch_datos",
-                switches[1],
-                int(canvas_left + usable * 0.70 - DEVICE_WIDTH / 2),
-                switch_y,
-            )
         nodes.extend([switch_tel, switch_datos])
         exit_tel = _anchor_exit_x(router_node, switch_tel)
         edges.append(
             EdgeSpec(
-                "router",
-                "switch",
-                label="ETH3-LAN",
-                exit_x=exit_tel,
-                exit_y=1.0,
-                entry_x=0.5,
-                entry_y=0.0,
+                "router", "switch", label="ETH3-LAN",
+                exit_x=exit_tel, exit_y=1.0, entry_x=0.5, entry_y=0.0,
                 waypoints=_router_switch_waypoints(router_node, switch_tel, exit_x=exit_tel, lane_index=0),
-                label_offset_x=-24,
-                label_offset_y=-32,
+                label_offset_x=-24, label_offset_y=-32,
             )
         )
-        if cascada:
-            # El 2º switch cuelga en vertical del 1º.
-            edges.append(
-                EdgeSpec(
-                    "switch",
-                    "switch_datos",
-                    label="ETH1",
-                    exit_x=0.5,
-                    exit_y=1.0,
-                    entry_x=0.5,
-                    entry_y=0.0,
-                    label_offset_x=10,
-                    label_offset_y=25,
-                )
+        exit_datos = _anchor_exit_x(router_node, switch_datos)
+        edges.append(
+            EdgeSpec(
+                "router", "switch_datos", label="ETH4-LAN",
+                exit_x=exit_datos, exit_y=1.0, entry_x=0.5, entry_y=0.0,
+                waypoints=_router_switch_waypoints(router_node, switch_datos, exit_x=exit_datos, lane_index=1),
+                label_offset_x=24, label_offset_y=-36,
             )
-        else:
-            exit_datos = _anchor_exit_x(router_node, switch_datos)
-            edges.append(
-                EdgeSpec(
-                    "router",
-                    "switch_datos",
-                    label="ETH4-LAN",
-                    exit_x=exit_datos,
-                    exit_y=1.0,
-                    entry_x=0.5,
-                    entry_y=0.0,
-                    waypoints=_router_switch_waypoints(router_node, switch_datos, exit_x=exit_datos, lane_index=1),
-                    label_offset_x=24,
-                    label_offset_y=-36,
-                )
-            )
+        )
         return True, True
 
     switch = switches[0]
@@ -421,6 +445,26 @@ def _place_summary_nodes(data: dict, nodes: list[NodeSpec]) -> None:
     )
 
 
+def _ext_ip_sort_key(team: dict):
+    """Clave de orden de un equipo: por extensión (numérica) ascendente y luego
+    por IP. Los que no tienen extensión (PC, AP, cámara…) van al final."""
+    exts = team.get("extensiones")
+    if not exts:
+        single = team.get("extension")
+        exts = [single] if single else []
+    ext_num = None
+    for e in exts:
+        digits = "".join(c for c in str(e or "") if c.isdigit())
+        if digits:
+            ext_num = int(digits)
+            break
+    ip = _safe(team.get("ip", ""))
+    ip_key = tuple(int(p) for p in ip.split(".")) if ip.count(".") == 3 and all(
+        p.isdigit() for p in ip.split(".")
+    ) else (9999,)
+    return (0 if ext_num is not None else 1, ext_num if ext_num is not None else 10**9, ip_key)
+
+
 def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec], list[EdgeSpec]]:
     internet = data.get("internet", {})
     nodes, edges = _init_office_nodes(data)
@@ -428,15 +472,43 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
     _place_backup(data, internet, nodes, edges)
     has_switch, has_dual_switch = _place_switch(data, nodes, edges, include_switch)
     switch_telefonia = _parse_switch_telefonia(data.get("switch_telefonia"), default=True)
-    device_equipos = [eq for eq in data.get("equipos", []) if eq.get("tipo") != "switch"]
+    # Ordenar por EXTENSIÓN (y luego IP) de menor a mayor: aunque los puertos ETH
+    # queden en Auto, los teléfonos se colocan y se numeran (ETH3, ETH4…) en ese
+    # orden. Los switches conservan su orden (define switch1/switch2). Se reordena
+    # data["equipos"] para que TANTO el layout COMO la colocación usen ese orden.
+    _switches_in_order = [e for e in data.get("equipos", []) if e.get("tipo") == "switch"]
+    device_equipos = sorted(
+        [e for e in data.get("equipos", []) if e.get("tipo") != "switch"],
+        key=_ext_ip_sort_key,
+    )
+    data["equipos"] = _switches_in_order + device_equipos
     row_layout: _DeviceRowLayout | None = None
     row_layouts: dict[str, _DeviceRowLayout] | None = None
+    # ¿Hay equipos colgados manualmente del router aunque existan switches?
+    router_equipos = (
+        _router_anchored_equipos(
+            device_equipos,
+            has_dual_switch=has_dual_switch,
+            switch_telefonia=switch_telefonia,
+        )
+        if has_switch
+        else []
+    )
     if has_dual_switch:
         row_layouts = _compute_dual_switch_row_layouts(
             nodes,
             device_equipos,
             switch_telefonia=switch_telefonia,
         )
+        _append_router_row_layout(row_layouts, nodes, router_equipos)
+    elif has_switch and router_equipos:
+        # Un solo switch + algún equipo colgado del router: filas por ancla.
+        row_layouts = _compute_single_switch_row_layouts(
+            nodes,
+            device_equipos,
+            switch_telefonia=switch_telefonia,
+        )
+        _append_router_row_layout(row_layouts, nodes, router_equipos)
     else:
         row_layout = _compute_device_row_layout(
             nodes,
@@ -455,6 +527,11 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
         dect_handset_totals=count_dect_handsets_per_base(device_equipos),
     )
     _place_equipment_rows(data, state)
+    # Holgura contra la pila de internet: si la etiqueta del switch superior
+    # pisa la etiqueta (a veces 2 líneas) del ONT/router, baja el switch y todo
+    # lo de debajo. Se aplica a TODOS los diagramas para que no se solape nada.
+    _avoid_internet_stack_overlap(nodes)
+    _resolve_label_overlaps(nodes)
     _separate_floors(nodes, edges)
     _place_floor_containers(nodes, edges)
     _place_summary_nodes(data, nodes)
@@ -498,14 +575,19 @@ def _separate_floors(nodes: list[NodeSpec], edges: list[EdgeSpec]) -> None:
         return
     node_by_key = {n.key: n for n in nodes}
     order = sorted(floors.keys(), key=lambda p: (int("".join(c for c in p if c.isdigit()) or "999")))
-    GAP = 90
-    cursor = None  # borde inferior ocupado
+    # Márgenes para el espacio que ocupan las etiquetas: los dispositivos llevan
+    # su texto DEBAJO (hasta ~120px: puerto/EXT/SN/MAC/IP) y los switches ARRIBA
+    # (~45px), más el título "Piso N". El GAP entre bandas los tiene en cuenta.
+    LABEL_BELOW = 125
+    LABEL_ABOVE = 45
+    GAP = 70
+    cursor = None  # borde inferior ocupado (incluidas etiquetas)
     for piso in order:
         ns = [node_by_key[k] for k in floors[piso] if k in node_by_key]
         if not ns:
             continue
-        ymin = min(n.y for n in ns)
-        ymax = max(n.y + n.height for n in ns)
+        ymin = min(n.y for n in ns) - LABEL_ABOVE
+        ymax = max(n.y + n.height for n in ns) + LABEL_BELOW
         if cursor is None:
             cursor = ymax
             continue
@@ -525,15 +607,22 @@ def _place_floor_containers(nodes: list[NodeSpec], edges: list[EdgeSpec]) -> Non
     if not floors:
         return
     pad = 30
+    # El cuadro debe englobar también las etiquetas: los switches llevan su
+    # nombre ARRIBA del icono (~45px) y los dispositivos su texto DEBAJO
+    # (nombre/EXT/SN/MAC, ~90px). Además dejamos una banda de título arriba para
+    # que "Piso N" no se pise con la etiqueta del switch.
+    LABEL_ABOVE = 55
+    LABEL_BELOW = 125
+    TITLE_BAND = 30
     containers: list[NodeSpec] = []
     for piso, keys in floors.items():
         ns = [node_by_key[k] for k in keys if k in node_by_key]
         if not ns:
             continue
         minx = min(m.x for m in ns) - pad
-        miny = min(m.y for m in ns) - pad - 22
+        miny = min(m.y for m in ns) - LABEL_ABOVE - TITLE_BAND
         maxx = max(m.x + m.width for m in ns) + pad
-        maxy = max(m.y + m.height for m in ns) + pad
+        maxy = max(m.y + m.height for m in ns) + LABEL_BELOW
         label = piso if piso.lower().startswith("piso") else f"Piso {piso}"
         # Índice de color: por el número de piso si es numérico, si no por orden.
         digits = "".join(ch for ch in piso if ch.isdigit())
@@ -544,6 +633,102 @@ def _place_floor_containers(nodes: list[NodeSpec], edges: list[EdgeSpec]) -> Non
                      meta={"color_idx": color_idx})
         )
     nodes[:0] = containers
+
+
+_OVERLAP_INFRA_KEYS = {"router", "router2", "ont", "backup", "inet"}
+
+
+def _label_extent(node: NodeSpec) -> int:
+    """Alto (px) que ocupa la etiqueta de un icono, igual que en drawio_writer:
+    max(42, nº_líneas*18 + 10)."""
+    lines = max(1, (node.label or "").count("<br>") + 1)
+    return max(42, lines * 18 + 10)
+
+
+def _avoid_internet_stack_overlap(nodes: list[NodeSpec]) -> None:
+    """Evita que la etiqueta (arriba) del switch superior choque con la etiqueta
+    (abajo, a veces 2 líneas: ONT + tipo de internet) de la pila ONT/router/backup
+    cuando el switch queda justo debajo. Si se solapan, baja el switch superior y
+    TODO lo que hay debajo (switches inferiores, dispositivos) lo justo para
+    despegarlos. Reactivo: si ya hay holgura no mueve nada (golden intactos)."""
+    infra = [n for n in nodes if n.key in ("ont", "router", "router2", "backup")]
+    switches = [n for n in nodes if n.key in SWITCH_ANCHOR_KEYS]
+    if not infra or not switches:
+        return
+    top_switch = min(switches, key=lambda s: s.y)
+    sw_label_h = _label_extent(top_switch)
+    sw_label_top = top_switch.y - sw_label_h - 10
+    sw_x0, sw_x1 = top_switch.x - 12, top_switch.x + top_switch.width + 12
+    worst_bottom = None
+    for n in infra:
+        ix0, ix1 = n.x - 12, n.x + n.width + 12
+        if ix0 < sw_x1 and sw_x0 < ix1:  # se solapan en horizontal
+            bottom = n.y + n.height + _label_extent(n)
+            worst_bottom = bottom if worst_bottom is None else max(worst_bottom, bottom)
+    if worst_bottom is None:
+        return
+    MARGIN = 18
+    if sw_label_top < worst_bottom + MARGIN:
+        delta = int(worst_bottom + MARGIN - sw_label_top)
+        threshold = top_switch.y - sw_label_h - 10
+        for n in nodes:
+            if n.key in ("ont", "router", "router2", "backup", "inet",
+                         "header", "summary", "summary_title"):
+                continue
+            if n.kind in {"floor", "header", "table", "cloud", "text", "plain_text"}:
+                continue
+            if n.y >= threshold:  # el switch superior y todo lo de debajo
+                n.y += delta
+
+
+def _icon_bbox(node: NodeSpec) -> tuple[int, int, int, int]:
+    """Caja del icono/elemento (sin la etiqueta). La red de seguridad usa iconos
+    y no etiquetas a propósito: hay colocaciones que comparten banda de etiqueta
+    por diseño (p.ej. handsets DECT bajo su base) y no deben repelerse."""
+    return node.x, node.y, node.x + node.width, node.y + node.height
+
+
+def _resolve_label_overlaps(nodes: list[NodeSpec]) -> None:
+    """Red de seguridad para CUALQUIER diagrama: si el icono de un dispositivo se
+    solapa con otro elemento, empuja el inferior hacia abajo lo justo para
+    despegarlo. Es reactiva y por caja de ICONO: en un layout bien espaciado
+    (caso normal y tests golden) los iconos nunca se tocan, así que no mueve nada;
+    solo actúa ante colisiones reales de iconos. No toca infraestructura
+    (router/ONT/backup/switch), cabeceras, tablas, nube, sedes ni pisos."""
+    def movable(n: NodeSpec) -> bool:
+        return (
+            n.kind == "device"
+            and n.key not in SWITCH_ANCHOR_KEYS
+            and n.key not in _OVERLAP_INFRA_KEYS
+            and not n.key.startswith("site_")
+        )
+
+    movers = sorted((n for n in nodes if movable(n)), key=lambda n: (n.y, n.x))
+    if not movers:
+        return
+    # Obstáculos = todo lo demás (posición fija). Los cuadros de piso NO cuentan:
+    # están para CONTENER a los dispositivos, no para repelerlos.
+    def collide(a, b):
+        # Solo consideramos colisión cuando los iconos se solapan Y están
+        # prácticamente en la MISMA columna (>50% de solape horizontal): eso es
+        # un apilamiento vertical real. El empaquetado horizontal intencionado
+        # (p.ej. teléfonos juntos bajo un switch, handsets DECT en abanico) tiene
+        # poco solape horizontal y se deja tal cual.
+        if not (a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]):
+            return False
+        overlap_x = min(a[2], b[2]) - max(a[0], b[0])
+        min_w = min(a[2] - a[0], b[2] - b[0]) or 1
+        return overlap_x / min_w > 0.5
+
+    boxes = [_icon_bbox(n) for n in nodes if not movable(n) and n.kind != "floor"]
+    for n in movers:
+        for _ in range(40):  # tope de seguridad
+            a = _icon_bbox(n)
+            hit = next((b for b in boxes if collide(a, b)), None)
+            if hit is None:
+                break
+            n.y += int(hit[3] - a[1]) + 8  # despegar por debajo del obstáculo
+        boxes.append(_icon_bbox(n))
 
 
 def build_rack_layout(data: dict) -> tuple[list[NodeSpec], list[EdgeSpec]]:

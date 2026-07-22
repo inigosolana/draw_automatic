@@ -284,10 +284,13 @@ def _form_to_legacy_data(form: dict) -> dict:
         internet["capacidad"] = internet["velocidad"]
         internet["velocidad"] = ""
         internet["backup"] = ""
+        internet["backup_mac"] = ""
         ont["modelo"] = ""
     else:
         internet["capacidad"] = ""
         internet["backup"] = _clean_text(form.get("backup_modelo")) or internet.get("backup", "")
+        # MAC del backup detectado en ETH2 del router (para dibujarla en el draw).
+        internet["backup_mac"] = _clean_text(form.get("backup_mac")) or internet.get("backup_mac", "")
         ont["modelo"] = _clean_text(form.get("ont_modelo")) or ont.get("modelo", "")
 
     router = data.setdefault("router", {})

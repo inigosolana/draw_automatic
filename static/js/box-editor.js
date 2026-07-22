@@ -374,6 +374,27 @@
     // (así los cuadros de piso no se solapan). Los equipos sin piso (internet,
     // ONT, backup) se quedan arriba. Dentro de cada banda: router/switch en la
     // fila superior y los dispositivos debajo.
+    function _isHead(e) { return e.dataset.type === "router" || e.dataset.type === "switch"; }
+
+    // Coloca una lista de cajas en filas que se ENVUELVEN según el ancho REAL de
+    // cada caja (medido), con separación fija. Devuelve el Y del fondo ocupado.
+    function _placeWrapped(list, x0, y0, maxRight, gapX, gapY) {
+      var x = x0, y = y0, rowH = 0;
+      list.forEach(function (el) {
+        var w = el.offsetWidth || 120, h = el.offsetHeight || 40;
+        if (x > x0 && x + w > maxRight) { x = x0; y += rowH + gapY; rowH = 0; }
+        el.style.left = x + "px";
+        el.style.top = y + "px";
+        x += w + gapX;
+        rowH = Math.max(rowH, h);
+      });
+      return y + rowH;
+    }
+
+    // Coloca cada piso en su BANDA vertical, con altura DINÁMICA según su
+    // contenido: primero los router/switch, debajo los dispositivos en filas que
+    // se envuelven por ancho real. Cada piso empieza bajo el anterior con un
+    // hueco, así NUNCA se solapan aunque haya muchos equipos.
     function arrangeByFloor(boxFloor) {
       var groups = {};
       boxFloor.forEach(function (piso, el) {
@@ -383,27 +404,43 @@
       var pisos = Object.keys(groups).sort(function (a, b) {
         return (parseInt(a, 10) || 99) - (parseInt(b, 10) || 99);
       });
-      var BAND_TOP = 330, BAND_H = 320, ROW_H = 100, PER_ROW = 6, STEP_X = 160, X0 = 90;
-      pisos.forEach(function (piso, bi) {
-        var els = groups[piso].slice();
-        // Primero router/switch (fila superior), luego dispositivos.
-        els.sort(function (a, b) {
-          var ra = (a.dataset.type === "router" || a.dataset.type === "switch") ? 0 : 1;
-          var rb = (b.dataset.type === "router" || b.dataset.type === "switch") ? 0 : 1;
-          return ra - rb;
-        });
-        var heads = els.filter(function (e) { return e.dataset.type === "router" || e.dataset.type === "switch"; });
-        var leaves = els.filter(function (e) { return e.dataset.type !== "router" && e.dataset.type !== "switch"; });
-        var yBase = BAND_TOP + bi * BAND_H;
-        heads.forEach(function (el, i) {
-          el.style.left = (X0 + i * STEP_X) + "px";
-          el.style.top = yBase + "px";
-        });
-        leaves.forEach(function (el, i) {
-          var row = Math.floor(i / PER_ROW), col = i % PER_ROW;
-          el.style.left = (X0 + col * STEP_X) + "px";
-          el.style.top = (yBase + ROW_H + row * ROW_H) + "px";
-        });
+      var X0 = 90, MAXW = 960, GAP_X = 26, GAP_Y = 34;
+      var LABEL_BAND = 44, HEAD_GAP = 46, FLOOR_GAP = 72;
+      var cursorY = 360; // debajo de la fila superior (internet/ONT/router)
+      pisos.forEach(function (piso) {
+        var els = groups[piso];
+        var heads = els.filter(_isHead);
+        var leaves = els.filter(function (e) { return !_isHead(e); });
+        var top = cursorY + LABEL_BAND; // banda para el título "Piso N"
+        var headsBottom = heads.length ? _placeWrapped(heads, X0, top, X0 + MAXW, GAP_X, GAP_Y) : top;
+        var leavesTop = heads.length ? headsBottom + HEAD_GAP : top;
+        var leavesBottom = leaves.length ? _placeWrapped(leaves, X0, leavesTop, X0 + MAXW, GAP_X, GAP_Y) : leavesTop;
+        cursorY = Math.max(headsBottom, leavesBottom) + FLOOR_GAP;
+      });
+    }
+
+    // Red de seguridad: tras colocar, si dos cajas se solapan las despega
+    // empujando la inferior hacia abajo (por rectángulo real medido). Garantiza
+    // que en la vista previa no se pise NADA. No mueve los cuadros de piso.
+    function resolveBoxOverlaps() {
+      var els = boxes.slice().sort(function (a, b) {
+        return (a.offsetTop - b.offsetTop) || (a.offsetLeft - b.offsetLeft);
+      });
+      var placed = [];
+      var MARGIN = 8;
+      els.forEach(function (el) {
+        var guard = 0;
+        while (guard++ < 60) {
+          var l = el.offsetLeft, t = el.offsetTop, r = l + el.offsetWidth, b = t + el.offsetHeight;
+          var hit = null;
+          for (var i = 0; i < placed.length; i++) {
+            var p = placed[i];
+            if (l < p.r && p.l < r && t < p.b && p.t < b) { hit = p; break; }
+          }
+          if (!hit) break;
+          el.style.top = (hit.b + MARGIN) + "px";
+        }
+        placed.push({ l: el.offsetLeft, t: el.offsetTop, r: el.offsetLeft + el.offsetWidth, b: el.offsetTop + el.offsetHeight });
       });
     }
     // Dibuja un rectángulo de fondo por piso, con color propio y semitransparente,
@@ -482,23 +519,44 @@
       var SW_Y = 360, SW_SPACING = 320;
       var switchNodes = [];
       if (switchDevs.length) {
-        var startX = routerX - (switchDevs.length - 1) * SW_SPACING / 2;
-        switchDevs.forEach(function (sd, i) {
-          // Cascada: el 2º switch con conectar="switch1" cuelga del 1er switch
-          // (debajo) en vez del router.
-          // Cascada: el 2º switch cuelga del 1º si su puerto es del switch de
-          // telefonía (TEL-ETHn) o si el campo conectar lo indica.
-          var puertoSw = (sd.puerto || "").toUpperCase();
-          var cascada = i >= 1 && switchNodes.length >= 1 &&
-            (puertoSw.indexOf("TEL-") === 0 || sd.conectar === "switch1");
-          var sx = cascada ? switchNodes[0].x : Math.max(20, startX + i * SW_SPACING);
-          var sy = cascada ? SW_Y + 150 : SW_Y;
-          var sw = addBox(sd.model, sx, sy, "switch", sd.model);
-          if (cascada) links.push({ a: switchNodes[0].node, b: sw });
-          else if (router) links.push({ a: router, b: sw });
-          if (sd.piso) boxFloor.set(sw, sd.piso);
-          switchNodes.push({ node: sw, x: sx, y: sy });
-        });
+        // Detectar CASCADA (solo con exactamente 2 switches, como el diagrama
+        // final): un switch cuelga del otro según su puerto.
+        //   switch 2 con TEL-ETHn  -> cuelga del switch 1 (padre = 1)
+        //   switch 1 con DAT-ETHn  -> cuelga del switch 2 (padre = 2)
+        var parentIdx = -1, childIdx = -1;
+        if (switchDevs.length === 2) {
+          var p0 = (switchDevs[0].puerto || "").toUpperCase();
+          var p1 = (switchDevs[1].puerto || "").toUpperCase();
+          if (p1.indexOf("TEL-") === 0 || switchDevs[1].conectar === "switch1") {
+            parentIdx = 0; childIdx = 1;
+          } else if (p0.indexOf("DAT-") === 0 || switchDevs[0].conectar === "switch2") {
+            parentIdx = 1; childIdx = 0;
+          }
+        }
+        if (parentIdx >= 0) {
+          // Padre arriba (colgado del router), hijo justo debajo (cascada).
+          var parentSd = switchDevs[parentIdx], childSd = switchDevs[childIdx];
+          var px = routerX, py = SW_Y;
+          var pnode = addBox(parentSd.model, px, py, "switch", parentSd.model);
+          if (router) links.push({ a: router, b: pnode });
+          if (parentSd.piso) boxFloor.set(pnode, parentSd.piso);
+          var cy = SW_Y + 170;
+          var cnode = addBox(childSd.model, px, cy, "switch", childSd.model);
+          links.push({ a: pnode, b: cnode });  // switch -> switch
+          if (childSd.piso) boxFloor.set(cnode, childSd.piso);
+          switchNodes[parentIdx] = { node: pnode, x: px, y: py };
+          switchNodes[childIdx] = { node: cnode, x: px, y: cy };
+        } else {
+          // Sin cascada: todos en fila bajo el router, separados.
+          var startX = routerX - (switchDevs.length - 1) * SW_SPACING / 2;
+          switchDevs.forEach(function (sd, i) {
+            var sx = Math.max(20, startX + i * SW_SPACING), sy = SW_Y;
+            var sw = addBox(sd.model, sx, sy, "switch", sd.model);
+            if (router) links.push({ a: router, b: sw });
+            if (sd.piso) boxFloor.set(sw, sd.piso);
+            switchNodes[i] = { node: sw, x: sx, y: sy };
+          });
+        }
       }
 
       var terminals = f.terminals.map(function (t) {
@@ -558,9 +616,11 @@
       setTimeout(function () {
         if (f.tienePisos) {
           arrangeByFloor(boxFloor);
+          resolveBoxOverlaps();
           draw();
           drawFloors(boxFloor);
         } else {
+          resolveBoxOverlaps();
           draw();
         }
         fitToView();

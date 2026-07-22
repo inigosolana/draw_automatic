@@ -763,8 +763,14 @@ class BasicTests(unittest.TestCase):
         )
         ap = next(node for node in nodes if node.key.startswith("team_") and "Grandstream" in node.label)
         self.assertEqual(len(phones), 3)
-        self.assertEqual(len({phone.y for phone in phones}), 1)
-        self.assertLess(phones[1].x, phones[2].x)
+        # Con espaciado sin solapes, los teléfonos pueden ir en 1 o 2 filas;
+        # lo esencial es que NO se solapen entre sí.
+        for _i in range(len(phones)):
+            for _j in range(_i + 1, len(phones)):
+                a, b = phones[_i], phones[_j]
+                solapan = (a.x < b.x + b.width and b.x < a.x + a.width
+                           and a.y < b.y + b.height and b.y < a.y + a.height)
+                self.assertFalse(solapan)
         canvas_left, canvas_right = _canvas_bounds()
         mid = canvas_left + (canvas_right - canvas_left) // 2
         self.assertTrue(all(phone.x + phone.width < mid for phone in phones))

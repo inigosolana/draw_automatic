@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 
 from .import_errors import CommsError
-from .address_formatter import normalize_street_address
 from .equipment_detection import (
     _detect_backup_model,
     _detect_ont_model,
@@ -53,6 +52,13 @@ DECT_HANDSET_MODELS = frozenset({"W71H", "W72H", "W53H", "W73H"})
 
 def _clean(value: object) -> str:
     return "" if value is None else str(value).strip()
+
+
+def _full_address(value: object) -> str:
+    """Dirección COMPLETA para el diagrama (calle + pueblo + CP + provincia),
+    solo colapsando espacios. A diferencia de normalize_street_address (que se
+    usa para casar/crear en GLPI), aquí NO se recorta la cola de ciudad/CP."""
+    return " ".join(str(value or "").split()).strip(" ,.;")
 
 
 def _normalize_internet_type(value: str) -> str:
@@ -181,7 +187,20 @@ def _parse_crm_equipments(equipments: object) -> dict:
         dect_base = _normalize_dect_base(clean_name)
         if dect_base and re.search(r"\bbase\b", clean_name, re.IGNORECASE):
             active_dect_base = dect_base
-            products.append({"name": clean_name, "quantity": 1})
+            # La base DECT es un equipo físico con su propio SN y MAC: la
+            # emitimos como terminal (no como producto de solo-nombre) para que
+            # esos datos lleguen al diagrama. Antes se perdían y la base salía
+            # en blanco (sin SN/MAC).
+            terminals.append(
+                {
+                    "model": dect_base,
+                    "extension": "",
+                    "serial": serial,
+                    "mac": mac,
+                    "dect_base": "",
+                    "ownership": "propio",
+                }
+            )
             continue
 
         terminal_model = _normalize_terminal_model(clean_name)
@@ -213,17 +232,24 @@ def _parse_crm_equipments(equipments: object) -> dict:
     }
 
 
-def _validate_crm_terminal_fields(terminal: dict, label: str) -> None:
+def _validate_crm_terminal_fields(terminal: dict, label: str) -> list[str]:
+    """Antes BLOQUEABA la importación si faltaba el nº de serie o la MAC. Ahora
+    NO bloquea: devuelve avisos para que el técnico complete lo que falte en el
+    formulario antes de generar. Así una OT con datos incompletos en el CRM
+    (p. ej. un terminal sin MAC) se puede importar igualmente."""
+    warnings: list[str] = []
     if not terminal.get("serial"):
-        raise CommsError(
-            f"El terminal «{label}» no incluye numero de serie. "
-            "El CRM debe enviar serial_number, serial, sn o S/N."
+        warnings.append(
+            f"El terminal «{label}» no trae número de serie desde el CRM; "
+            "complétalo en el formulario antes de generar."
         )
     model = _clean(terminal.get("model"))
     if model not in DECT_HANDSET_MODELS and not terminal.get("mac"):
-        raise CommsError(
-            f"El terminal «{label}» no incluye MAC. El CRM debe enviar mac, mac_address o MAC."
+        warnings.append(
+            f"El terminal «{label}» no trae MAC desde el CRM; "
+            "complétala en el formulario antes de generar."
         )
+    return warnings
 
 
 def unwrap_work_order_api_response(payload: object) -> dict:
@@ -362,7 +388,7 @@ def normalize_work_order_payload(payload: object) -> dict:
             or payload.get("cif")
         ),
         "sede": sede_name or _clean(payload.get("sede") if isinstance(payload.get("sede"), str) else ""),
-        "direccion": normalize_street_address(sede_address),
+        "direccion": _full_address(sede_address),
         "glpi_entity_id": _clean(site.get("glpi_entity_id") or site.get("entity_id") or payload.get("glpi_entity_id")),
         "connectivity_text": connectivity_text or _clean(payload.get("connectivity_text")),
         "connectivity_structured": connectivity_structured,
@@ -409,7 +435,12 @@ def terminal_from_json_item(item: object) -> dict | None:
     return terminal
 
 
-def parse_terminals_from_payload(items: list[object], *, require_crm_fields: bool = False) -> list[dict]:
+def parse_terminals_from_payload(
+    items: list[object],
+    *,
+    require_crm_fields: bool = False,
+    warnings_out: list[str] | None = None,
+) -> list[dict]:
     terminals: list[dict] = []
     for index, item in enumerate(items, start=1):
         terminal = terminal_from_json_item(item)
@@ -417,7 +448,9 @@ def parse_terminals_from_payload(items: list[object], *, require_crm_fields: boo
             continue
         label = terminal.get("extension") or terminal.get("model") or str(index)
         if require_crm_fields:
-            _validate_crm_terminal_fields(terminal, label)
+            msgs = _validate_crm_terminal_fields(terminal, label)
+            if warnings_out is not None:
+                warnings_out.extend(msgs)
         terminals.append(terminal)
     return terminals
 
@@ -495,9 +528,11 @@ def import_result_from_json_payload(payload: dict, *, work_order_id: str = "") -
 
     products = normalize_products(normalized.get("products") or [])
     terminals_raw = normalized.get("terminals") or []
+    terminal_warnings: list[str] = []
     explicit_terminals = parse_terminals_from_payload(
         terminals_raw,
         require_crm_fields=bool(terminals_raw),
+        warnings_out=terminal_warnings,
     )
 
     if not products and not explicit_terminals:
@@ -538,5 +573,8 @@ def import_result_from_json_payload(payload: dict, *, work_order_id: str = "") -
     glpi_entity_id = normalized.get("glpi_entity_id", "")
     if glpi_entity_id:
         result.glpi_entity_id = glpi_entity_id
+
+    if terminal_warnings:
+        result.warnings.extend(terminal_warnings)
 
     return result

@@ -19,6 +19,7 @@ from web.services.glpi_catalog import glpi_diagram_rows, index_context, load_glp
 from generator.comms_client import CommsError, import_products_text
 from generator.glpi_client import GlpiClient, GlpiError
 from generator.work_order_import import import_work_order_by_id
+from generator.yeastar_lookup import enrich_terminals_from_yeastar
 from generator.diagram_metadata import unique_diagram_name
 from generator.glpi_merge import merge_import_with_glpi, next_site_name
 from generator.safe_errors import public_error_message
@@ -368,6 +369,13 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
                 except GlpiError:
                     existing_diagrams = []
         response_warnings = list(result.warnings)
+        # Autocompletar extensión/IP que falten en los terminales consultando
+        # Yeastar (MAC->extensión) y el router del cliente (MAC->IP por ARP).
+        # No bloquea: si no hay config o falla, se registra y se sigue.
+        try:
+            response_warnings.extend(enrich_terminals_from_yeastar(result))
+        except Exception as _yea_exc:  # noqa: BLE001
+            security_logger.warning(f"Yeastar enrich fallo (no critico): {_yea_exc}")
         for correction in glpi_merge.get("corrections") or []:
             response_warnings.append(
                 f"{correction['label']} corregido ({correction['source']}): "
@@ -404,6 +412,7 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
                     "ont_modelo": result.ont_modelo,
                     "router_modelo": result.router_modelo,
                     "backup_modelo": result.backup_modelo,
+                    "backup_mac": getattr(result, "backup_mac", ""),
                     "router_ip": result.router_ip,
                     "devices_json": result.devices_json,
                     "terminals": result.terminals,

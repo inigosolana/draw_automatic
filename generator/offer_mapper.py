@@ -13,7 +13,6 @@ from .equipment_detection import (
     _normalize_provider,
     _normalize_speed,
     _normalize_terminal_model,
-    _normalize_wifi_ap_model,
 )
 from .parser import parse_equipment_line
 from .utils import dedupe_preserving_order
@@ -35,7 +34,10 @@ ACCESSORY_PATTERN = re.compile(
     r"cargador|psu|power\s*supply|fuente(?:\s+de\s+alimentaci[oó]n)?|"
     r"alimentaci[oó]n|adaptador(?:\s+de\s+corriente)?|cable|patch\s*cord|"
     r"soporte|mount|bracket|clip|tornillo|kit\s*de\s*montaje|bater[ií]a\s*de\s*respaldo|"
-    r"poe\s*injector|inyector(?:\s+de)?\s*poe|injector(?:\s+poe)?"
+    r"poe\s*injector|inyector(?:\s+de)?\s*poe|injector(?:\s+poe)?|"
+    # Consumibles/accesorios que NO van al diagrama: tarjetas SIM y módulos de
+    # expansión de teclas (EXP40/EXP43/EXP50…) de los teléfonos.
+    r"tarjeta\s*sim|\bsim\b|m[oó]dulo\s+de\s+expansi[oó]n|exp\d{2}"
     r")\b",
     re.IGNORECASE,
 )

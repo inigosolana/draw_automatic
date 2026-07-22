@@ -236,6 +236,9 @@
               if (data.backup_modelo) {
                 backupModel.value = data.backup_modelo;
               }
+              // MAC del backup 4G detectado en el ETH2 del router (para el dibujo).
+              var backupMacField = document.getElementById("backup-mac");
+              if (backupMacField) backupMacField.value = data.backup_mac || "";
               const routerIpField = document.querySelector('input[name="router_ip"]');
               if (routerIpField && data.router_ip) {
                 routerIpField.value = data.router_ip;

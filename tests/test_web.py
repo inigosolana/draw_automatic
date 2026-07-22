@@ -435,8 +435,18 @@ class WebAdapterTests(unittest.TestCase):
 
         catalog = build_device_catalog(str(ROOT / "tests" / "fixtures" / "test_library.xml"))
         switch_category = next(item for item in catalog if item["id"] == "switch")
+        # Cada modelo es un objeto {value, label, ports}: el value conserva el
+        # nombre real (compat alias/librería) y el label muestra los puertos.
+        values = [m["value"] for m in switch_category["models"]]
         for model in SWITCH_MODELS:
-            self.assertIn(model, switch_category["models"])
+            self.assertIn(model, values)
+        for entry in switch_category["models"]:
+            self.assertIn("value", entry)
+            self.assertIn("label", entry)
+            self.assertIsInstance(entry["ports"], int)
+        tp16 = next(m for m in switch_category["models"] if m["value"] == "TP-Link 16P")
+        self.assertEqual(tp16["ports"], 16)
+        self.assertIn("16 puertos", tp16["label"])
         otros = next(item for item in catalog if item["id"] == "otros")
         self.assertTrue(otros.get("custom"))
 

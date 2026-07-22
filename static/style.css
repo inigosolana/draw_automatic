@@ -3597,3 +3597,6 @@ así que en SO oscuro la UI quedaba ilegible (paneles
   color: #1c4e80;
 }
 .import-new-site-status { font-size: 0.8rem; color: #1c4e80; }
+
+.switch-warning{margin:10px 0;padding:12px 16px;border:2px solid #d33;border-radius:10px;background:#fdecec;color:#a11;font-weight:700;font-size:0.95rem;line-height:1.4;}
+.switch-warning .switch-warning-note{font-weight:500;color:#7a2320;}

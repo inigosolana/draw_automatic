@@ -64,7 +64,7 @@ class LayoutGoldenTests(unittest.TestCase):
             _canonical(CON_SWITCH),
             # Actualizado al arreglar el zigzag de los cables router→switch en
             # doble switch: ahora caen en vertical desde el punto de salida.
-            (9, 5, "b595313f52e414f11fb4dc257bdbca8820892bc71574a8dc8250d83349292b26"),
+            (9, 5, "03a60ffe16ddc34b284d5fd11e8a93eb7fbfdd29fcb5a8f2ae981738fa0a69eb"),
         )
 
     def test_office_example_layout_is_stable(self) -> None:
@@ -74,7 +74,7 @@ class LayoutGoldenTests(unittest.TestCase):
             # router->dispositivo vertical (ETHn-LAN) con la etiqueta de IP del
             # router: el offset pasa de (10,-30) a (28,25) para bajarla y
             # desplazarla lateralmente y no pisar la IP.
-            (13, 9, "3c1bfa8c5997732659e50927607800a9e87f7e0338c0f04a084b0e1581c38742"),
+            (13, 9, "443a1728565fb013b089a4d38ec10161bccc3bb0675f627b3153ecb9470318a4"),
         )
 
     def test_multisite_example_layout_is_stable(self) -> None:

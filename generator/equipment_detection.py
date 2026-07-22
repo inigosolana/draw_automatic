@@ -118,11 +118,55 @@ def _normalize_wifi_ap_model(name: str) -> str:
     return name.strip()
 
 
+def _switch_ports_poe(name: str) -> tuple[int | None, bool]:
+    """Deduce (nº de puertos, es_poe) del nombre de un switch del CRM."""
+    low = name.lower()
+    poe = "poe" in low
+    familias = [
+        ("sg1024", 24), ("sg1016", 16), ("sg1008", 8), ("sg1005", 5),
+        ("sg108", 8), ("sg105", 5), ("1100-08", 8), ("dgs-108", 8),
+        ("dgs108", 8), ("ls108", 8), ("ls105", 5),
+    ]
+    for token, ports in familias:
+        if token in low:
+            return ports, poe
+    m = re.search(r"(\d{1,2})\s*[_\- ]*(?:p\b|puertos?|ports?)", low)
+    if m:
+        return int(m.group(1)), poe
+    m2 = re.search(r"(?<![\dA-Za-z])(5|8|16|24|48)(?![\dA-Za-z])", low)  # nº suelto
+    if m2:
+        return int(m2.group(1)), poe
+    return None, poe
+
+
+def _map_switch_to_curated(name: str) -> str | None:
+    """Cruza un switch del CRM con la lista CURADA por nº de puertos + PoE.
+    Devuelve el `value` curado (que coincide con el desplegable) o None si no se
+    puede deducir el nº de puertos."""
+    ports, poe = _switch_ports_poe(name)
+    if ports is None:
+        return None
+    if ports <= 5:
+        return "TP-Link TL-SG1005P" if poe else "TP-Link TL-SG1005D"
+    if ports <= 8:
+        return "TP-Link TL-SG1008P" if poe else "TP-Link TL-SG1008D"
+    if ports <= 16:
+        return "TP-Link 16P"
+    if ports <= 24:
+        return "Switch 24 puertos"
+    return "Switch 48 puertos"
+
+
 def _detect_device_category(name: str) -> tuple[str, str, str] | None:
     lowered = name.lower()
-    if any(token in lowered for token in ("tl-sg1005", "sg1005d", "ls105g")):
-        return ("switch", "switch", "TP-LINK-5_PORTS")
-    if any(token in lowered for token in ("switch", "swtich", "tp-link", "tp link", "dgs", "firebox")):
+    switch_tokens = ("switch", "swtich", "tp-link", "tp link", "dgs", "firebox",
+                     "tl-sg", "ls105", "ls108")
+    # No confundir mesh/Deco/AP TP-Link con un switch: eso es punto de acceso.
+    es_ap = any(t in lowered for t in ("deco", "mesh", "access point", "punto de acceso", " gwn", " ruijie", " wifi"))
+    if not es_ap and any(token in lowered for token in switch_tokens):
+        curated = _map_switch_to_curated(name)
+        if curated:
+            return ("switch", "switch", curated)
         model = name.strip()
         if "switch" not in model.lower():
             model = f"switch {model}"

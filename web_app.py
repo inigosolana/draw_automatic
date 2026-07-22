@@ -1,5 +1,3 @@
-import os
-
 from app_context import DEFAULT_HOST, DEFAULT_PORT
 from app_factory import create_app
 from security_config import _production_requires_secret_key

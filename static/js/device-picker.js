@@ -54,7 +54,16 @@
                 : (modelField ? modelField.value.trim() : "");
               const pisoField = row.querySelector('[data-field="piso"]');
               const piso = pisoField ? pisoField.value.trim() : "";
-              list.push({ ports: switchPortCount(modelo), piso: piso });
+              // Preferir el nº de puertos autoritativo (data-ports del backend);
+              // si no lo hay (modelo custom escrito a mano), derivarlo del nombre.
+              let ports = switchPortCount(modelo);
+              if (!category.custom && modelField && modelField.selectedOptions && modelField.selectedOptions[0]) {
+                const dp = parseInt(modelField.selectedOptions[0].getAttribute("data-ports"), 10);
+                if (dp >= 2 && dp <= 48) {
+                  ports = dp;
+                }
+              }
+              list.push({ ports: ports, piso: piso });
             });
             return list;
           }
@@ -201,8 +210,17 @@
             }
             const options = ['<option value="">Selecciona modelo</option>'];
             (category.models || []).forEach(function (model) {
+              // Cada modelo puede ser un string simple o un objeto
+              // { value, label, ports } (switches). El value es el nombre real
+              // (compat con alias/librería); el label lleva el nº de puertos.
+              const value = model && typeof model === "object" ? model.value : model;
+              const label = model && typeof model === "object" ? model.label : model;
+              const portsAttr =
+                model && typeof model === "object" && model.ports
+                  ? ` data-ports="${escapeAttribute(String(model.ports))}"`
+                  : "";
               options.push(
-                `<option value="${escapeAttribute(model)}"${selectedModel === model ? " selected" : ""}>${escapeAttribute(model)}</option>`
+                `<option value="${escapeAttribute(value)}"${portsAttr}${selectedModel === value ? " selected" : ""}>${escapeAttribute(label)}</option>`
               );
             });
             return options.join("");

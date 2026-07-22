@@ -40,6 +40,8 @@ services:
       COMMS_USERNAME: "${COMMS_USERNAME:-}"
       COMMS_PASSWORD: "${COMMS_PASSWORD:-}"
       COMMS_API_TOKEN: "${COMMS_API_TOKEN:-}"
+      YEASTAR_LOOKUP_URL: "${YEASTAR_LOOKUP_URL:-}"
+      YEASTAR_LOOKUP_TOKEN: "${YEASTAR_LOOKUP_TOKEN:-}"
       DRAWIO_LIBRARY_PATH: "/app/library/${DRAWIO_LIBRARY_VERSION:-libreria_Ausarta_JUN_2026}.xml"
       DRAWIO_DOWNLOAD_DB: "/app/data/downloads.sqlite3"
       DRAWIO_SITE_DB: "/app/data/sites.sqlite3"

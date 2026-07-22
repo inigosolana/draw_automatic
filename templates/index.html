@@ -398,6 +398,8 @@
             <div class="be-canvas" id="be-canvas"><div id="be-stage"><svg id="be-wires" preserveAspectRatio="none"></svg></div></div>
           </section>
 
+          <input type="hidden" name="backup_mac" id="backup-mac">
+          <div id="switch-needed-warning" class="switch-warning" role="alert" style="display:none"></div>
           <div class="creation-actions">
             <button type="button" class="button quiet" id="reset-form">Reset</button>
             <button type="submit" class="button primary"><span aria-hidden="true">⌘</span> Generar diagrama</button>
@@ -414,6 +416,7 @@
         <script src="{{ url_for('static', filename='js/creation-form-templates.js') }}?v={{ static_v }}"></script>
         <script src="{{ url_for('static', filename='js/creation-form-workorder.js') }}?v={{ static_v }}"></script>
         <script src="{{ url_for('static', filename='js/box-editor.js') }}?v={{ static_v }}"></script>
+        <script src="{{ url_for('static', filename='js/switch-needed.js') }}?v={{ static_v }}"></script>
       </section>
     </main>
     {% include "_app_footer.html" %}

@@ -135,12 +135,21 @@ def _device_anchor(
 ) -> str:
     if not has_switch:
         return "router"
-    if has_dual_switch:
-        # Anclaje manual: si el usuario eligió TEL-/DAT- (prefijo en el puerto),
-        # respeta el switch indicado. Solo aplica con 2 switches.
-        override = _override_port(team)
-        if override and override["anchor"] in SWITCH_ANCHOR_KEYS:
+    # Anclaje manual por puerto elegido:
+    #   * TEL-/DAT-ETHn  -> switch de telefonía / de datos (solo con 2 switches)
+    #   * ETHn (sin prefijo, n>=3) -> ROUTER principal (hAP), aunque haya switches
+    # Esto permite colgar un teléfono del router y el resto de un switch.
+    override = _override_port(team)
+    if override:
+        if has_dual_switch and override["anchor"] in SWITCH_ANCHOR_KEYS:
             return override["anchor"]
+        if not has_dual_switch and override["anchor"] in SWITCH_ANCHOR_KEYS:
+            # Con un solo switch, cualquier prefijo de switch apunta a ese switch.
+            return "switch"
+        if override["anchor"] is None and int(override["port"][3:]) >= 3:
+            # Puerto del router elegido explícitamente (ETH3/4/5...).
+            return "router"
+    if has_dual_switch:
         return "switch" if _is_telephony_equipment(team) else "switch_datos"
     if switch_telefonia:
         return "switch"
@@ -212,7 +221,10 @@ def _compute_anchor_row_layout(
         max_per_row = total_slots
     else:
         max_per_row, _ = _max_slots_per_row(total_slots) if total_slots else (1, MIN_SLOT_SPACING)
-    row_step = DEVICE_HEIGHT + (DECT_ROW_EXTRA if has_dect_handsets else 95)
+    # Hueco vertical entre filas amplio: la etiqueta de un teléfono puede tener
+    # hasta 6 líneas (puerto + modelo + EXT + SN + MAC + IP), ~120px. Con 125 no
+    # se solapa con la fila de abajo.
+    row_step = DEVICE_HEIGHT + (DECT_ROW_EXTRA if has_dect_handsets else 125)
     if has_dect_handsets:
         handset_band = DECT_HANDSET_OFFSET_Y + DEVICE_HEIGHT + DECT_ROW_CLEARANCE
         row_step = max(row_step, handset_band)
@@ -316,6 +328,96 @@ def _compute_dual_switch_row_layouts(
             force_horizontal=True,
         ),
     }
+
+
+def _router_anchored_equipos(
+    device_equipos: list,
+    *,
+    has_dual_switch: bool,
+    switch_telefonia: bool,
+) -> list:
+    """Equipos que el usuario colgó manualmente del router (puerto ETH>=3 sin
+    prefijo de switch) aunque existan switches."""
+    return [
+        eq
+        for eq in device_equipos
+        if _device_anchor(
+            eq,
+            has_switch=True,
+            has_dual_switch=has_dual_switch,
+            switch_telefonia=switch_telefonia,
+        )
+        == "router"
+    ]
+
+
+def _compute_single_switch_row_layouts(
+    nodes: list[NodeSpec],
+    device_equipos: list,
+    *,
+    switch_telefonia: bool,
+) -> dict[str, _DeviceRowLayout]:
+    """Filas por ancla con UN switch cuando además hay equipos colgados del
+    router (mezcla router+switch). El switch ocupa el ancho completo."""
+    switch_node = next(node for node in nodes if node.key == "switch")
+    switch_equipos = [
+        eq
+        for eq in device_equipos
+        if _device_anchor(
+            eq,
+            has_switch=True,
+            has_dual_switch=False,
+            switch_telefonia=switch_telefonia,
+        )
+        == "switch"
+    ]
+    canvas_left, canvas_right = _canvas_bounds()
+    return {
+        "switch": _compute_anchor_row_layout(
+            switch_node,
+            switch_equipos,
+            zone_left=canvas_left,
+            zone_right=canvas_right,
+            force_horizontal=True,
+        )
+    }
+
+
+def _append_router_row_layout(
+    layouts: dict[str, _DeviceRowLayout],
+    nodes: list[NodeSpec],
+    router_equipos: list,
+) -> None:
+    """Añade la fila 'router' por DEBAJO de las filas de switch, a ancho
+    completo, para los dispositivos colgados manualmente del router (hAP)."""
+    if not router_equipos:
+        return
+    router_node = next(node for node in nodes if node.key == "router")
+    bottoms = []
+    for lay in layouts.values():
+        if lay.total_slots > 0:
+            rows = -(-lay.total_slots // max(1, lay.max_per_row))  # ceil
+            bottoms.append(lay.equipo_y + rows * lay.row_step)
+    canvas_left, canvas_right = _canvas_bounds()
+    base = _compute_anchor_row_layout(
+        router_node,
+        router_equipos,
+        zone_left=canvas_left,
+        zone_right=canvas_right,
+        force_horizontal=True,
+    )
+    equipo_y = (max(bottoms) + DEVICE_ROW_GAP) if bottoms else base.equipo_y
+    layouts["router"] = _DeviceRowLayout(
+        anchor_node=base.anchor_node,
+        total_slots=base.total_slots,
+        max_per_row=base.max_per_row,
+        equipo_y=equipo_y,
+        row_step=base.row_step,
+        constrain_to_anchor=base.constrain_to_anchor,
+        zone_left=base.zone_left,
+        zone_right=base.zone_right,
+        force_horizontal=base.force_horizontal,
+    )
 
 
 @dataclass

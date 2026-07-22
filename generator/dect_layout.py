@@ -3,7 +3,7 @@ from __future__ import annotations
 from .aliases import resolve_alias
 from .parser import ValidatedEquipment
 
-DECT_BASE_MODELS = {"w60b", "w70b", "w80b", "w90b"}
+DECT_BASE_MODELS = {"w60b", "w70b", "w80b", "w90b", "w90dm"}
 DECT_HANDSET_MODELS = {"w71h", "w72h", "w53", "w53h", "w73h"}
 DECT_HANDSET_BASE = {
     "w71h": "W60B",

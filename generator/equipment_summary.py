@@ -2,6 +2,13 @@
 
 from __future__ import annotations
 
+from .dect_layout import (
+    _dect_handset_key,
+    _dect_registry_key,
+    _is_dect_base,
+    _normalized_model as _dect_normalized,
+    _resolve_dect_base,
+)
 from .layout_labels import (
     display_model as _display_model,
     safe as _safe,
@@ -13,6 +20,11 @@ def summarize_equipment(data: dict) -> str:
     voip_order: list[str] = []
     router_lines: list[str] = []
     network_lines: list[str] = []
+    # Bases DECT: las explícitas ya se cuentan; para los inalámbricos cuya base
+    # se auto-crea en el diagrama, registramos su base para añadirla al resumen
+    # (si no está ya como equipo explícito). Así el resumen coincide con el draw.
+    explicit_base_keys: set[str] = set()
+    auto_base_models: dict[str, str] = {}  # registry_key -> modelo a mostrar
 
     internet = data.get("internet", {})
     router_model = _display_model(_safe(data.get("router", {}).get("modelo", "")))
@@ -37,8 +49,23 @@ def summarize_equipment(data: dict) -> str:
             if model not in voip_counts:
                 voip_order.append(model)
             voip_counts[model] = voip_counts.get(model, 0) + qty
+            normalized = _dect_normalized(team)
+            if _is_dect_base(normalized):
+                explicit_base_keys.add(_display_model(model).upper())
+            elif _dect_handset_key(normalized):
+                regkey = _dect_registry_key(team, normalized)
+                auto_base_models[regkey] = _display_model(_resolve_dect_base(team, normalized))
         elif tipo in {"switch", "wifi", "otro"}:
             network_lines.append(f"x{qty} {model}")
+
+    # Añadir las bases DECT auto-creadas (inalámbricos sin base explícita): en el
+    # diagrama se dibuja una base por cada tipo, así que aquí también debe salir.
+    for regkey, base_model in auto_base_models.items():
+        if regkey in explicit_base_keys:
+            continue
+        if base_model not in voip_counts:
+            voip_order.append(base_model)
+            voip_counts[base_model] = 1
 
     voip_lines = [f"x{voip_counts[model]} {model}" for model in voip_order]
     voip_html = "<br>".join(voip_lines) if voip_lines else "&nbsp;"

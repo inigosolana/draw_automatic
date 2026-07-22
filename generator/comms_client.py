@@ -28,7 +28,6 @@ class _LabelValueParser(HTMLParser):
         self._cell_text: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        attrs_dict = {key: value or "" for key, value in attrs}
         if tag in {"td", "th"}:
             self._cell_text = []
         if tag == "table":
