@@ -65,7 +65,7 @@ class LayoutGoldenTests(unittest.TestCase):
             # Actualizado al recolocar los waypoints tras los desplazamientos
             # verticales de nodos (holgura de internet): antes la línea de bus se
             # quedaba ~26px por encima del destino; ahora sigue al dispositivo.
-            (9, 5, "a42cb4706719982f8d8586ecf9197b7b1716441a8a457d3a9b1a05fddf41ba7c"),
+            (9, 5, "63952e0e7a8b1520addcfa5c578b0138fb8c0948f181d9ad2e854090bff0026b"),
         )
 
     def test_office_example_layout_is_stable(self) -> None:
@@ -74,7 +74,7 @@ class LayoutGoldenTests(unittest.TestCase):
             # Cada cable de dispositivo sale de un punto PROPIO y distinto del
             # switch/router (repartidos a lo ancho del borde inferior), para que
             # ninguna línea parezca salir de otra.
-            (13, 9, "e57432698db7039f919ef99c310881c1303f6701ffe731c27d6665c2e9ab2baa"),
+            (13, 9, "5c817bf3328c96d363136dda9f12e46e0eb871194264659ac0d12bf04b0383a8"),
         )
 
     def test_multisite_example_layout_is_stable(self) -> None:

@@ -537,6 +537,7 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
         dect_handset_totals=count_dect_handsets_per_base(device_equipos),
     )
     _place_equipment_rows(data, state)
+    _order_switch_exits_by_target(nodes, edges)
     # Las aristas ya tienen sus waypoints calculados con las posiciones ACTUALES.
     # Las pasadas siguientes mueven nodos en vertical (holgura de internet,
     # separación de pisos, colisiones de iconos) pero NO los waypoints, así que
@@ -615,6 +616,40 @@ def _separate_floors(nodes: list[NodeSpec], edges: list[EdgeSpec]) -> None:
                 n.y += delta
             ymax += delta
         cursor = ymax
+
+
+def _order_switch_exits_by_target(nodes: list[NodeSpec], edges: list[EdgeSpec]) -> None:
+    """Reasigna los puntos de salida de los cables de cada switch/router para que
+    salgan en el MISMO orden horizontal que sus equipos destino: el cable del
+    equipo más a la izquierda sale por la izquierda del borde inferior del switch,
+    el siguiente un poco más a la derecha, etc. Así el abanico de cables se abre
+    sin cruzarse entre sí (antes, un equipo de la fila de abajo podía salir por la
+    derecha del switch y volver a cruzar todo el abanico hacia la izquierda)."""
+    node_by_key = {n.key: n for n in nodes}
+    for anchor_key in ("switch", "switch_datos", "router"):
+        anchor = node_by_key.get(anchor_key)
+        if anchor is None:
+            continue
+        dev_edges = [
+            e
+            for e in edges
+            if e.source == anchor_key
+            and e.waypoints
+            and node_by_key.get(e.target) is not None
+            and node_by_key[e.target].kind == "device"
+        ]
+        if len(dev_edges) < 2:
+            continue
+        # Orden por X del centro del equipo destino.
+        dev_edges.sort(key=lambda e: node_by_key[e.target].x + node_by_key[e.target].width / 2)
+        n = len(dev_edges)
+        for rank, e in enumerate(dev_edges):
+            new_exit_x = (rank + 1) / (n + 1)
+            bus_y = e.waypoints[-1][1]  # conserva la altura de giro del cable
+            e.exit_x = new_exit_x
+            e.waypoints = _bus_waypoints(
+                anchor, node_by_key[e.target], exit_x=new_exit_x, bus_y=bus_y
+            )
 
 
 def _reflow_waypoints_after_shift(
