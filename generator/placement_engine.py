@@ -398,6 +398,15 @@ def _append_router_row_layout(
         if lay.total_slots > 0:
             rows = -(-lay.total_slots // max(1, lay.max_per_row))  # ceil
             bottoms.append(lay.equipo_y + rows * lay.row_step)
+    # Los teléfonos colgados del router también deben quedar POR DEBAJO del icono
+    # del switch (que está centrado bajo el router), no a su misma altura. Si el
+    # switch no tiene equipos propios (p. ej. «switch de telefonía» desmarcado y
+    # todos los teléfonos van al router), sin esto la fila arrancaría a la altura
+    # del switch y el teléfono de la columna central se solaparía con él.
+    for switch_key in ("switch", "switch_datos"):
+        switch_node = next((n for n in nodes if n.key == switch_key), None)
+        if switch_node is not None:
+            bottoms.append(switch_node.y + switch_node.height)
     canvas_left, canvas_right = _canvas_bounds()
     base = _compute_anchor_row_layout(
         router_node,

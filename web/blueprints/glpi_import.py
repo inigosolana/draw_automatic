@@ -112,6 +112,16 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
     def generate() -> str:
         drawio_stores = get_drawio_stores()
         form_data = request.form.to_dict()
+        # Los checkbox (switch_telefonia, tiene_pisos) comparten `name` con un
+        # <input hidden value="0"> que va ANTES en el DOM para enviar "0" cuando
+        # están desmarcados. `to_dict()` se queda con el PRIMER valor (el "0"),
+        # así que el checkbox marcado no tenía efecto (los teléfonos siempre
+        # colgaban del router y los pisos no se activaban). Tomamos el ÚLTIMO
+        # valor enviado: si el checkbox está marcado, su "on" gana al hidden.
+        for _checkbox in ("switch_telefonia", "tiene_pisos"):
+            _vals = request.form.getlist(_checkbox)
+            if _vals:
+                form_data[_checkbox] = _vals[-1]
         form_data.setdefault("library_path", current_app.config["DEFAULT_LIBRARY"])
         try:
             data = form_to_data(form_data)
