@@ -700,10 +700,15 @@ class BasicTests(unittest.TestCase):
         phone_edges = [edge for edge in edges if edge.source == "switch" and edge.target.startswith("team_")]
         self.assertEqual(len(phone_edges), 4)
         for edge in phone_edges:
-            target = next(node for node in nodes if node.key == edge.target)
-            self.assertAlmostEqual(edge.exit_x, _anchor_exit_x(switch, target), places=2)
             self.assertTrue(edge.label and edge.label.startswith("ETH"))
             self.assertIsNotNone(edge.waypoints)
+        # Cada cable sale de un punto PROPIO y distinto del switch (repartidos a lo
+        # ancho del borde inferior, en 0..1): ninguna línea sale de otra.
+        exits = [edge.exit_x for edge in phone_edges]
+        self.assertEqual(len(set(round(x, 3) for x in exits)), len(exits))
+        for x in exits:
+            self.assertGreater(x, 0.0)
+            self.assertLess(x, 1.0)
 
     def test_dual_switches_route_telephony_and_data_separately(self) -> None:
         data = {

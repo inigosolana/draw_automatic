@@ -544,9 +544,19 @@ class _DevicePlacementState:
     def place_edge(self, anchor_key: str, target_key: str, label: str, row_top_y: int | None = None) -> None:
         anchor = self.node_index[anchor_key]
         target = self.node_index[target_key]
-        exit_x = _anchor_exit_x(anchor, target) if anchor_key in SWITCH_ANCHOR_KEYS | {"router"} else 0.5
         lane_index = self.bus_lane_counters.get(anchor_key, 0)
         self.bus_lane_counters[anchor_key] = lane_index + 1
+        if anchor_key in SWITCH_ANCHOR_KEYS | {"router"}:
+            # Cada cable sale de un PUNTO PROPIO del switch/router, repartido a lo
+            # ancho de su borde inferior en el orden de los equipos (izq→der). Antes
+            # el punto de salida era proporcional a la posición del equipo y se
+            # SATURABA en los extremos (0.06/0.94) cuando los equipos quedaban lejos
+            # del switch estrecho: varios cables salían del mismo punto y parecía
+            # que unas líneas salían de otras. Ahora cada línea arranca del switch.
+            total = max(1, self._layout_for(anchor_key).total_slots)
+            exit_x = (lane_index + 1) / (total + 1)
+        else:
+            exit_x = 0.5
         bus_y = _device_bus_y(anchor, target, row_top_y, lane_index=lane_index)
         waypoints = _bus_waypoints(anchor, target, exit_x=exit_x, bus_y=bus_y)
         label_offset_x, label_offset_y = _cable_label_offset(
