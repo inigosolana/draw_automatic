@@ -293,6 +293,13 @@ def _expand_switch_equipment(equipos: list) -> list[dict]:
     return expanded
 
 
+# Los switches se dibujan en una caja APAISADA (no cuadrada como los teléfonos):
+# las fotos de switch son anchas (~2-3:1) y en una caja 150x150 salían como una
+# tira fina con mucho hueco. Con esta proporción la foto se ve como un switch real.
+SWITCH_WIDTH = 210
+SWITCH_HEIGHT = 104
+
+
 def _make_switch_node(key: str, switch_eq: dict, x: int, y: int) -> NodeSpec:
     model = _safe(switch_eq.get("modelo", "Switch"))
     display_name = _switch_icon_model(model)
@@ -303,8 +310,8 @@ def _make_switch_node(key: str, switch_eq: dict, x: int, y: int) -> NodeSpec:
         model=model,
         x=x,
         y=y,
-        width=DEVICE_WIDTH,
-        height=DEVICE_HEIGHT,
+        width=SWITCH_WIDTH,
+        height=SWITCH_HEIGHT,
         meta={"propiedad": _ownership(switch_eq), "label_above": True,
               "piso": _safe(switch_eq.get("piso", "")).strip()},
         icon_model=display_name,
@@ -332,7 +339,7 @@ def _place_switch(
         c2 = str(sw2_eq.get("conectar_a", "")).strip().lower()  # "switch1" o ""
         canvas_left, canvas_right = _canvas_bounds()
         usable = canvas_right - canvas_left
-        center_x = int(canvas_left + usable * 0.30 - DEVICE_WIDTH / 2)
+        center_x = int(canvas_left + usable * 0.30 - SWITCH_WIDTH / 2)
 
         # ¿Cascada? Un switch cuelga del otro (en cualquier sentido).
         parent_key = child_key = None
@@ -345,7 +352,7 @@ def _place_switch(
             child_eq = eq_by_key[child_key]
             parent_node = _make_switch_node(parent_key, eq_by_key[parent_key], center_x, switch_y)
             child_node = _make_switch_node(
-                child_key, child_eq, center_x, switch_y + DEVICE_HEIGHT + ROUTER_SWITCH_GAP
+                child_key, child_eq, center_x, switch_y + SWITCH_HEIGHT + ROUTER_SWITCH_GAP
             )
             node_switch = parent_node if parent_key == "switch" else child_node
             node_datos = parent_node if parent_key == "switch_datos" else child_node
@@ -375,7 +382,7 @@ def _place_switch(
         # Sin cascada: los dos switches cuelgan del router.
         switch_tel = _make_switch_node("switch", sw1_eq, center_x, switch_y)
         switch_datos = _make_switch_node(
-            "switch_datos", sw2_eq, int(canvas_left + usable * 0.70 - DEVICE_WIDTH / 2), switch_y
+            "switch_datos", sw2_eq, int(canvas_left + usable * 0.70 - SWITCH_WIDTH / 2), switch_y
         )
         nodes.extend([switch_tel, switch_datos])
         exit_tel = _anchor_exit_x(router_node, switch_tel)
@@ -402,7 +409,7 @@ def _place_switch(
     switch_node = _make_switch_node(
         "switch",
         switch,
-        router_node.x + (router_node.width - DEVICE_WIDTH) // 2,
+        router_node.x + (router_node.width - SWITCH_WIDTH) // 2,
         switch_y,
     )
     nodes.append(switch_node)

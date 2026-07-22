@@ -52,7 +52,30 @@ def _text_cell(root: etree._Element, cell_id: str, value: str, style: str, x: in
     _geom(cell, x, y, width, height)
 
 
+# Firmas base64 de los formatos de imagen habituales en la librería (los
+# primeros bytes de cada formato, ya codificados en base64).
+_B64_IMAGE_SIGNATURES = (
+    "/9j/",      # JPEG (FF D8 FF)
+    "iVBOR",     # PNG  (89 50 4E 47)
+    "R0lGOD",    # GIF  (47 49 46 38)
+    "PHN2Zy",    # SVG  ("<svg")
+    "PD94bWw",   # SVG  ("<?xml")
+    "Qk",        # BMP  (42 4D)
+)
+
+
 def _drawio_image_uri(value: str) -> str:
+    # Muchos iconos de la librería vienen como 'data:image/xxx,<base64>' SIN el
+    # marcador ';base64'. Sin él, draw.io interpreta el base64 como texto
+    # URL-encoded y la imagen sale en negro/vacía (así se veían los switches).
+    # Si el payload es claramente base64, insertamos ';base64' para que se vea.
+    if value.startswith("data:") and ";base64," not in value[:40]:
+        head, sep, payload = value.partition(",")
+        if sep and any(payload.startswith(sig) for sig in _B64_IMAGE_SIGNATURES):
+            value = f"{head};base64,{payload}"
+    # El ';' se codifica como %3B (draw.io lo decodifica): así los iconos que
+    # arreglamos quedan EXACTAMENTE igual que los que ya venían con ';base64' y
+    # se renderizan bien.
     return quote(value, safe=":/,=+")
 
 
@@ -148,14 +171,23 @@ def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryI
             _geom(cell, node.x, node.y, node.width, node.height)
             continue
 
+        is_switch = node.key in SWITCH_ANCHOR_KEYS or bool(node.meta and node.meta.get("tipo") == "switch")
         item = library.find(node.icon_model or node.model or "")
         if not item and node.icon_model and node.model and node.icon_model != node.model:
             item = library.find(node.model)
+        if not item and is_switch:
+            # Switch sin foto propia (p. ej. los PoE TL-SG1005P/1008P): usar el
+            # icono genérico de switch en vez de dejar una caja vacía.
+            item = library.find("Switch")
         if item:
             aspect = "1" if getattr(item, "aspect", "fixed") == "fixed" else "0"
+            # Las fotos de switch son apaisadas; preservando el aspecto
+            # (imageAspect=1) no se deforman al meterlas en la caja. El resto de
+            # iconos (teléfonos, etc.) siguen rellenando la caja como antes.
+            image_aspect = "1" if is_switch else "0"
             style = (
                 "shape=image;verticalLabelPosition=bottom;verticalAlign=top;"
-                f"aspect={aspect};imageAspect=0;image={_drawio_image_uri(item.data)}"
+                f"aspect={aspect};imageAspect={image_aspect};image={_drawio_image_uri(item.data)}"
             )
         else:
             style = GENERIC_DEVICE_STYLE
