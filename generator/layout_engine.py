@@ -34,6 +34,9 @@ from .placement_engine import (
     _compute_dual_switch_row_layouts,
     _compute_single_switch_row_layouts,
     _count_device_slots,
+    _device_anchor,
+    _is_telephony_equipment,
+    _layout_anchor_node,
     _place_equipment_rows,
     _router_anchored_equipos,
 )
@@ -527,12 +530,20 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
         dect_handset_totals=count_dect_handsets_per_base(device_equipos),
     )
     _place_equipment_rows(data, state)
+    # Las aristas ya tienen sus waypoints calculados con las posiciones ACTUALES.
+    # Las pasadas siguientes mueven nodos en vertical (holgura de internet,
+    # separación de pisos, colisiones de iconos) pero NO los waypoints, así que
+    # tras ellas los cables quedarían "ratas" (la línea de bus se queda arriba y
+    # el dispositivo baja). Guardamos la Y previa para recolocar los waypoints
+    # con el desplazamiento real de cada cable al final.
+    pre_shift_y = {n.key: n.y for n in nodes}
     # Holgura contra la pila de internet: si la etiqueta del switch superior
     # pisa la etiqueta (a veces 2 líneas) del ONT/router, baja el switch y todo
     # lo de debajo. Se aplica a TODOS los diagramas para que no se solape nada.
     _avoid_internet_stack_overlap(nodes)
     _resolve_label_overlaps(nodes)
     _separate_floors(nodes, edges)
+    _reflow_waypoints_after_shift(nodes, edges, pre_shift_y)
     _place_floor_containers(nodes, edges)
     _place_summary_nodes(data, nodes)
     return nodes, edges
@@ -597,6 +608,41 @@ def _separate_floors(nodes: list[NodeSpec], edges: list[EdgeSpec]) -> None:
                 n.y += delta
             ymax += delta
         cursor = ymax
+
+
+def _reflow_waypoints_after_shift(
+    nodes: list[NodeSpec], edges: list[EdgeSpec], pre_shift_y: dict[str, int]
+) -> None:
+    """Recoloca los waypoints de cada cable tras los desplazamientos verticales de
+    nodos (holgura de internet, separación de pisos, colisiones de iconos).
+
+    Las pasadas de reacomodo mueven nodos en Y pero dejan los waypoints en su sitio
+    original; con desplazamientos grandes (p. ej. bajar una banda de piso ~800px)
+    la línea de bus se queda arriba y el cable «sube y baja» (líneas «ratas»). Cada
+    cable ancla su línea de bus a un extremo: los de dispositivo la anclan JUSTO
+    encima del destino (`target.y − holgura`); los de router→switch y cascada la
+    anclan bajo el origen (`source.bottom + holgura`). Detectamos a cuál está más
+    cerca la Y del bus (con las posiciones PREVIAS) y desplazamos los waypoints por
+    el movimiento real de ese extremo. Los desplazamientos son solo verticales, así
+    que las X de los waypoints siguen siendo válidas."""
+    node_by_key = {n.key: n for n in nodes}
+    for e in edges:
+        if not e.waypoints:
+            continue
+        s = node_by_key.get(e.source)
+        t = node_by_key.get(e.target)
+        if s is None or t is None:
+            continue
+        ds = s.y - pre_shift_y.get(e.source, s.y)
+        dt = t.y - pre_shift_y.get(e.target, t.y)
+        if ds == 0 and dt == 0:
+            continue
+        bus_y = e.waypoints[-1][1]  # los waypoints comparten la Y de la línea de bus
+        src_bottom_old = pre_shift_y.get(e.source, s.y) + s.height
+        tgt_top_old = pre_shift_y.get(e.target, t.y)
+        delta = dt if abs(bus_y - tgt_top_old) <= abs(bus_y - src_bottom_old) else ds
+        if delta:
+            e.waypoints = tuple((x, y + delta) for (x, y) in e.waypoints)
 
 
 def _place_floor_containers(nodes: list[NodeSpec], edges: list[EdgeSpec]) -> None:

@@ -100,7 +100,13 @@ def enrich_terminals_from_yeastar(result) -> list[str]:
         except Exception:  # noqa: BLE001 - registro best-effort, no bloquea
             pass
 
-    rellenados: list[str] = []
+    # En vez de un aviso gigante listando todo (los valores ya se ven en la
+    # tabla), damos: un RESUMEN corto de cuántos se autocompletaron, y avisos
+    # individuales SOLO para lo que el técnico debe mirar (MAC hallada por nº de
+    # serie, y discrepancias de extensión nube≠provisión).
+    n_auto = 0
+    por_serie: list[str] = []
+    discrepancias: list[str] = []
     for t in terminals:
         mac = _norm_mac(t.get("mac", ""))
         info = None
@@ -109,7 +115,7 @@ def enrich_terminals_from_yeastar(result) -> list[str]:
             info = por_mac.get(mac)
         else:
             # SIN MAC en la oferta: casar por NÚMERO DE SERIE contra la nube
-            # Yealink (que sí trae sn + mac + extensión + IP LAN).
+            # (Yealink/Grandstream traen sn; Fanvil no).
             serial = str(t.get("serial") or "").strip()
             if serial and serial in por_sn:
                 por_sn_hit = por_sn[serial]
@@ -119,34 +125,35 @@ def enrich_terminals_from_yeastar(result) -> list[str]:
                     info = {"ext": por_sn_hit.get("ext"), "ip": por_sn_hit.get("ip"), "en_nube": True}
         if not info:
             continue
-        partes: list[str] = []
-        if por_sn_hit and t.get("mac"):
-            partes.append(f"MAC {t.get('mac')} (encontrada por nº de serie en la nube)")
+        modelo = t.get("model") or "terminal"
+        rellenado = False
         if not str(t.get("extension") or "").strip() and info.get("ext"):
             t["extension"] = str(info["ext"])
-            fuentes = []
-            if info.get("en_nube"):
-                fuentes.append("nube")
-            if info.get("en_router"):
-                fuentes.append("router")
-            etiqueta = f" [{'+'.join(fuentes)}]" if fuentes else ""
+            rellenado = True
             ext_nube = str(info.get("ext_nube") or "")
             ext_autop = str(info.get("ext_autop") or "")
-            discrepancia = ""
             if ext_nube and ext_autop and ext_nube != ext_autop:
-                discrepancia = f" ⚠ discrepan (nube {ext_nube} / provisión {ext_autop})"
-            partes.append(f"EXT {info['ext']}{etiqueta}{discrepancia}")
+                discrepancias.append(
+                    f"⚠️ {modelo} (EXT): la nube dice {ext_nube} y la provisión {ext_autop}. Verifica cuál es."
+                )
         if not str(t.get("ip") or "").strip() and info.get("ip"):
             t["ip"] = str(info["ip"])
-            partes.append(f"IP {info['ip']}")
-        if partes:
-            rellenados.append(f"{t.get('model') or 'terminal'} (MAC {t.get('mac') or '—'}): {', '.join(partes)}")
+            rellenado = True
+        if rellenado:
+            n_auto += 1
+        if por_sn_hit and t.get("mac"):
+            por_serie.append(
+                f"🔎 {modelo}: MAC {t.get('mac')} encontrada por nº de serie en la nube"
+                + (f" (EXT {info.get('ext')})" if info.get("ext") else "")
+            )
 
-    if rellenados:
+    if n_auto:
         avisos.append(
-            "Autocompletado desde la nube Yealink + router (casando por MAC y por "
-            "nº de serie; revísalo antes de generar): " + "; ".join(rellenados)
+            f"✅ Extensión e IP autocompletadas en {n_auto} teléfono(s) "
+            "(nube + router). Revísalas en la tabla de Telefonía."
         )
+    avisos.extend(por_serie)
+    avisos.extend(discrepancias)
     return avisos
 
 

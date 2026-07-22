@@ -62,19 +62,19 @@ class LayoutGoldenTests(unittest.TestCase):
     def test_con_switch_layout_is_stable(self) -> None:
         self.assertEqual(
             _canonical(CON_SWITCH),
-            # Actualizado al arreglar el zigzag de los cables router→switch en
-            # doble switch: ahora caen en vertical desde el punto de salida.
-            (9, 5, "03a60ffe16ddc34b284d5fd11e8a93eb7fbfdd29fcb5a8f2ae981738fa0a69eb"),
+            # Actualizado al recolocar los waypoints tras los desplazamientos
+            # verticales de nodos (holgura de internet): antes la línea de bus se
+            # quedaba ~26px por encima del destino; ahora sigue al dispositivo.
+            (9, 5, "fb1b8b01b332ae98102b43e3e0427352cf76b80d18eeb9b1d5993866fa6a3634"),
         )
 
     def test_office_example_layout_is_stable(self) -> None:
         self.assertEqual(
             _canonical(load_input(ROOT / "examples" / "cliente_demo.json")),
-            # Actualizado al corregir el solapamiento de la etiqueta del cable
-            # router->dispositivo vertical (ETHn-LAN) con la etiqueta de IP del
-            # router: el offset pasa de (10,-30) a (28,25) para bajarla y
-            # desplazarla lateralmente y no pisar la IP.
-            (13, 9, "443a1728565fb013b089a4d38ec10161bccc3bb0675f627b3153ecb9470318a4"),
+            # Actualizado al recolocar los waypoints tras los desplazamientos
+            # verticales de nodos (holgura de internet): los cables siguen al
+            # dispositivo en vez de quedarse en la posición previa al reacomodo.
+            (13, 9, "38aefa59563810cc8c6873a7f3816e58ff26c50d7f88e2b48438b3b57fc68b2f"),
         )
 
     def test_multisite_example_layout_is_stable(self) -> None:

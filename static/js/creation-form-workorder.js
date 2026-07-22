@@ -19,9 +19,28 @@
               return;
             }
             importWarnings.innerHTML = "";
-            (warnings || []).forEach(function (warning) {
-              const item = document.createElement("li");
-              item.textContent = warning;
+            // Orden: primero lo que REQUIERE acción (rojo), luego avisos, luego OK.
+            var lista = (warnings || []).map(function (w) {
+              var t = String(w || "");
+              var cls, ord;
+              if (t.indexOf("⚠") === 0 || /no trae (mac|n[uú]mero)|compl[eé]ta|necesitas a[nñ]adir un switch/i.test(t)) {
+                cls = "imp-warn-action"; ord = 0; // acción requerida
+              } else if (t.indexOf("🔎") === 0) {
+                cls = "imp-warn-find"; ord = 1; // hallado por nº de serie
+              } else if (/corregid/i.test(t)) {
+                cls = "imp-warn-fix"; ord = 2; // dato corregido
+              } else if (t.indexOf("✅") === 0) {
+                cls = "imp-warn-ok"; ord = 3; // autocompletado OK
+              } else {
+                cls = "imp-warn-info"; ord = 2;
+              }
+              return { texto: t, cls: cls, ord: ord };
+            });
+            lista.sort(function (a, b) { return a.ord - b.ord; });
+            lista.forEach(function (w) {
+              var item = document.createElement("li");
+              item.className = w.cls;
+              item.textContent = w.texto;
               importWarnings.appendChild(item);
             });
           }

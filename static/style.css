@@ -3600,3 +3600,11 @@ así que en SO oscuro la UI quedaba ilegible (paneles
 
 .switch-warning{margin:10px 0;padding:12px 16px;border:2px solid #d33;border-radius:10px;background:#fdecec;color:#a11;font-weight:700;font-size:0.95rem;line-height:1.4;}
 .switch-warning .switch-warning-note{font-weight:500;color:#7a2320;}
+
+/* Avisos de importación de OT: una tarjeta por aviso, color por tipo, legible. */
+#import-work-order-warnings{list-style:none;padding-left:0;margin:8px 0 0;}
+#import-work-order-warnings li{padding:8px 12px;margin:6px 0;border-radius:8px;font-size:0.9rem;line-height:1.5;border-left:4px solid #c9ced6;background:#f6f7f9;color:#1f2a37;}
+#import-work-order-warnings li.imp-warn-action{background:#fdecec;border-left-color:#d33;color:#9a1b1b;font-weight:600;}
+#import-work-order-warnings li.imp-warn-find{background:#eef4fb;border-left-color:#1668b8;}
+#import-work-order-warnings li.imp-warn-fix{background:#f2eefb;border-left-color:#7a4fd0;}
+#import-work-order-warnings li.imp-warn-ok{background:#eef8ee;border-left-color:#2f9e44;}
