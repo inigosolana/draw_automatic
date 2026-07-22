@@ -225,7 +225,7 @@ def _compute_anchor_row_layout(
     # Hueco vertical entre filas amplio: la etiqueta de un teléfono puede tener
     # hasta 6 líneas (puerto + modelo + EXT + SN + MAC + IP), ~120px. Con 125 no
     # se solapa con la fila de abajo.
-    row_step = DEVICE_HEIGHT + (DECT_ROW_EXTRA if has_dect_handsets else 125)
+    row_step = DEVICE_HEIGHT + (DECT_ROW_EXTRA if has_dect_handsets else 150)
     if has_dect_handsets:
         handset_band = DECT_HANDSET_OFFSET_Y + DEVICE_HEIGHT + DECT_ROW_CLEARANCE
         row_step = max(row_step, handset_band)
@@ -668,7 +668,9 @@ def _create_dect_base(state: _DevicePlacementState, team: dict, normalized_model
             meta={"tipo": "base_dect", "dect_role": "base", "propiedad": _ownership(team)},
         )
     )
-    state.place_edge(anchor_key, base_key, cable_label, row_top_y)
+    # El cable de la base DECT tampoco lleva etiqueta: el puerto (ETHn) ya se ve
+    # en la etiqueta de la propia base.
+    state.place_edge(anchor_key, base_key, "", row_top_y)
     state.dect_base_registry[registry_key] = base_key
     state.ordered_base_keys.append(base_key)
     state.handsets_on_base[base_key] = 0
@@ -770,7 +772,11 @@ def _place_device_row(
             state.dect_base_registry[registry_key] = key
             state.ordered_base_keys.append(key)
         state.handsets_on_base[key] = state.handsets_on_base.get(key, 0)
-    state.place_edge(anchor_key, key, cable_label, row_top_y)
+    # El cable del dispositivo va SIN etiqueta: el puerto (ETHn) ya se ve, claro y
+    # sin ambigüedad, en la PRIMERA línea (verde) de la etiqueta del propio
+    # teléfono. Ponerlo también sobre el cable amontonaba etiquetas ETH en la zona
+    # donde los cables se cruzan y no se sabía de qué cable era cada una.
+    state.place_edge(anchor_key, key, "", row_top_y)
     state.team_index += 1
 
 

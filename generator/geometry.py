@@ -6,8 +6,8 @@ from typing import Protocol
 SUMMARY_X = 900
 DEVICE_WIDTH = 150
 DEVICE_HEIGHT = 150
-SLOT_SPACING = 235
-MIN_SLOT_SPACING = 230
+SLOT_SPACING = 285
+MIN_SLOT_SPACING = 265
 MIN_LEFT_MARGIN = 60
 CANVAS_RIGHT = SUMMARY_X - 20
 # Borde derecho de la página para las filas de dispositivos que quedan POR DEBAJO
@@ -17,7 +17,10 @@ CANVAS_RIGHT = SUMMARY_X - 20
 PAGE_RIGHT = 1280
 SUMMARY_BOTTOM = 300
 DEVICE_ROW_GAP = 175
-TELEPHONY_ZONE_MIN_SPACING = 185
+# Separación horizontal mínima entre teléfonos repartidos a lo ancho. Subida a
+# 235 para que los terminales queden MÁS separados (menos por fila, más aire
+# entre ellos) y se lean con claridad.
+TELEPHONY_ZONE_MIN_SPACING = 235
 
 
 class _AnchorNode(Protocol):

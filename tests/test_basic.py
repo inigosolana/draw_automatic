@@ -492,8 +492,13 @@ class BasicTests(unittest.TestCase):
         nodes, edges = build_layout(data)
         self.assertTrue(any(node.key == "backup" and node.model == "TELTONIKA" for node in nodes))
         self.assertTrue(any(edge.target == "backup" and edge.label == "ETH2-BACKUP" for edge in edges))
-        phone_labels = [edge.label for edge in edges if edge.target.startswith("team_")]
-        self.assertEqual(phone_labels, ["ETH3-LAN", "ETH4-LAN"])
+        # El cable del telefono ya no lleva etiqueta; el puerto va en la etiqueta
+        # del propio nodo. Empiezan en ETH3 (ETH1=WAN, ETH2=backup).
+        phone_ports = sorted(
+            re.search(r"ETH\d+", n.label).group()
+            for n in nodes if n.key.startswith("team_")
+        )
+        self.assertEqual(phone_ports, ["ETH3", "ETH4"])
 
     def test_chateau_backup_is_integrated(self) -> None:
         data = {
@@ -579,7 +584,7 @@ class BasicTests(unittest.TestCase):
         for edge in edges:
             if edge.source != "switch" or not edge.target.startswith("team_"):
                 continue
-            self.assertTrue(edge.label and edge.label.startswith("ETH"))
+            # El cable de dispositivo ya no lleva etiqueta (el puerto va en el nodo).
             self.assertIsNotNone(edge.waypoints)
             self.assertGreaterEqual(len(edge.waypoints), 1)
         row_center = devices[1].x + devices[1].width / 2
@@ -609,7 +614,7 @@ class BasicTests(unittest.TestCase):
         pc_edge = next(edge for edge in edges if edge.target == pc.key)
         self.assertEqual(phone_edge.source, "router")
         self.assertIn("ETH4", phone.label)
-        self.assertEqual(phone_edge.label, "ETH4-LAN")
+        self.assertEqual(phone_edge.label, "")  # sin etiqueta en el cable; ETH4 va en phone.label
         self.assertEqual(pc_edge.source, "switch")
         self.assertIn("ETH1", pc.label)
 
@@ -700,7 +705,8 @@ class BasicTests(unittest.TestCase):
         phone_edges = [edge for edge in edges if edge.source == "switch" and edge.target.startswith("team_")]
         self.assertEqual(len(phone_edges), 4)
         for edge in phone_edges:
-            self.assertTrue(edge.label and edge.label.startswith("ETH"))
+            # El cable ya no lleva etiqueta ETH (el puerto va en el nodo del telefono).
+            self.assertEqual(edge.label, "")
             self.assertIsNotNone(edge.waypoints)
         # Cada cable sale de un punto PROPIO y distinto del switch (repartidos a lo
         # ancho del borde inferior, en 0..1): ninguna línea sale de otra.
