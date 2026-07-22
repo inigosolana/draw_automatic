@@ -30,6 +30,7 @@ from .geometry import (
     DEVICE_HEIGHT,
     DEVICE_ROW_GAP,
     MIN_SLOT_SPACING,
+    PAGE_RIGHT,
     anchor_row_limits as _anchor_row_limits,
     canvas_bounds as _canvas_bounds,
     device_row_layout as _device_row_layout,
@@ -255,16 +256,21 @@ def _compute_device_row_layout(
     zone_left: int | None = None
     zone_right: int | None = None
     if telephony_only and not has_dual_switch and total_slots > 1:
-        canvas_left, canvas_right = _canvas_bounds()
+        canvas_left, _ = _canvas_bounds()
+        # Las filas de teléfonos quedan muy por debajo de la tabla resumen
+        # (equipo_y >= 445), así que se REPARTEN A LO ANCHO de toda la página
+        # (hasta PAGE_RIGHT), no solo hasta la tabla. Así caben más por fila,
+        # salen menos filas y se aprovecha el espacio horizontal.
+        zone_left, zone_right = canvas_left, PAGE_RIGHT
         fitted, _ = _max_slots_for_zone(
             total_slots,
-            canvas_left,
-            canvas_right,
+            zone_left,
+            zone_right,
             force_horizontal=True,
         )
-        if fitted == total_slots:
-            force_horizontal = True
-            zone_left, zone_right = canvas_left, canvas_right
+        # Si caben todos holgados en una fila, una sola fila; si no,
+        # _compute_anchor_row_layout reparte en varias filas a lo ancho.
+        force_horizontal = fitted == total_slots
     layout = _compute_anchor_row_layout(
         anchor_node,
         device_equipos,

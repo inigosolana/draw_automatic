@@ -5,6 +5,7 @@ import unittest
 
 from generator.aliases import resolve_alias
 from generator.drawio_writer import build_drawio
+from generator.geometry import PAGE_RIGHT
 from generator.layout_engine import SUMMARY_X, _anchor_exit_x, _canvas_bounds, build_layout, summarize_equipment, validate_input_data
 from generator.library_loader import load_library
 from generator.parser import load_input, parse_equipment_line
@@ -692,8 +693,10 @@ class BasicTests(unittest.TestCase):
         self.assertEqual(len(phones), 4)
         self.assertLessEqual(len({node.y for node in phones}), 2)
         self.assertGreater(phones[0].y, switch.y + switch.height)
+        # Las filas de teléfonos se reparten a lo ancho de toda la página (van
+        # muy por debajo de la tabla resumen), así que el límite es PAGE_RIGHT.
         for phone in phones:
-            self.assertLessEqual(phone.x + phone.width, SUMMARY_X - 10)
+            self.assertLessEqual(phone.x + phone.width, PAGE_RIGHT + 10)
         phone_edges = [edge for edge in edges if edge.source == "switch" and edge.target.startswith("team_")]
         self.assertEqual(len(phone_edges), 4)
         for edge in phone_edges:

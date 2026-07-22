@@ -10,6 +10,12 @@ SLOT_SPACING = 235
 MIN_SLOT_SPACING = 230
 MIN_LEFT_MARGIN = 60
 CANVAS_RIGHT = SUMMARY_X - 20
+# Borde derecho de la página para las filas de dispositivos que quedan POR DEBAJO
+# de la tabla resumen (esquina superior derecha, y<=270). Esas filas pueden
+# repartirse a lo ancho de toda la página, no solo hasta la tabla. Coincide con el
+# borde derecho de la tabla resumen para un dibujo equilibrado.
+PAGE_RIGHT = 1280
+SUMMARY_BOTTOM = 300
 DEVICE_ROW_GAP = 175
 TELEPHONY_ZONE_MIN_SPACING = 185
 
