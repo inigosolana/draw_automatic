@@ -734,6 +734,38 @@ class BasicTests(unittest.TestCase):
         # Nombre en rojo porque el equipo es del proveedor (ADAMO).
         self.assertIn("#d00000", ont.label)
 
+    def test_expander_auto_assigned_to_t4x_and_rendered(self) -> None:
+        from generator.offer_mapper import OfferProduct, map_offer_to_form
+        prods = [
+            OfferProduct(name="Yealink T-44", quantity=1, extensions=["3001"]),
+            OfferProduct(name="Yealink T-31", quantity=1, extensions=["3002"]),
+            OfferProduct(name="Modulo de expansion EXP43", quantity=1),
+        ]
+        r = map_offer_to_form(prods, cliente="X", cif="B1", sede="S")
+        t44 = next(t for t in r.terminals if t["model"] == "T-44")
+        t31 = next(t for t in r.terminals if t["model"] == "T-31")
+        # El expansor se asigna al T-44 (compatible), no al T-31.
+        self.assertEqual(int(t44.get("expansor") or 0), 1)
+        self.assertFalse(int(t31.get("expansor") or 0))
+        # Y el modulo de expansion NO aparece como producto/terminal suelto.
+        self.assertFalse(any("EXP" in (t.get("model") or "").upper() for t in r.terminals))
+        # Render: una caja de expansor + un "+" junto al telefono.
+        data = {
+            "cliente": "X", "sede": "S", "direccion": "D", "template": "con_switch",
+            "internet": {"tipo": "SOLO FIBRA", "velocidad": "1 GB"},
+            "ont": {"modelo": "ONT ZTE"}, "router": {"modelo": "MikroTik hAP ac2"},
+            "equipos": [
+                {"tipo": "telefono", "modelo": "T-44", "cantidad": 1, "extensiones": ["3001"], "expansor": 1, "expansor_modelo": "EXP43"},
+                {"tipo": "telefono", "modelo": "T-31", "cantidad": 1, "extensiones": ["3002"]},
+            ],
+        }
+        nodes, _ = build_layout(data)
+        expanders = [n for n in nodes if n.meta and n.meta.get("tipo") == "expansor"]
+        pluses = [n for n in nodes if n.kind == "plain_text" and "+" in (n.label or "")]
+        self.assertEqual(len(expanders), 1)
+        self.assertEqual(len(pluses), 1)
+        self.assertIn("EXP43", expanders[0].label)
+
     def test_dual_switches_route_telephony_and_data_separately(self) -> None:
         data = {
             "cliente": "INMOBILIARIA HUMEDO SL",

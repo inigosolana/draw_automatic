@@ -35,12 +35,24 @@ ACCESSORY_PATTERN = re.compile(
     r"alimentaci[oó]n|adaptador(?:\s+de\s+corriente)?|cable|patch\s*cord|"
     r"soporte|mount|bracket|clip|tornillo|kit\s*de\s*montaje|bater[ií]a\s*de\s*respaldo|"
     r"poe\s*injector|inyector(?:\s+de)?\s*poe|injector(?:\s+poe)?|"
-    # Consumibles/accesorios que NO van al diagrama: tarjetas SIM y módulos de
-    # expansión de teclas (EXP40/EXP43/EXP50…) de los teléfonos.
-    r"tarjeta\s*sim|\bsim\b|m[oó]dulo\s+de\s+expansi[oó]n|exp\d{2}"
+    # Consumibles/accesorios que NO van al diagrama: tarjetas SIM.
+    r"tarjeta\s*sim|\bsim\b"
     r")\b",
     re.IGNORECASE,
 )
+
+# Módulos de expansión de teclas (EXP40/EXP43/EXP50…): SÍ van al diagrama, pegados
+# al teléfono que los lleva (con un "+"). Antes se ignoraban como accesorio.
+EXPANDER_PATTERN = re.compile(
+    r"m[oó]dulo\s+de\s+expansi[oó]n|expansi[oó]n\s+de\s+teclas|expansion\s+module|\bexp\s?\d{2}\b",
+    re.IGNORECASE,
+)
+# Teléfonos que admiten módulo de expansión (Yealink T4x/T5x de gama media/alta).
+_EXPANDABLE_MODEL = re.compile(r"^T-4[2-8]\b|^T-5\d\b", re.IGNORECASE)
+
+
+def is_expander(name: str) -> bool:
+    return bool(EXPANDER_PATTERN.search(name or ""))
 
 HEADSET_PATTERN = re.compile(
     r"\b(wh6[0-9](?:\s*e2)?(?:\s*uc)?|headset|casco|auricular)\b",
@@ -307,9 +319,13 @@ def map_offer_to_form(
     connectivity_blob = connectivity_text or ""
     active_products: list[OfferProduct] = []
 
+    expander_count = 0
     for product in products:
         name = product.name.strip()
         if not name:
+            continue
+        if is_expander(name):
+            expander_count += max(1, product.quantity)
             continue
         if is_accessory(name):
             result.warnings.append(f"Accesorio ignorado: {name}")
@@ -418,6 +434,28 @@ def map_offer_to_form(
             result.warnings.append(f"Producto no clasificado (revisar manualmente): {name}")
 
     result.devices_json = pending_devices
+
+    # Módulos de expansión: se asignan a los teléfonos compatibles (T-4x/T-5x) en
+    # orden. Es una estimación (el técnico debe confirmar a qué teléfono va cada
+    # uno; puede corregirlo con la casilla del formulario).
+    if expander_count > 0:
+        assigned = 0
+        for term in result.terminals:
+            if assigned >= expander_count:
+                break
+            if _EXPANDABLE_MODEL.match(str(term.get("model", "") or "")):
+                term["expansor"] = int(term.get("expansor") or 0) + 1
+                assigned += 1
+        if assigned:
+            result.warnings.append(
+                f"🔌 {expander_count} módulo(s) de expansión detectado(s); asignado(s) a "
+                f"{assigned} teléfono(s) T-4x/T-5x. Revisa a qué teléfono va cada uno."
+            )
+        if assigned < expander_count:
+            result.warnings.append(
+                f"⚠ Quedan {expander_count - assigned} módulo(s) de expansión sin teléfono "
+                "compatible: asígnalos a mano en el formulario."
+            )
 
     provider = _normalize_provider(connectivity_blob)
     if provider:

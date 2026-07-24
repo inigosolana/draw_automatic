@@ -752,6 +752,19 @@ def _place_dect_handset(
     state.team_index += 1
 
 
+def _expansor_count(team: dict) -> int:
+    """Nº de módulos de expansión de un terminal. Acepta int, str numérica o bool."""
+    v = team.get("expansor")
+    if v in (None, "", False, 0, "0"):
+        return 0
+    if v is True:
+        return 1
+    try:
+        return max(0, int(str(v).strip() or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
 def _place_device_row(
     state: _DevicePlacementState,
     team: dict,
@@ -782,6 +795,8 @@ def _place_device_row(
                 "dect_role": "base" if is_dect_base else "",
                 "propiedad": _ownership(team),
                 "piso": _safe(team.get("piso", "")).strip(),
+                "expansor": _expansor_count(team),
+                "expansor_modelo": _safe(team.get("expansor_modelo", "")).strip(),
             },
         )
     )

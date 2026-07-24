@@ -221,7 +221,10 @@
               // El puerto ETH (8º campo) solo se guarda para terminales VoIP (no DECT).
               const puertoDetail = !isDectHandset(model) ? puerto : "";
               // Piso (9º campo) para el contenedor de piso en el diagrama.
-              detailLines.push([model, extension, serial, mac, ip, ownership, dectBase, puertoDetail, piso].join(" | "));
+              // Módulo de expansión (10º campo): solo para teléfonos VoIP.
+              const expField = row.querySelector('[data-field="expansor"]');
+              const expansor = (expField && expField.checked && !isDectHandset(model)) ? "1" : "";
+              detailLines.push([model, extension, serial, mac, ip, ownership, dectBase, puertoDetail, piso, expansor].join(" | "));
               if (model) {
                 const extensionText = extension ? `, extension ${extension}` : "";
                 const baseText = isDectHandset(model) && dectBase ? `, base ${dectBase}` : "";
@@ -253,6 +256,7 @@
               dectBase: values.dectBase || values.dect_base || "",
               puerto: values.puerto || "",
               piso: values.piso || "",
+              expansor: (String(values.expansor || "").trim() && String(values.expansor).trim() !== "0") ? "1" : "",
             };
           }
 
@@ -308,6 +312,7 @@
                 </select>
               </label>
               <button type="button" class="remove-terminal" title="Eliminar terminal" aria-label="Eliminar terminal">×</button>
+              <label class="row-field terminal-expansor${isDectHandset(values.model) ? " is-hidden" : ""}" style="display:flex;align-items:center;gap:4px"><input data-field="expansor" type="checkbox"${values.expansor ? " checked" : ""} aria-label="Módulo de expansión"><span>Módulo exp.</span></label>
               <label class="row-field terminal-floor" style="grid-column:1/-1;display:none"><span class="field-mobile-label">Piso</span><select data-field="piso" aria-label="Piso">${floorOptionsHtml(values.piso)}</select></label>`;
             row.querySelectorAll("input, select").forEach(function (field) {
               field.addEventListener("input", syncTerminalRows);
@@ -349,6 +354,7 @@
                   // validacion) se perdian el puerto y el piso elegidos.
                   puerto: parts[7] || "",
                   piso: parts[8] || "",
+                  expansor: parts[9] || "",
                 };
               }
               return {

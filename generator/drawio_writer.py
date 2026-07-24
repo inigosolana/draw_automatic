@@ -175,6 +175,18 @@ def build_drawio(nodes: list[NodeSpec], edges: list[EdgeSpec], library: LibraryI
             _geom(cell, node.x, node.y, node.width, node.height)
             continue
 
+        if node.meta and node.meta.get("tipo") == "expansor":
+            # Módulo de expansión: caja pequeña gris con la etiqueta dentro (no hay
+            # icono propio en la librería). Se dibuja pegado a la derecha del
+            # teléfono, con un "+" entre medias (añadido como nodo de texto aparte).
+            style = (
+                "rounded=1;whiteSpace=wrap;html=1;fillColor=#f0f0f0;strokeColor=#7f7f7f;"
+                "verticalAlign=middle;align=center;fontSize=10;fontStyle=1;"
+            )
+            cell = etree.SubElement(root, "mxCell", {"id": cell_id, "value": node.label, "style": style, "parent": "1", "vertex": "1"})
+            _geom(cell, node.x, node.y, node.width, node.height)
+            continue
+
         is_switch = node.key in SWITCH_ANCHOR_KEYS or bool(node.meta and node.meta.get("tipo") == "switch")
         item = library.find(node.icon_model or node.model or "")
         if not item and node.icon_model and node.model and node.icon_model != node.model:

@@ -14,9 +14,11 @@ from .equipment_detection import (
 )
 from .offer_mapper import (
     ImportResult,
+    _EXPANDABLE_MODEL,
     _infer_internet_type,
     extract_work_order_id,
     is_accessory,
+    is_expander,
     is_headset,
     map_offer_to_form,
     normalize_products,
@@ -171,6 +173,7 @@ def _parse_crm_equipments(equipments: object) -> dict:
     connectivity_parts: list[str] = []
     active_dect_base = ""
     handset_bases_from_order: list[str] = []
+    expander_count = 0
     dect_bases_found = _collect_crm_dect_bases(items)
 
     for item in items:
@@ -228,9 +231,24 @@ def _parse_crm_equipments(equipments: object) -> dict:
             )
             continue
 
+        if is_expander(clean_name):
+            expander_count += 1
+            continue
+
         products.append({"name": clean_name, "quantity": 1})
 
     _assign_dect_bases_to_handsets(terminals, dect_bases_found, handset_bases_from_order)
+
+    # Módulos de expansión: asignados a los teléfonos compatibles (T-4x/T-5x) en
+    # orden (estimación; el técnico lo confirma con la casilla del formulario).
+    if expander_count > 0:
+        assigned = 0
+        for term in terminals:
+            if assigned >= expander_count:
+                break
+            if _EXPANDABLE_MODEL.match(str(term.get("model", "") or "")):
+                term["expansor"] = int(term.get("expansor") or 0) + 1
+                assigned += 1
 
     connectivity_text = " ".join(dict.fromkeys(connectivity_parts))
     return {

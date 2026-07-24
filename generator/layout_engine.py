@@ -573,6 +573,7 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
     _separate_floors(nodes, edges)
     _reflow_waypoints_after_shift(nodes, edges, pre_shift_y)
     _reroute_lower_cables_through_gaps(nodes, edges)
+    _place_expanders(nodes)
     _place_floor_containers(nodes, edges)
     _place_summary_nodes(data, nodes)
     return nodes, edges
@@ -637,6 +638,60 @@ def _separate_floors(nodes: list[NodeSpec], edges: list[EdgeSpec]) -> None:
                 n.y += delta
             ymax += delta
         cursor = ymax
+
+
+def _place_expanders(nodes: list[NodeSpec]) -> None:
+    """Dibuja los módulos de expansión pegados a la derecha de su teléfono, con un
+    "+" entre medias (estilo de los draws de referencia). Un teléfono lleva N
+    módulos si su meta['expansor'] >= 1. Los módulos van en el hueco a la derecha
+    del teléfono; el "+" indica que van montados sobre él (no es un cable)."""
+    EX_W, EX_H, GAP = 96, 118, 26
+    extra: list[NodeSpec] = []
+    for n in list(nodes):
+        if n.kind != "device":
+            continue
+        try:
+            count = int((n.meta or {}).get("expansor") or 0)
+        except (TypeError, ValueError):
+            count = 0
+        if count <= 0:
+            continue
+        modelo = str((n.meta or {}).get("expansor_modelo") or "").strip()
+        label = f"<b>{modelo}</b>" if modelo else "<b>Módulo</b><br>expansión"
+        piso = (n.meta or {}).get("piso", "")
+        cur_left = n.x + n.width
+        for k in range(count):
+            plus_x = cur_left + (GAP - 18) // 2
+            ex_x = cur_left + GAP
+            ex_y = n.y + (n.height - EX_H) // 2
+            extra.append(
+                NodeSpec(
+                    key=f"{n.key}_exp{k}",
+                    kind="device",
+                    label=label,
+                    model="",
+                    x=ex_x,
+                    y=ex_y,
+                    width=EX_W,
+                    height=EX_H,
+                    meta={"tipo": "expansor", "piso": piso, "propiedad": (n.meta or {}).get("propiedad", "")},
+                )
+            )
+            extra.append(
+                NodeSpec(
+                    key=f"{n.key}_plus{k}",
+                    kind="plain_text",
+                    label="<font style='font-size:22px'><b>+</b></font>",
+                    model="",
+                    x=plus_x,
+                    y=n.y + n.height // 2 - 16,
+                    width=18,
+                    height=32,
+                    meta={"piso": piso},
+                )
+            )
+            cur_left = ex_x + EX_W
+    nodes.extend(extra)
 
 
 def _reroute_lower_cables_through_gaps(nodes: list[NodeSpec], edges: list[EdgeSpec]) -> None:
@@ -792,7 +847,15 @@ def _place_floor_containers(nodes: list[NodeSpec], edges: list[EdgeSpec]) -> Non
         miny = min(m.y for m in ns) - LABEL_ABOVE - TITLE_BAND
         maxx = max(m.x + m.width for m in ns) + pad
         maxy = max(m.y + m.height for m in ns) + LABEL_BELOW
-        label = piso if piso.lower().startswith("piso") else f"Piso {piso}"
+        # Etiqueta "PLANTA N" (como en los draws de referencia), conservando el
+        # recuadro de color que agrupa los equipos de la planta.
+        _digits = "".join(ch for ch in piso if ch.isdigit())
+        if _digits:
+            label = f"PLANTA {_digits}"
+        elif piso.lower().startswith("planta"):
+            label = piso
+        else:
+            label = f"PLANTA {piso}" if piso else "PLANTA"
         # Índice de color: por el número de piso si es numérico, si no por orden.
         digits = "".join(ch for ch in piso if ch.isdigit())
         color_idx = (int(digits) - 1) if digits else len(containers)
