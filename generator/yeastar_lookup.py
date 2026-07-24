@@ -119,10 +119,14 @@ def enrich_terminals_from_yeastar(result) -> list[str]:
             serial = str(t.get("serial") or "").strip()
             if serial and serial in por_sn:
                 por_sn_hit = por_sn[serial]
+                # La extensión/IP de la nube se aprovechan SIEMPRE que casa el nº de
+                # serie; la MAC solo se rellena si la nube trae una MAC válida (12
+                # hex). Antes, si la MAC venía vacía/corta, se descartaban también
+                # la extensión y la IP que sí venían.
                 nueva_mac = _format_mac(por_sn_hit.get("mac", ""))
                 if nueva_mac:
                     t["mac"] = nueva_mac
-                    info = {"ext": por_sn_hit.get("ext"), "ip": por_sn_hit.get("ip"), "en_nube": True}
+                info = {"ext": por_sn_hit.get("ext"), "ip": por_sn_hit.get("ip"), "en_nube": True}
         if not info:
             continue
         modelo = t.get("model") or "terminal"

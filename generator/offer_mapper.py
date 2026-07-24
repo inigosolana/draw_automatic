@@ -173,7 +173,12 @@ def _offer_product_from_text_line(line: str) -> OfferProduct | None:
     # El token de puerto ETH se extrae antes de parsear para no ensuciar el modelo.
     text, puerto = strip_puerto_token(text)
     name, inline_extensions = strip_inline_extensions(text)
-    equipment = parse_equipment_line(text if re.match(r"^\d+\s", text) else f"1 {text}")
+    try:
+        equipment = parse_equipment_line(text if re.match(r"^\d+\s", text) else f"1 {text}")
+    except ValueError:
+        # Línea con cantidad 0 (p. ej. "0 incidencias abiertas"): no es equipo,
+        # se ignora en vez de romper toda la importación.
+        return None
     if equipment:
         model_name = str(equipment.get("modelo", "")).strip() or name or text
         if not model_name and equipment.get("dect_base"):

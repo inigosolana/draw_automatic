@@ -572,6 +572,7 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
     _resolve_label_overlaps(nodes)
     _separate_floors(nodes, edges)
     _reflow_waypoints_after_shift(nodes, edges, pre_shift_y)
+    _reroute_lower_cables_through_gaps(nodes, edges)
     _place_floor_containers(nodes, edges)
     _place_summary_nodes(data, nodes)
     return nodes, edges
@@ -636,6 +637,66 @@ def _separate_floors(nodes: list[NodeSpec], edges: list[EdgeSpec]) -> None:
                 n.y += delta
             ymax += delta
         cursor = ymax
+
+
+def _reroute_lower_cables_through_gaps(nodes: list[NodeSpec], edges: list[EdgeSpec]) -> None:
+    """Evita que el cable a un teléfono de una fila INFERIOR baje en vertical por
+    encima del icono de un teléfono de una fila superior alineado en su columna.
+    Si la bajada por el centro del destino cruzaría el icono de otro dispositivo,
+    reencamina el cable para que baje por un HUECO libre y entre al destino con un
+    pequeño quiebre horizontal justo encima de él. No toca los cables que ya bajan
+    limpios."""
+    node_by_key = {n.key: n for n in nodes}
+    anchors = SWITCH_ANCHOR_KEYS | {"router"}
+    # Obstáculos = TODOS los iconos de equipo (incluidos switches, que están en el
+    # medio y un cable del router no debe atravesar). Se excluyen por cable los
+    # extremos propios (origen y destino).
+    dev_icons = [n for n in nodes if n.kind == "device"]
+    for e in edges:
+        if e.source not in anchors or not e.waypoints:
+            continue
+        s = node_by_key.get(e.source)
+        t = node_by_key.get(e.target)
+        if s is None or t is None or t.kind != "device":
+            continue
+        tc = t.x + t.width // 2
+        bus_y = e.waypoints[-1][1]  # altura del último tramo horizontal del cable
+        blockers = [
+            d
+            for d in dev_icons
+            if d.key not in (e.source, e.target)
+            and d.x < tc < d.x + d.width
+            and d.y + d.height > bus_y
+            and d.y < t.y
+        ]
+        if not blockers:
+            continue  # la bajada por el centro no cruza nada: se deja como está
+        occupied = [
+            (d.x - 16, d.x + d.width + 16)
+            for d in dev_icons
+            if d.key not in (e.source, e.target)
+            and d.y + d.height > bus_y + 4
+            and d.y < t.y - 4
+        ]
+        lane = None
+        for off in range(6, 1000, 6):
+            for cand in (tc - off, tc + off):
+                if all(not (lo <= cand <= hi) for lo, hi in occupied):
+                    lane = cand
+                    break
+            if lane is not None:
+                break
+        if lane is None:
+            continue
+        exit_abs = int(s.x + e.exit_x * s.width)
+        drop_y = t.y - 30
+        wp: list[tuple[int, int]] = []
+        if abs(exit_abs - lane) > 6:
+            wp.append((exit_abs, bus_y))
+        wp.append((lane, bus_y))
+        wp.append((lane, drop_y))
+        wp.append((tc, drop_y))
+        e.waypoints = tuple(wp)
 
 
 def _order_switch_exits_by_target(nodes: list[NodeSpec], edges: list[EdgeSpec]) -> None:

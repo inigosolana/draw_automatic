@@ -121,7 +121,11 @@ def _normalize_wifi_ap_model(name: str) -> str:
 def _switch_ports_poe(name: str) -> tuple[int | None, bool]:
     """Deduce (nº de puertos, es_poe) del nombre de un switch del CRM."""
     low = name.lower()
-    poe = "poe" in low
+    # PoE si el nombre dice "poe" o si el modelo lleva el sufijo "P"/"PE" tras el
+    # nº de puertos (convención TP-Link SG1005P/SG1008P, D-Link DGS-1008P,
+    # TL-SG108PE). Esta función solo se llama para switches, así que "<dígito>P"
+    # es un indicador fiable de PoE.
+    poe = ("poe" in low) or bool(re.search(r"\dp(?:e)?\b", low))
     familias = [
         ("sg1024", 24), ("sg1016", 16), ("sg1008", 8), ("sg1005", 5),
         ("sg108", 8), ("sg105", 5), ("1100-08", 8), ("dgs-108", 8),

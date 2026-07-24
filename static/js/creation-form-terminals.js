@@ -344,6 +344,11 @@
                   ip: parts[4] || "",
                   ownership: (parts[5] || "propio").toLocaleLowerCase("es"),
                   dectBase: parts[6] || "",
+                  // 8º y 9º campos: puerto ETH y piso. Antes se ignoraban, asi que
+                  // al re-renderizar el formulario (p. ej. tras un error de
+                  // validacion) se perdian el puerto y el piso elegidos.
+                  puerto: parts[7] || "",
+                  piso: parts[8] || "",
                 };
               }
               return {

@@ -60,7 +60,6 @@ _B64_IMAGE_SIGNATURES = (
     "R0lGOD",    # GIF  (47 49 46 38)
     "PHN2Zy",    # SVG  ("<svg")
     "PD94bWw",   # SVG  ("<?xml")
-    "Qk",        # BMP  (42 4D)
 )
 
 
@@ -69,9 +68,14 @@ def _drawio_image_uri(value: str) -> str:
     # marcador ';base64'. Sin él, draw.io interpreta el base64 como texto
     # URL-encoded y la imagen sale en negro/vacía (así se veían los switches).
     # Si el payload es claramente base64, insertamos ';base64' para que se vea.
-    if value.startswith("data:") and ";base64," not in value[:40]:
+    if value.startswith("data:"):
         head, sep, payload = value.partition(",")
-        if sep and any(payload.startswith(sig) for sig in _B64_IMAGE_SIGNATURES):
+        # Comprobamos ';base64' en la PARTE DEL TIPO (antes de la coma), no en un
+        # prefijo fijo: así no se duplica el marcador aunque el tipo lleve params
+        # largos (p. ej. 'data:image/svg+xml;charset=utf-16;base64,...').
+        if sep and ";base64" not in head and any(
+            payload.startswith(sig) for sig in _B64_IMAGE_SIGNATURES
+        ):
             value = f"{head};base64,{payload}"
     # El ';' se codifica como %3B (draw.io lo decodifica): así los iconos que
     # arreglamos quedan EXACTAMENTE igual que los que ya venían con ';base64' y

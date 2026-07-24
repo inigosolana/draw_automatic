@@ -132,7 +132,13 @@ def _collect_crm_dect_bases(items: list[dict]) -> list[str]:
             continue
         clean_name = _strip_vendor_prefix(product_name)
         dect_base = _normalize_dect_base(clean_name)
-        if dect_base and re.search(r"\bbase\b", clean_name, re.IGNORECASE):
+        # Es base DECT si el nombre dice "base" O si el modelo NO es un terminal
+        # (p. ej. "W60B", "YEALINK W90DM" no llevan la palabra "base"). Mismo
+        # criterio que offer_mapper, para no perder bases sin la palabra "base".
+        if dect_base and (
+            re.search(r"\bbase\b", clean_name, re.IGNORECASE)
+            or not _normalize_terminal_model(clean_name)
+        ):
             if dect_base not in bases:
                 bases.append(dect_base)
     return bases
@@ -185,7 +191,10 @@ def _parse_crm_equipments(equipments: object) -> dict:
             connectivity_parts.append(service_name)
 
         dect_base = _normalize_dect_base(clean_name)
-        if dect_base and re.search(r"\bbase\b", clean_name, re.IGNORECASE):
+        if dect_base and (
+            re.search(r"\bbase\b", clean_name, re.IGNORECASE)
+            or not _normalize_terminal_model(clean_name)
+        ):
             active_dect_base = dect_base
             # La base DECT es un equipo físico con su propio SN y MAC: la
             # emitimos como terminal (no como producto de solo-nombre) para que

@@ -696,8 +696,27 @@ def _place_dect_handset(
     stack_index = state.handsets_on_base.get(base_key, 0)
     total_on_base = state.handset_total_for_base(base_key) or (stack_index + 1)
     handset_y = base_node.y + DECT_HANDSET_OFFSET_Y
-    center_offset = (stack_index - (total_on_base - 1) / 2) * DECT_HANDSET_FAN_STEP
-    handset_x = int(base_node.x + center_offset)
+    # Abanico de handsets alrededor de la base. Con muchos handsets el paso fijo
+    # (170) sacaba las cajas fuera de la página (x negativo o > PAGE_RIGHT).
+    # Estrategia: mantener el paso (para NO solapar los handsets) y DESPLAZAR el
+    # abanico lo justo para que quepa; solo se reduce el paso si el abanico es más
+    # ancho que el propio lienzo (caso extremo, muchísimos handsets).
+    half = (total_on_base - 1) / 2
+    step = DECT_HANDSET_FAN_STEP
+    dx = 0.0
+    if half > 0:
+        left_margin, _ = _canvas_bounds()
+        lo_bound, hi_bound = left_margin, PAGE_RIGHT - 150  # x-izq del icono (ancho 150)
+        if 2 * half * step > (hi_bound - lo_bound):
+            step = (hi_bound - lo_bound) / (2 * half)
+        left_x = base_node.x - half * step   # icono más a la izquierda
+        right_x = base_node.x + half * step  # icono más a la derecha
+        if left_x < lo_bound:
+            dx = lo_bound - left_x
+        elif right_x > hi_bound:
+            dx = hi_bound - right_x
+    center_offset = (stack_index - half) * step
+    handset_x = int(base_node.x + dx + center_offset)
     key = f"team_{state.team_index}"
     handset_label = _equipment_label(team, extension=extension)
     state._add_node(
