@@ -4,6 +4,7 @@ from .dect_layout import count_dect_handsets_per_base
 from .geometry import (
     DEVICE_HEIGHT,
     DEVICE_WIDTH,
+    PAGE_RIGHT,
     SUMMARY_X,
     canvas_bounds as _canvas_bounds,
 )
@@ -572,8 +573,8 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
     _resolve_label_overlaps(nodes)
     _separate_floors(nodes, edges)
     _reflow_waypoints_after_shift(nodes, edges, pre_shift_y)
-    _reroute_lower_cables_through_gaps(nodes, edges)
     _place_expanders(nodes)
+    _reroute_lower_cables_through_gaps(nodes, edges)
     _place_floor_containers(nodes, edges)
     _place_summary_nodes(data, nodes)
     return nodes, edges
@@ -643,9 +644,27 @@ def _separate_floors(nodes: list[NodeSpec], edges: list[EdgeSpec]) -> None:
 def _place_expanders(nodes: list[NodeSpec]) -> None:
     """Dibuja los módulos de expansión pegados a la derecha de su teléfono, con un
     "+" entre medias (estilo de los draws de referencia). Un teléfono lleva N
-    módulos si su meta['expansor'] >= 1. Los módulos van en el hueco a la derecha
-    del teléfono; el "+" indica que van montados sobre él (no es un cable)."""
-    EX_W, EX_H, GAP = 96, 118, 26
+    módulos si su meta['expansor'] >= 1. Solo se dibuja el módulo si CABE en el
+    hueco (sin solaparse con otro icono y sin salirse del lienzo); si no cabe se
+    omite para no romper el diagrama."""
+    EX_W, EX_H, GAP = 88, 118, 12
+    RIGHT_LIMIT = PAGE_RIGHT + 140
+    icons = [n for n in nodes if n.kind == "device"]
+
+    def _fits(box: tuple[float, float, float, float], placed: list[NodeSpec]) -> bool:
+        x0, y0, x1, y1 = box
+        if x0 < 40 or x1 > RIGHT_LIMIT:
+            return False
+        for o in icons:
+            b = (o.x, o.y, o.x + o.width, o.y + o.height)
+            if x0 < b[2] and b[0] < x1 and y0 < b[3] and b[1] < y1:
+                return False
+        for e in placed:
+            b = (e.x, e.y, e.x + e.width, e.y + e.height)
+            if x0 < b[2] and b[0] < x1 and y0 < b[3] and b[1] < y1:
+                return False
+        return True
+
     extra: list[NodeSpec] = []
     for n in list(nodes):
         if n.kind != "device":
@@ -659,24 +678,29 @@ def _place_expanders(nodes: list[NodeSpec]) -> None:
         modelo = str((n.meta or {}).get("expansor_modelo") or "").strip()
         label = f"<b>{modelo}</b>" if modelo else "<b>Módulo</b><br>expansión"
         piso = (n.meta or {}).get("piso", "")
+        propiedad = (n.meta or {}).get("propiedad", "")
         cur_left = n.x + n.width
         for k in range(count):
-            plus_x = cur_left + (GAP - 18) // 2
             ex_x = cur_left + GAP
             ex_y = n.y + (n.height - EX_H) // 2
-            extra.append(
-                NodeSpec(
-                    key=f"{n.key}_exp{k}",
-                    kind="device",
-                    label=label,
-                    model="",
-                    x=ex_x,
-                    y=ex_y,
-                    width=EX_W,
-                    height=EX_H,
-                    meta={"tipo": "expansor", "piso": piso, "propiedad": (n.meta or {}).get("propiedad", "")},
-                )
+            box = (ex_x, ex_y, ex_x + EX_W, ex_y + EX_H)
+            if not _fits(box, extra):
+                # No hay hueco (fila muy densa o última columna): mejor no dibujarlo
+                # que solaparlo. El aviso de la oferta ya indica que hay un módulo.
+                break
+            plus_x = cur_left + (GAP - 18) // 2
+            expander = NodeSpec(
+                key=f"{n.key}_exp{k}",
+                kind="device",
+                label=label,
+                model="",
+                x=ex_x,
+                y=ex_y,
+                width=EX_W,
+                height=EX_H,
+                meta={"tipo": "expansor", "piso": piso, "propiedad": propiedad},
             )
+            extra.append(expander)
             extra.append(
                 NodeSpec(
                     key=f"{n.key}_plus{k}",

@@ -766,6 +766,28 @@ class BasicTests(unittest.TestCase):
         self.assertEqual(len(pluses), 1)
         self.assertIn("EXP43", expanders[0].label)
 
+    def test_expander_dense_row_never_overlaps(self) -> None:
+        # Fila densa con todos los teléfonos con expansor: los módulos que no
+        # caben se omiten, pero NUNCA deben solaparse con otro icono.
+        equipos = [{"tipo": "switch", "modelo": "TP-Link TL-SG1008D", "cantidad": 1}]
+        for i in range(9):
+            equipos.append({"tipo": "telefono", "modelo": "T-44", "cantidad": 1,
+                            "extensiones": [str(3001 + i)], "expansor": 1})
+        data = {
+            "cliente": "X", "sede": "S", "direccion": "D", "template": "con_switch",
+            "internet": {"tipo": "SOLO FIBRA", "velocidad": "1 GB"},
+            "ont": {"modelo": "ONT ZTE"}, "router": {"modelo": "MikroTik hAP ac2"},
+            "equipos": equipos,
+        }
+        nodes, _ = build_layout(data)
+        icons = [n for n in nodes if n.kind == "device"]
+        for i in range(len(icons)):
+            for j in range(i + 1, len(icons)):
+                a, b = icons[i], icons[j]
+                overlap = (a.x < b.x + b.width and b.x < a.x + a.width
+                           and a.y < b.y + b.height and b.y < a.y + a.height)
+                self.assertFalse(overlap, f"solape entre {a.key} y {b.key}")
+
     def test_dual_switches_route_telephony_and_data_separately(self) -> None:
         data = {
             "cliente": "INMOBILIARIA HUMEDO SL",
