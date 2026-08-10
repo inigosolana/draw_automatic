@@ -97,11 +97,21 @@
     setStatus(otStatus, msg, "ok");
   }
 
+  async function fetchT(url, opts, ms) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), ms || 12000);
+    try {
+      return await fetch(url, Object.assign({ signal: ctrl.signal }, opts || {}));
+    } finally {
+      clearTimeout(t);
+    }
+  }
+
   async function loadOT(ot) {
     if (!otLookupUrl) return;
     setStatus(otStatus, "Cargando OT " + ot + "...", "loading");
     try {
-      const r = await fetch(otLookupUrl + "?ot=" + encodeURIComponent(ot), { credentials: "same-origin" });
+      const r = await fetchT(otLookupUrl + "?ot=" + encodeURIComponent(ot), { credentials: "same-origin" }, 15000);
       const p = await r.json();
       if (!r.ok) throw new Error(p.error || "No se pudo cargar la OT.");
       applyPrefill(p, "OT " + (p.work_order_id || ot) + " cargada: ");
@@ -122,7 +132,7 @@
     setStatus(otStatus, "Buscando datos de " + cliente + "...", "loading");
     try {
       const qs = "cliente=" + encodeURIComponent(cliente) + "&sede=" + encodeURIComponent(sede) + "&cif=" + encodeURIComponent(cif);
-      const r = await fetch(clientLookupUrl + "?" + qs, { credentials: "same-origin" });
+      const r = await fetchT(clientLookupUrl + "?" + qs, { credentials: "same-origin" }, 15000);
       const p = await r.json();
       if (!r.ok) throw new Error(p.error || "No se pudieron buscar los datos.");
       applyPrefill(p, "Cliente cargado: ");
@@ -245,7 +255,7 @@
     setStatus(groupStatus, "Buscando grupo en Zabbix...", "loading");
     try {
       const url = groupLookupUrl + "?role=" + encodeURIComponent(groupRole()) + "&provincia=" + encodeURIComponent(province);
-      const r = await fetch(url, { credentials: "same-origin" });
+      const r = await fetchT(url, { credentials: "same-origin" }, 10000);
       const p = await r.json();
       if (!r.ok) throw new Error(p.error || "No se pudo consultar el grupo.");
       if (groupIdInput) groupIdInput.value = p.groupid || "";
@@ -263,11 +273,11 @@
     if (!ip || !password) { setStatus(versionStatus, "Introduce IP y contraseña para comprobar la versión.", "error"); return; }
     setStatus(versionStatus, "Consultando el router...", "loading");
     try {
-      const r = await fetch(versionLookupUrl, {
+      const r = await fetchT(versionLookupUrl, {
         method: "POST", credentials: "same-origin",
         headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken },
         body: JSON.stringify({ router_ip: ip, router_password: password }),
-      });
+      }, 15000);
       const p = await r.json();
       if (!r.ok || !p.ok) throw new Error(p.error || "No se pudo detectar la versión.");
       setStatus(versionStatus, "Versión " + p.version + " → " + p.template, "ok");
