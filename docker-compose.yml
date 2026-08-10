@@ -153,7 +153,10 @@ volumes:
 networks:
   drawio_internal:
     driver: bridge
-    # NOTA: la subred real es 172.28.0.0/16 (gw 172.28.0.1) y los sidecars del host
-    # hacen bind/allowlist a esa IP. NO declarar aquí `ipam` en caliente: compose
-    # intentaría recrear la red (falla si hay endpoints activos) y corta el servicio.
-    # Para fijarla hay que hacerlo con la pila parada: `docker compose down && up -d`.
+    # Subred fija: el gateway 172.28.0.1 debe ser estable porque los sidecars del
+    # host hacen bind/allowlist a esa IP. Cambiar esto exige recrear la red con la
+    # pila PARADA (`docker compose down && up -d`), nunca en caliente.
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+          gateway: 172.28.0.1
