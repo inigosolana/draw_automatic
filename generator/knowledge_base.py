@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import html
 import json
+import logging
+import os
 import re
 import threading
 from pathlib import Path
+
+_log = logging.getLogger(__name__)
 
 # Parser XML seguro (bloquea DTD/entidades externas → evita XXE y billion-laughs)
 # al procesar .drawio subidos o traídos de GLPI.
@@ -20,6 +24,9 @@ KNOWLEDGE_PATH = Path(__file__).resolve().parents[1] / "data" / "learned_library
 # (p. ej. tras learn_from_drawio), igual que _BASE_CACHE en library_loader.
 _LEARNED_CACHE: dict[str, tuple[tuple[int, int], list[dict]]] = {}
 _LEARNED_CACHE_LOCK = threading.Lock()
+# Serializa el read-modify-write de learned_library.json (subidas concurrentes
+# de .drawio podían pisarse y perder iconos aprendidos).
+_WRITE_LOCK = threading.Lock()
 
 
 def _plain_label(value: str) -> str:
@@ -52,43 +59,49 @@ def learn_from_drawio(xml: str, source_name: str, knowledge_path: Path = KNOWLED
         elif value and not cell.get("edge"):
             labels.append((x, y, value))
 
-    learned: dict[str, dict] = {}
-    if knowledge_path.exists():
-        try:
-            learned = json.loads(knowledge_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            learned = {}
+    # read-modify-write serializado + escritura atómica (tmp+rename) para no
+    # perder iconos ante subidas concurrentes.
+    with _WRITE_LOCK:
+        learned: dict[str, dict] = {}
+        if knowledge_path.exists():
+            try:
+                learned = json.loads(knowledge_path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError) as exc:
+                _log.warning("learned_library.json ilegible (%s); se reescribe", exc)
+                learned = {}
 
-    added: list[str] = []
-    for x, y, image, embedded_label in images:
-        candidates = []
-        if embedded_label:
-            candidates.append((0.0, embedded_label))
-        for label_x, label_y, label in labels:
-            horizontal = abs(label_x - x)
-            vertical = label_y - y
-            if horizontal <= 100 and -40 <= vertical <= 260:
-                candidates.append((horizontal + abs(vertical - 160), label))
-        if not candidates:
-            continue
-        label = min(candidates, key=lambda item: item[0])[1]
-        model = label.split(" EXT ", 1)[0].split(" SN ", 1)[0].strip()
-        if not model or len(model) > 80:
-            continue
-        key = normalize_name(model)
-        if key and key not in learned:
-            learned[key] = {
-                "title": model,
-                "data": image,
-                "width": 120,
-                "height": 120,
-                "source": source_name,
-            }
-            added.append(model)
+        added: list[str] = []
+        for x, y, image, embedded_label in images:
+            candidates = []
+            if embedded_label:
+                candidates.append((0.0, embedded_label))
+            for label_x, label_y, label in labels:
+                horizontal = abs(label_x - x)
+                vertical = label_y - y
+                if horizontal <= 100 and -40 <= vertical <= 260:
+                    candidates.append((horizontal + abs(vertical - 160), label))
+            if not candidates:
+                continue
+            label = min(candidates, key=lambda item: item[0])[1]
+            model = label.split(" EXT ", 1)[0].split(" SN ", 1)[0].strip()
+            if not model or len(model) > 80:
+                continue
+            key = normalize_name(model)
+            if key and key not in learned:
+                learned[key] = {
+                    "title": model,
+                    "data": image,
+                    "width": 120,
+                    "height": 120,
+                    "source": source_name,
+                }
+                added.append(model)
 
-    if added:
-        knowledge_path.parent.mkdir(parents=True, exist_ok=True)
-        knowledge_path.write_text(json.dumps(learned, ensure_ascii=False, indent=2), encoding="utf-8")
+        if added:
+            knowledge_path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = knowledge_path.with_name(knowledge_path.name + ".tmp")
+            tmp.write_text(json.dumps(learned, ensure_ascii=False, indent=2), encoding="utf-8")
+            os.replace(tmp, knowledge_path)
     return added
 
 
@@ -105,7 +118,10 @@ def load_learned_items(knowledge_path: Path = KNOWLEDGE_PATH) -> list[dict]:
             return cached[1]
     try:
         payload = json.loads(knowledge_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+    except json.JSONDecodeError as exc:
+        _log.error("learned_library.json corrupto (%s): se ignoran los iconos aprendidos", exc)
+        return []
+    except OSError:
         return []
     items = list(payload.values()) if isinstance(payload, dict) else []
     with _LEARNED_CACHE_LOCK:

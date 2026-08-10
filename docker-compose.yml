@@ -22,6 +22,10 @@ services:
     image: ausarta-drawio:latest
     container_name: ausarta-drawio
     restart: unless-stopped
+    # Límites de recursos: un pico (XML 12 MB / subidas) no debe tumbar el host.
+    mem_limit: 2g
+    pids_limit: 512
+    cpus: 2.0
     logging: *default-logging
     ports:
       - "127.0.0.1:8015:8000"
@@ -76,6 +80,10 @@ services:
       ZABBIX_DEFAULT_MONITORED_BY: "${ZABBIX_DEFAULT_MONITORED_BY:-1}"
       ZABBIX_ROUTEROS_USERNAME: "${ZABBIX_ROUTEROS_USERNAME:-}"
       ZABBIX_ROUTEROS_PASSWORD: "${ZABBIX_ROUTEROS_PASSWORD:-}"
+      ROUTEROS_HELPER_URL: "${ROUTEROS_HELPER_URL:-}"
+      ROUTEROS_HELPER_TOKEN: "${ROUTEROS_HELPER_TOKEN:-}"
+      PASSBOLT_HELPER_URL: "${PASSBOLT_HELPER_URL:-}"
+      PASSBOLT_HELPER_TOKEN: "${PASSBOLT_HELPER_TOKEN:-}"
     volumes:
       - drawio_data:/app/data
       - ./library:/app/library:ro
@@ -145,3 +153,7 @@ volumes:
 networks:
   drawio_internal:
     driver: bridge
+    # NOTA: la subred real es 172.28.0.0/16 (gw 172.28.0.1) y los sidecars del host
+    # hacen bind/allowlist a esa IP. NO declarar aquí `ipam` en caliente: compose
+    # intentaría recrear la red (falla si hay endpoints activos) y corta el servicio.
+    # Para fijarla hay que hacerlo con la pila parada: `docker compose down && up -d`.

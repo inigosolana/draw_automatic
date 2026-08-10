@@ -19,6 +19,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 # conocimiento siga viva sin reinicio.
 _BASE_CACHE: dict[str, tuple[tuple[int, int], list["LibraryItem"]]] = {}
 _BASE_CACHE_LOCK = threading.Lock()
+# Cache de validación por (mtime, size): validate_library_file releía el XML de
+# ~13 MB + regex en cada /generate.
+_VALIDATE_CACHE: dict[str, tuple[tuple[int, int], list[str]]] = {}
+_VALIDATE_CACHE_LOCK = threading.Lock()
 
 
 @dataclass
@@ -72,6 +76,16 @@ def validate_library_file(path: str | Path) -> list[str]:
     library_path = Path(path)
     if not library_path.is_file():
         return [f"No se ha encontrado la libreria en {library_path}."]
+    try:
+        stat = library_path.stat()
+        signature = (int(stat.st_mtime_ns), int(stat.st_size))
+        key = str(library_path)
+        with _VALIDATE_CACHE_LOCK:
+            cached = _VALIDATE_CACHE.get(key)
+            if cached and cached[0] == signature:
+                return list(cached[1])
+    except OSError:
+        signature = key = None
     text = library_path.read_text(encoding="utf-8", errors="ignore")
     match = re.search(r"<mxlibrary>(.*)</mxlibrary>", text, re.DOTALL)
     if not match:
@@ -90,6 +104,9 @@ def validate_library_file(path: str | Path) -> list[str]:
     for required in ("ONT ZTE", "Microtik_hAPc", "T-31"):
         if required not in titles:
             warnings.append(f"Falta el icono obligatorio '{required}' en la libreria.")
+    if signature is not None and key is not None:
+        with _VALIDATE_CACHE_LOCK:
+            _VALIDATE_CACHE[key] = (signature, list(warnings))
     return warnings
 
 

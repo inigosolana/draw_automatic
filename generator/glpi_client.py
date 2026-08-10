@@ -4,6 +4,7 @@ import json
 import os
 import re
 import ssl
+import threading
 import time
 from base64 import b64encode
 from contextlib import contextmanager
@@ -94,6 +95,7 @@ def _unverified_ssl_context() -> ssl.SSLContext:
 # entidades GLPI, para no re-listar todas las entidades en cada consulta.
 _ENTITY_CN_CACHE: dict[str, tuple[float, dict[str, int]]] = {}
 _ENTITY_CN_TTL = 300
+_ENTITY_CN_LOCK = threading.Lock()
 
 
 class GlpiClient:
@@ -133,7 +135,8 @@ class GlpiClient:
         # Cache entre peticiones (no solo por instancia): listar todas las
         # entidades es caro y cambia poco. TTL de 5 min.
         now = time.time()
-        cached = _ENTITY_CN_CACHE.get(self.url)
+        with _ENTITY_CN_LOCK:
+            cached = _ENTITY_CN_CACHE.get(self.url)
         if cached and cached[0] > now:
             self._entity_cn_map = cached[1]
             return cached[1]
@@ -142,7 +145,8 @@ class GlpiClient:
             cn = str(entity.get("completename") or "").strip()
             if cn and str(entity.get("id") or "").isdigit():
                 mapping[cn] = int(entity["id"])
-        _ENTITY_CN_CACHE[self.url] = (now + _ENTITY_CN_TTL, mapping)
+        with _ENTITY_CN_LOCK:
+            _ENTITY_CN_CACHE[self.url] = (now + _ENTITY_CN_TTL, mapping)
         self._entity_cn_map = mapping
         return mapping
 
@@ -565,7 +569,8 @@ class GlpiClient:
         if not new_id:
             raise GlpiError("GLPI no ha devuelto el ID de la sede creada.")
         # Invalidar caché de completename->id: la nueva sede debe ser resoluble.
-        _ENTITY_CN_CACHE.pop(self.url, None)
+        with _ENTITY_CN_LOCK:
+            _ENTITY_CN_CACHE.pop(self.url, None)
         return int(new_id), clean_name
 
     def update_network_diagram_graph(self, diagram_id: int, graph_xml: str) -> None:
@@ -674,6 +679,8 @@ def build_customer_catalog(entities: list[dict]) -> list[dict]:
                     "id": site.get("id"),
                     "nombre": site.get("name", ""),
                     "direccion": format_address(site) or format_address(customer),
+                    "localidad": to_glpi_ascii(str(site.get("town") or customer.get("town") or "").strip()),
+                    "calle": to_glpi_ascii(str(site.get("address") or customer.get("address") or "").strip()),
                 }
                 for site in children
             ]
@@ -683,6 +690,8 @@ def build_customer_catalog(entities: list[dict]) -> list[dict]:
                         "id": customer.get("id"),
                         "nombre": "Sede Principal",
                         "direccion": format_address(customer),
+                        "localidad": to_glpi_ascii(str(customer.get("town") or "").strip()),
+                        "calle": to_glpi_ascii(str(customer.get("address") or "").strip()),
                     }
                 ]
             customers.append(

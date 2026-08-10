@@ -27,6 +27,10 @@ def is_safe_redirect(url: str) -> bool:
     """Solo permite rutas internas relativas (sin dominio ni esquema)."""
     if not url:
         return False
+    # Rechaza backslashes ('/\evil.com' que algunos navegadores normalizan a '//')
+    # y rutas protocol-relative ('//evil.com') → evita open-redirect.
+    if "\\" in url or url.startswith("//"):
+        return False
     parsed = urlparse(url)
     return not parsed.netloc and not parsed.scheme and url.startswith("/")
 

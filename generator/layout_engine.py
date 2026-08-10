@@ -1065,7 +1065,7 @@ def build_multisite_layout(data: dict) -> tuple[list[NodeSpec], list[EdgeSpec]]:
     sites = data.get("sedes") or [{"sede": data["sede"], "direccion": data["direccion"]}]
     for index, site in enumerate(sites, start=1):
         x = 120 + (index - 1) * 320
-        nodes.append(NodeSpec(key=f"site_{index}", kind="device", label=f"<b>{_safe(site.get('sede', f'Sede {index}'))}</b><br>{_safe(site.get('direccion', ''))}", model=site.get("router", {}).get("modelo", data.get("router", {}).get("modelo", "Router")), x=x, y=240, width=150, height=150))
+        nodes.append(NodeSpec(key=f"site_{index}", kind="device", label=f"<b>{_safe(site.get('sede', f'Sede {index}'))}</b><br>{_safe(site.get('direccion', ''))}", model=(site.get("router") or {}).get("modelo", (data.get("router") or {}).get("modelo", "Router")), x=x, y=240, width=150, height=150))
         edges.append(EdgeSpec("inet", f"site_{index}", label=f"VPN {index}", exit_x=0.5, exit_y=1.0, entry_x=0.5, entry_y=0.0))
     nodes.append(NodeSpec(key="summary_title", kind="plain_text", label="Resumen Equipos", x=897, y=150, width=120, height=30))
     nodes.append(NodeSpec(key="summary", kind="table", label=summarize_equipment(data), x=765, y=190, width=385, height=170))

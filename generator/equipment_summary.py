@@ -27,8 +27,8 @@ def summarize_equipment(data: dict) -> str:
     auto_base_models: dict[str, str] = {}  # registry_key -> modelo a mostrar
 
     internet = data.get("internet", {})
-    router_model = _display_model(_safe(data.get("router", {}).get("modelo", "")))
-    ont_model = _display_model(_safe(data.get("ont", {}).get("modelo", "")))
+    router_model = _display_model(_safe((data.get("router") or {}).get("modelo", "")))
+    ont_model = _display_model(_safe((data.get("ont") or {}).get("modelo", "")))
     backup_model = _safe(internet.get("backup", ""))
     if router_model:
         router_lines.append(router_model)
@@ -37,6 +37,7 @@ def summarize_equipment(data: dict) -> str:
     if backup_model and router_model != "CHATEAU":
         router_lines.append(_display_model(backup_model))
 
+    regkeys_with_explicit: set = set()  # handsets que traen dect_base explícito
     for team in data.get("equipos", []):
         qty = team.get("cantidad", 1)
         model = _display_model(_safe(team.get("modelo") or team.get("tipo", "Equipo")))
@@ -55,13 +56,21 @@ def summarize_equipment(data: dict) -> str:
             elif _dect_handset_key(normalized):
                 regkey = _dect_registry_key(team, normalized)
                 auto_base_models[regkey] = _display_model(_resolve_dect_base(team, normalized))
+                if _safe(team.get("dect_base", "")).strip():
+                    regkeys_with_explicit.add(regkey)
         elif tipo in {"switch", "wifi", "otro"}:
             network_lines.append(f"x{qty} {model}")
 
     # Añadir las bases DECT auto-creadas (inalámbricos sin base explícita): en el
     # diagrama se dibuja una base por cada tipo, así que aquí también debe salir.
+    single_base = len(explicit_base_keys) == 1
     for regkey, base_model in auto_base_models.items():
         if regkey in explicit_base_keys:
+            continue
+        # Fallback "base única": si el handset no trae dect_base explícito y solo hay
+        # una base física, la colocación lo cuelga de esa base (no dibuja otra) → no
+        # la listamos aquí, para que el resumen coincida con el diagrama (bug DECT).
+        if single_base and regkey not in regkeys_with_explicit:
             continue
         if base_model not in voip_counts:
             voip_order.append(base_model)

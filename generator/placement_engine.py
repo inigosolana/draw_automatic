@@ -120,6 +120,11 @@ def _count_layout_slots(equipos: list) -> int:
             base_key = _dect_registry_key(team, normalized)
             if base_key in physical_bases or base_key in handset_bases:
                 continue
+            # Fallback "base única": si el handset no trae dect_base explícito y ya
+            # existe EXACTAMENTE una base física, la colocación lo cuelga de esa base
+            # (no crea otra) → aquí NO reservamos slot, para no descentrar (bug DECT).
+            if not _safe(team.get("dect_base", "")).strip() and len(physical_bases) == 1:
+                continue
             handset_bases.add(base_key)
             total += 1
             continue
