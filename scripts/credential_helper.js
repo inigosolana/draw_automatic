@@ -231,6 +231,72 @@ function send(res, code, obj) {
   res.end(body);
 }
 
+// --- Crear un recurso en Passbolt v5 (la contraseña la teclea el técnico) ---
+const openpgp = require(path.join(NOP_DIR, "node_modules", "openpgp"));
+const V5_DEFAULT_RT = process.env.PASSBOLT_V5_RESOURCE_TYPE || "dd1f723d-0d1e-513f-8218-4055dc0530d0";
+let _foldersCache = { at: 0, data: [] };  // reutiliza normName() definido más arriba
+
+async function findClientFolder(cliente, cif) {
+  const now = Date.now();
+  if (now - _foldersCache.at > 300000) {
+    const resp = await provider.apiRequest({ method: "GET", url: "/folders.json" });
+    _foldersCache = { at: now, data: (resp && resp.data && resp.data.body) || (resp && resp.data) || [] };
+  }
+  const cifU = String(cif || "").toUpperCase().trim();
+  const cliN = normName(cliente);
+  for (const fol of _foldersCache.data || []) {
+    let name = fol.name || "";
+    try { const nr = await provider.normalizeFolderRecord(fol); name = nr.name || name; } catch (e) { /* metadata v5 */ }
+    const nn = normName(name);
+    if ((cifU && nn.includes(normName(cifU))) || (cliN.length >= 5 && nn.includes(cliN))) return fol.id;
+  }
+  return "";
+}
+
+async function createResource({ cliente, cif, ip, username, password, folderId }) {
+  if (!password) throw new Error("falta la contraseña (la teclea el técnico)");
+  const uid = process.env.PASSBOLT_USER_ID;
+  const ks = await provider.ensurePrivateKey();
+  const userPriv = ks.privateKey;
+  const mkMap = await provider.fetchMetadataKeys();
+  const shared = [...mkMap.values()].find((k) => k.metadataKeyType === "shared_key") || [...mkMap.values()][0];
+  if (!shared) throw new Error("sin metadata key compartida");
+  const mkPub = shared.privateKey.toPublic();
+
+  const parent = folderId || await findClientFolder(cliente, cif);
+  // destinatarios del secreto = usuarios con acceso a la carpeta (o solo el usuario API)
+  const recipients = new Map();  // user_id -> armoredKey
+  const meBody = (r) => (r && r.data && r.data.body) || (r && r.data) || r;
+  const me = meBody(await provider.apiRequest({ method: "GET", url: `/users/${uid}.json`, params: { "contain[gpgkey]": 1 } }));
+  recipients.set(uid, me.gpgkey.armored_key);
+  if (parent) {
+    try {
+      const fol = meBody(await provider.apiRequest({ method: "GET", url: `/folders/${parent}.json`, params: { "contain[permissions]": 1 } }));
+      const users = meBody(await provider.apiRequest({ method: "GET", url: "/users.json", params: { "contain[gpgkey]": 1 } }));
+      const byId = new Map((users || []).map((u) => [u.id, u.gpgkey && u.gpgkey.armored_key]));
+      for (const p of (fol.permissions || [])) {
+        const aroId = p.aro_foreign_key;
+        if (String(p.aro) === "User" && byId.get(aroId)) recipients.set(aroId, byId.get(aroId));
+      }
+    } catch (e) { /* si no se pueden leer permisos, queda solo el propietario */ }
+  }
+
+  const name = `${cliente}${cif ? " - " + cif : ""} — ${ip}`.slice(0, 250);
+  const metaJson = JSON.stringify({ object_type: "PASSBOLT_RESOURCE_METADATA", resource_type_id: V5_DEFAULT_RT, name, username: username || "Ausarta", uris: ip ? [ip] : [], description: "Router (alta draw_automatic)" });
+  const secJson = JSON.stringify({ object_type: "PASSBOLT_SECRET_DATA", password, description: "" });
+  const metadata = await openpgp.encrypt({ message: await openpgp.createMessage({ text: metaJson }), encryptionKeys: mkPub, signingKeys: userPriv });
+  const secrets = [];
+  for (const [userId, armored] of recipients) {
+    const key = await openpgp.readKey({ armoredKey: armored });
+    const data = await openpgp.encrypt({ message: await openpgp.createMessage({ text: secJson }), encryptionKeys: key, signingKeys: userPriv });
+    secrets.push({ user_id: userId, data });
+  }
+  const payload = { resource_type_id: V5_DEFAULT_RT, metadata, metadata_key_id: shared.id, metadata_key_type: "shared_key", secrets };
+  if (parent) payload.folder_parent_id = parent;
+  const res = meBody(await provider.apiRequest({ method: "POST", url: "/resources.json", data: payload }));
+  return { id: res && res.id, folder: parent || "", shared_with: secrets.length };
+}
+
 const server = http.createServer((req, res) => {
   if (req.method === "GET" && req.url.replace(/\/$/, "") === "/health") {
     return send(res, 200, { ok: true, service: "credential-helper" });
@@ -268,6 +334,28 @@ const server = http.createServer((req, res) => {
     } catch (e) {
       return send(res, 502, { ok: false, error: String(e && e.message || e) });
     }
+  }
+  if (req.method === "POST" && req.url.replace(/\/$/, "") === "/credential/create") {
+    if (TOKEN && req.headers["x-helper-token"] !== TOKEN) {
+      return send(res, 401, { ok: false, error: "token inválido" });
+    }
+    let body = "";
+    req.on("data", (c) => { body += c; if (body.length > 1e6) req.destroy(); });
+    req.on("end", async () => {
+      let p = {};
+      try { p = JSON.parse(body || "{}"); } catch { /* ignore */ }
+      if (!p.password) return send(res, 400, { ok: false, error: "falta password" });
+      try {
+        const r = await createResource({
+          cliente: p.cliente || "", cif: p.cif || "", ip: p.ip || "",
+          username: p.username || "Ausarta", password: p.password, folderId: p.folder_id || "",
+        });
+        return send(res, 200, { ok: true, ...r });
+      } catch (e) {
+        return send(res, 502, { ok: false, error: String((e && e.message) || e) });
+      }
+    });
+    return;
   }
   if (req.method !== "POST" || req.url.replace(/\/$/, "") !== "/credential") {
     return send(res, 404, { ok: false, error: "not found" });

@@ -135,6 +135,14 @@ def _enrich_prefill(prefill: dict, cif: str, cliente: str) -> dict:
     return prefill
 
 
+def _passbolt_create_allowed() -> bool:
+    """Guardar contraseñas en Passbolt SOLO lo puede hacer Iñigo Solana
+    (configurable con PASSBOLT_CREATE_USERS, coma-separado)."""
+    users = {u.strip().lower() for u in os.environ.get("PASSBOLT_CREATE_USERS", "inigo.solana").split(",") if u.strip()}
+    t = current_technician() or {}
+    return str(t.get("username") or "").strip().lower() in users
+
+
 def _router_ip_ok(ip: str) -> bool:
     """Rechaza destinos peligrosos (loopback/link-local/multicast/reservadas/unspecified)
     para evitar SSRF vía el helper de versión / SNMP. Acepta IPs públicas y privadas."""
@@ -287,6 +295,7 @@ def create_zabbix_blueprint(limiter: Limiter) -> Blueprint:
             install_types=INSTALL_TYPES,
             lte_templates=LTE_TEMPLATES,
             proxies=proxies,
+            passbolt_allowed=_passbolt_create_allowed(),
             technician=current_technician(),
             success=success,
             errors=errors or [],
@@ -425,6 +434,10 @@ def create_zabbix_blueprint(limiter: Limiter) -> Blueprint:
 
         form_data = _form_from_request(request.form)
         router_password = request.form.get("router_password", "")
+        # Contraseña que TECLEA el técnico (antes de cualquier auto-fetch) — es la que
+        # se guardaría en Passbolt si marca la casilla.
+        typed_password = router_password.strip()
+        save_passbolt = request.form.get("guardar_passbolt", "") == "on"
         errors: list[str] = []
 
         client = ZabbixClient.from_environment()
@@ -576,7 +589,25 @@ def create_zabbix_blueprint(limiter: Limiter) -> Blueprint:
         if created:
             _invalidate_router_index()  # los nuevos hosts deben verse en la próxima búsqueda
 
-        prefix = " ".join(x for x in [version_note, password_note, backup_pending_note] if x)
+        # Guardar la contraseña TECLEADA en Passbolt (opt-in, no bloqueante: si falla,
+        # el host ya está creado y solo se avisa).
+        passbolt_note = ""
+        if created and save_passbolt and typed_password and _passbolt_create_allowed():
+            try:
+                from generator.passbolt_credentials import create_router_credential
+                r = create_router_credential(
+                    cliente=form_data["cliente"], cif=request.form.get("cif", "").strip(),
+                    ip=form_data["router_ip"], username=default_routeros_username(),
+                    password=typed_password,
+                )
+                if r.get("ok"):
+                    passbolt_note = "Contraseña guardada en Passbolt."
+                else:
+                    passbolt_note = f"AVISO: no se pudo guardar en Passbolt ({r.get('error', '')})."
+            except Exception as exc:  # noqa: BLE001
+                passbolt_note = f"AVISO: no se pudo guardar en Passbolt ({exc})."
+
+        prefix = " ".join(x for x in [version_note, password_note, backup_pending_note, passbolt_note] if x)
         prefix = f"{prefix}. " if prefix else ""
         if created and not errors:
             success = {"summary": f"{prefix}Creados {len(created)} host(s).", "hosts": created}

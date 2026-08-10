@@ -191,6 +191,12 @@
               <span>Contraseña del router (Ausarta)</span>
               <input type="password" name="router_password" id="zabbix-router-password" value="" autocomplete="new-password" placeholder="pega la contraseña del router">
             </label>
+            {% if passbolt_allowed %}
+            <label id="zabbix-guardar-passbolt-wrap" class="zabbix-check">
+              <input type="checkbox" name="guardar_passbolt" id="zabbix-guardar-passbolt" value="on">
+              <span>Guardar esta contraseña en Passbolt (en la carpeta del cliente)</span>
+            </label>
+            {% endif %}
           </div>
 
           <div class="zabbix-version-row" id="zabbix-version-block">
