@@ -41,24 +41,24 @@
           <span class="app-card-desc">Generar y subir el diagrama de red a GLPI</span>
         </a>
 
-        <a class="app-card app-card-zabbix app-card-soon" href="{{ url_for('home.zabbix_soon') }}">
+        {% if zabbix_allowed %}
+        <a class="app-card app-card-zabbix" href="{{ url_for('zabbix.create_host') }}">
           <span class="app-card-step">Paso 2</span>
           <span class="app-card-logo">
             <img src="{{ url_for('static', filename='images/zabbix-logo.svg') }}?v={{ static_v }}" alt="" width="88" height="88">
           </span>
           <span class="app-card-title">Zabbix</span>
-          <span class="app-card-desc">Dar de alta el host SNMP en el grupo de su provincia (próximamente)</span>
-          <span class="app-card-badge">Pronto</span>
+          <span class="app-card-desc">Dar de alta el host SNMP en el grupo de su provincia</span>
         </a>
+        {% endif %}
 
-        <a class="app-card app-card-passbolt app-card-soon" href="{{ url_for('home.passbolt_soon') }}">
+        <a class="app-card app-card-passbolt" href="{{ url_for('home.passbolt_soon') }}">
           <span class="app-card-step">Paso 3</span>
           <span class="app-card-logo">
             <img src="{{ url_for('static', filename='images/passbolt-logo.svg') }}?v={{ static_v }}" alt="" width="88" height="88">
           </span>
           <span class="app-card-title">Passbolt</span>
-          <span class="app-card-desc">Subir credenciales al gestor (próximamente)</span>
-          <span class="app-card-badge">Pronto</span>
+          <span class="app-card-desc">Se guarda al crear el host (Paso 2, casilla). Solo Iñigo Solana</span>
         </a>
       </div>
     </main>

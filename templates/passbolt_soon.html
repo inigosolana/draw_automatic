@@ -24,8 +24,12 @@
         <div class="install-step-banner">Paso 3 de 3</div>
         <img class="app-soon-logo" src="{{ url_for('static', filename='images/passbolt-logo.svg') }}?v={{ static_v }}" alt="Passbolt">
         <h1>Passbolt</h1>
-        <p>Lo activaremos en una fase posterior del despliegue.</p>
-        <a class="button" href="{{ url_for('home.index') }}">Volver a los pasos</a>
+        <p>Ya está integrado en el <strong>alta de Zabbix (Paso 2)</strong>: al crear el host,
+        teclea la contraseña del router y marca la casilla
+        <em>«Guardar esta contraseña en Passbolt»</em> — se guarda en la carpeta del cliente.
+        Disponible solo para <strong>Iñigo Solana</strong>.</p>
+        <a class="button" href="{{ url_for('zabbix.create_host') }}">Ir al alta de Zabbix</a>
+        <a class="button secondary" href="{{ url_for('home.index') }}">Volver a los pasos</a>
       </section>
     </main>
   </body>
