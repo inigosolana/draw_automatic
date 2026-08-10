@@ -23,3 +23,9 @@ scripts/sync-local-to-server.ps1
 data/learned_library.json
 tests/frontend/node_modules/
 tests/frontend/package-lock.json
+
+# Datos de clientes / inventario (nunca versionar ni hornear en la imagen)
+*.csv
+*.xlsx
+library/*.csv
+scripts/*.csv

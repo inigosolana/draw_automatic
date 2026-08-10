@@ -8,3 +8,9 @@ __pycache__
 data/
 tests/
 examples/
+
+# Datos de clientes / inventario
+*.csv
+*.xlsx
+library/*.csv
+scripts/*.csv
