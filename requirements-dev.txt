@@ -1,0 +1,8 @@
+# Dependencias SOLO de scripts de mantenimiento (no del runtime de la app; no se
+# hornean en la imagen). Instálalas a mano si vas a usar esos scripts.
+#   pip install -r requirements-dev.txt
+#
+# Usadas por scripts/remove_library_backgrounds.py y scripts/update_phone_library.py
+# (procesado de iconos de la librería). Fijar versión y revisar CVEs (pip-audit).
+Pillow==11.3.0
+rembg==2.0.67

@@ -18,10 +18,15 @@ la sede (cliente/sede/dirección).
 
 from __future__ import annotations
 
+import random
 import sqlite3
 import time
 from contextlib import closing
 from pathlib import Path
+
+# Retención del historial de aprendizaje: se podan filas más antiguas que esto
+# (probabilísticamente al insertar) para que las tablas no crezcan sin fin.
+RETENTION_DAYS = 365
 
 # Campos de conectividad que aprendemos. router_ip se registra pero NO se sugiere
 # (es casi único por sede, no tiene sentido como autocompletado).
@@ -115,8 +120,20 @@ class ConnectivityLearning:
                         """,
                         (time.time(), _norm(technician), *(values[f] for f in LEARNED_FIELDS)),
                     )
+                    self._maybe_prune(connection)
         except sqlite3.Error:
             pass
+
+    def _maybe_prune(self, connection: sqlite3.Connection) -> None:
+        """Poda (probabilística) filas más antiguas que RETENTION_DAYS."""
+        if random.random() >= 0.02:
+            return
+        cutoff = time.time() - RETENTION_DAYS * 86400
+        for table in ("observations", "corrections"):
+            try:
+                connection.execute(f"DELETE FROM {table} WHERE ts < ?", (cutoff,))
+            except sqlite3.Error:
+                pass
 
     def record_corrections(self, baseline: dict, final: dict) -> None:
         """Guarda los campos que el técnico cambió respecto a lo autorrellenado."""
