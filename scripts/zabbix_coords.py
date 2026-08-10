@@ -138,7 +138,8 @@ class Geocoder:
         self.photon_fails = 0
         if os.path.exists(CACHE_PATH):
             try:
-                self.cache = json.load(open(CACHE_PATH, encoding="utf-8"))
+                with open(CACHE_PATH, encoding="utf-8") as _f:
+                    self.cache = json.load(_f)
             except Exception:  # noqa: BLE001
                 self.cache = {}
 
@@ -147,7 +148,8 @@ class Geocoder:
             os.makedirs(os.path.dirname(CACHE_PATH), exist_ok=True)
             with self.lock:
                 snapshot = dict(self.cache)
-            json.dump(snapshot, open(CACHE_PATH, "w", encoding="utf-8"))
+            with open(CACHE_PATH, "w", encoding="utf-8") as _f:
+                json.dump(snapshot, _f)
         except Exception:  # noqa: BLE001
             pass
 

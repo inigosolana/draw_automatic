@@ -58,9 +58,25 @@ const provider = new PassboltProvider({
   serverFingerprint: process.env.PASSBOLT_SERVER_FINGERPRINT,
 });
 
+// Lee+parsea un JSON con cache por mtime (evita re-parsear el fichero entero en
+// cada request; solo relee si el fichero cambió).
+const _jsonCache = new Map();
+function readJsonCached(p) {
+  try {
+    const st = fs.statSync(p);
+    const c = _jsonCache.get(p);
+    if (c && c.mtimeMs === st.mtimeMs) return c.data;
+    const data = JSON.parse(fs.readFileSync(p, "utf8"));
+    _jsonCache.set(p, { mtimeMs: st.mtimeMs, data });
+    return data;
+  } catch (e) {
+    return JSON.parse(fs.readFileSync(p, "utf8"));  // propaga el error original si falla
+  }
+}
+
 // IP del router -> resourceId + username, leyendo el autodiscovery cache de NOP.
 function resolveResourceByIp(ip) {
-  const raw = JSON.parse(fs.readFileSync(AUTODISCOVERY_CACHE, "utf8"));
+  const raw = readJsonCached(AUTODISCOVERY_CACHE);
   const clients = raw.clients || {};
   for (const key of Object.keys(clients)) {
     const routers = clients[key].mikrotikRouters || [];
@@ -108,7 +124,7 @@ function normName(s) {
 }
 
 function resolveClientRouters(cif, cliente) {
-  const raw = JSON.parse(fs.readFileSync(ROUTER_EXAMPLES, "utf8"));
+  const raw = readJsonCached(ROUTER_EXAMPLES);
   const items = raw.items || [];
   const cifU = String(cif || "").toUpperCase().trim();
   const cliN = normName(cliente);

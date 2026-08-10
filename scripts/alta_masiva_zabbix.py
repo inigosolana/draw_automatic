@@ -92,7 +92,8 @@ def main() -> int:
         if not client:
             print("Zabbix no configurado."); return 2
         cat, _ = load_glpi_catalog()
-        rows = list(csv.DictReader(open(CSV_PATH, encoding="utf-8")))
+        with open(CSV_PATH, encoding="utf-8") as _csvf:
+            rows = list(csv.DictReader(_csvf))
         if args.solo:
             rows = [r for r in rows if r.get("cif", "").upper() == args.solo.upper()]
         fecha = datetime.now(timezone.utc).strftime("%Y-%m-%d")

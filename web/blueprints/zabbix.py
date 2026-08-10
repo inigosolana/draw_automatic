@@ -170,6 +170,27 @@ def _invalidate_router_index() -> None:
         _INDEX_CACHE["at"] = 0.0
 
 
+_PROXY_CACHE: dict = {"at": 0.0, "data": []}
+_PROXY_TTL = float(os.environ.get("ZABBIX_PROXY_TTL_S", "600"))
+
+
+def _cached_proxies(client):
+    """Lista de proxies cacheada (cambia rara vez); evita un proxy.get por render."""
+    if not client:
+        return []
+    now = _time.time()
+    with _INDEX_LOCK:
+        if _PROXY_CACHE["data"] and (now - _PROXY_CACHE["at"]) < _PROXY_TTL:
+            return _PROXY_CACHE["data"]
+    try:
+        data = client.list_proxies()
+    except Exception:  # noqa: BLE001
+        data = []
+    with _INDEX_LOCK:
+        _PROXY_CACHE.update(at=now, data=data)
+    return data
+
+
 def _dominant_proxy(client, groupid: str) -> str:
     """Proxy más usado por los hosts de ese grupo (para no fallar de zona)."""
     if not groupid:
@@ -253,12 +274,7 @@ def create_zabbix_blueprint(limiter: Limiter) -> Blueprint:
     def _render(form_data, *, success=None, errors=None):
         client = ZabbixClient.from_environment()
         glpi_customers, glpi_error = load_glpi_catalog()
-        proxies = []
-        if client:
-            try:
-                proxies = client.list_proxies()
-            except ZabbixError:
-                proxies = []
+        proxies = _cached_proxies(client)
         return render_template(
             "zabbix_create_host.html",
             configured=client is not None,
@@ -517,15 +533,21 @@ def create_zabbix_blueprint(limiter: Limiter) -> Blueprint:
             loc_lat, loc_lon = "", ""
 
         created = []
+        manual_proxy = request.form.get("proxyid", "").strip()
+        _grp_memo: dict = {}  # role -> (group, gid, pid) para no repetir resolve/host.get por spec
         try:
             for spec in plan.hosts:
                 if client.find_host_by_name(spec.host):
                     errors.append(f"Ya existe un host «{spec.host}» en Zabbix; se omite.")
                     continue
-                group = client.resolve_router_group(form_data["provincia"], spec.group_role)
-                gid = str(group.get("groupid", ""))
-                # Proxy: el elegido a mano, o el dominante de la zona (evita proxy erróneo).
-                pid = request.form.get("proxyid", "").strip() or _dominant_proxy(client, gid)
+                if spec.group_role in _grp_memo:
+                    group, gid, pid = _grp_memo[spec.group_role]
+                else:
+                    group = client.resolve_router_group(form_data["provincia"], spec.group_role)
+                    gid = str(group.get("groupid", ""))
+                    # Proxy: el elegido a mano, o el dominante de la zona (evita proxy erróneo).
+                    pid = manual_proxy or _dominant_proxy(client, gid)
+                    _grp_memo[spec.group_role] = (group, gid, pid)
                 result = client.create_host(
                     host=spec.host,
                     name=spec.name,
