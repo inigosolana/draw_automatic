@@ -572,6 +572,7 @@ def build_office_layout(data: dict, include_switch: bool) -> tuple[list[NodeSpec
     _avoid_internet_stack_overlap(nodes)
     _resolve_label_overlaps(nodes)
     _separate_floors(nodes, edges)
+    _relocate_unfloored_overlaps(nodes, edges)
     _reflow_waypoints_after_shift(nodes, edges, pre_shift_y)
     _place_expanders(nodes)
     _reroute_lower_cables_through_gaps(nodes, edges)
@@ -639,6 +640,53 @@ def _separate_floors(nodes: list[NodeSpec], edges: list[EdgeSpec]) -> None:
                 n.y += delta
             ymax += delta
         cursor = ymax
+
+
+def _relocate_unfloored_overlaps(nodes: list[NodeSpec], edges: list[EdgeSpec]) -> None:
+    """Tras apilar los pisos en bandas, un dispositivo SIN planta asignada (p. ej.
+    un AP o una impresora a los que el formulario no les pone planta) puede quedar
+    solapado con una banda de piso que ha bajado. A los que realmente se solapan
+    los bajamos a una fila limpia por debajo de todos los pisos ('sin planta'),
+    conservando su X. Solo actúa cuando hay >=2 pisos y hay solape real, así que
+    los casos que ya salían bien no se tocan."""
+    floors = _compute_floors(nodes, edges)
+    if len(floors) < 2:
+        return
+    floored_keys: set[str] = set()
+    for keys in floors.values():
+        floored_keys |= keys
+    devs = [n for n in nodes if n.kind == "device"]
+    floored = [n for n in devs if n.key in floored_keys]
+    if not floored:
+        return
+    unfloored = [n for n in devs if n.key not in floored_keys]
+
+    def _overlaps_floor(u: NodeSpec) -> bool:
+        for f in floored:
+            if (u.x < f.x + f.width and f.x < u.x + u.width
+                    and u.y < f.y + f.height and f.y < u.y + u.height):
+                return True
+        return False
+
+    # La pila de internet (ONT/router) va SIEMPRE por encima de los pisos; los
+    # dispositivos de fila sin planta son los que quedan a la altura de las
+    # bandas o por debajo. Nos quedamos con esos (y >= techo del primer piso).
+    fy_min = min(f.y for f in floored)
+    group = [u for u in unfloored if u.y >= fy_min]
+    if not group:
+        return
+    if not any(_overlaps_floor(u) for u in group):
+        return
+    # Bajamos el GRUPO como un bloque rígido por debajo de TODOS los pisos, para
+    # conservar su disposición interna (que ya no se solapa) y no colapsar filas.
+    LABEL_BELOW = 125
+    GAP = 70
+    fy_max = max(f.y + f.height for f in floored)
+    delta = int(fy_max + LABEL_BELOW + GAP - min(g.y for g in group))
+    if delta <= 0:
+        return
+    for g in group:
+        g.y += delta
 
 
 def _place_expanders(nodes: list[NodeSpec]) -> None:

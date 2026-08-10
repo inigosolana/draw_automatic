@@ -788,6 +788,33 @@ class BasicTests(unittest.TestCase):
                            and a.y < b.y + b.height and b.y < a.y + a.height)
                 self.assertFalse(overlap, f"solape entre {a.key} y {b.key}")
 
+    def test_floored_layout_with_unfloored_devices_no_overlap(self) -> None:
+        # Pisos activados + dispositivos SIN planta (AP/PC/impresora): antes la
+        # banda de un piso bajaba encima de la fila de equipos sin planta y se
+        # solapaban. Ahora el grupo sin planta se baja en bloque por debajo.
+        data = {
+            "cliente": "C", "sede": "S", "direccion": "D", "template": "sin_switch",
+            "tiene_pisos": True, "num_pisos": 2,
+            "internet": {"tipo": "SOLO FIBRA", "velocidad": "1 GB"},
+            "ont": {"modelo": "ONT ZTE"}, "router": {"modelo": "MikroTik hAP ac2"},
+            "equipos": [
+                {"tipo": "wifi", "modelo": "AP", "cantidad": 2},
+                {"tipo": "telefono", "modelo": "T-31", "cantidad": 1, "extensiones": ["2001"], "piso": "1"},
+                {"tipo": "impresora", "modelo": "HP", "cantidad": 1},
+                {"tipo": "telefono", "modelo": "Cisco 7841", "cantidad": 1, "extensiones": ["2002"], "piso": "2"},
+                {"tipo": "telefono", "modelo": "T-48", "cantidad": 1, "extensiones": ["2003"], "piso": "2"},
+                {"tipo": "switch", "modelo": "switch TP-LINK-5_PORTS", "cantidad": 1, "piso": "2"},
+            ],
+        }
+        nodes, _ = build_layout(data)
+        icons = [n for n in nodes if n.kind == "device"]
+        for i in range(len(icons)):
+            for j in range(i + 1, len(icons)):
+                a, b = icons[i], icons[j]
+                overlap = (a.x < b.x + b.width and b.x < a.x + a.width
+                           and a.y < b.y + b.height and b.y < a.y + a.height)
+                self.assertFalse(overlap, f"solape {a.key}({a.model}) <-> {b.key}({b.model})")
+
     def test_dual_switches_route_telephony_and_data_separately(self) -> None:
         data = {
             "cliente": "INMOBILIARIA HUMEDO SL",
