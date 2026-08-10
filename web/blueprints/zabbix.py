@@ -593,6 +593,12 @@ def create_zabbix_blueprint(limiter: Limiter) -> Blueprint:
         # el host ya está creado y solo se avisa).
         passbolt_note = ""
         if created and save_passbolt and typed_password and _passbolt_create_allowed():
+            from flask import current_app
+            _t = current_technician()
+            # AUDITORÍA (sin contraseña): quién guarda credencial, para qué cliente/IP.
+            current_app.logger.info(
+                "[AUDIT] passbolt-create tecnico=%s ip=%s cliente=%s",
+                str(_t.get("username") or "?"), form_data["router_ip"], form_data["cliente"])
             try:
                 from generator.passbolt_credentials import create_router_credential
                 r = create_router_credential(
@@ -603,9 +609,12 @@ def create_zabbix_blueprint(limiter: Limiter) -> Blueprint:
                 if r.get("ok"):
                     passbolt_note = "Contraseña guardada en Passbolt."
                 else:
-                    passbolt_note = f"AVISO: no se pudo guardar en Passbolt ({r.get('error', '')})."
+                    # Error saneado (nunca refleja el secreto).
+                    passbolt_note = "AVISO: no se pudo guardar en Passbolt (" + public_error_message(
+                        str(r.get("error", "")), context="Passbolt") + ")."
             except Exception as exc:  # noqa: BLE001
-                passbolt_note = f"AVISO: no se pudo guardar en Passbolt ({exc})."
+                passbolt_note = "AVISO: no se pudo guardar en Passbolt (" + public_error_message(
+                    str(exc), context="Passbolt") + ")."
 
         prefix = " ".join(x for x in [version_note, password_note, backup_pending_note, passbolt_note] if x)
         prefix = f"{prefix}. " if prefix else ""

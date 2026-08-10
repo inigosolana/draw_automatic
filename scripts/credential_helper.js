@@ -336,8 +336,9 @@ const server = http.createServer((req, res) => {
     }
   }
   if (req.method === "POST" && req.url.replace(/\/$/, "") === "/credential/create") {
-    if (TOKEN && req.headers["x-helper-token"] !== TOKEN) {
-      return send(res, 401, { ok: false, error: "token inválido" });
+    // Escritura de credenciales: FAIL-CLOSED. Sin token configurado NO se permite crear.
+    if (!TOKEN || req.headers["x-helper-token"] !== TOKEN) {
+      return send(res, 401, { ok: false, error: "token requerido para crear credenciales" });
     }
     let body = "";
     req.on("data", (c) => { body += c; if (body.length > 1e6) req.destroy(); });
