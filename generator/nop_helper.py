@@ -48,7 +48,8 @@ def _read(req: Request, timeout: float):
     try:
         with urlopen(req, timeout=timeout) as resp:
             return json.loads(resp.read().decode("utf-8", errors="replace"))
-    except (HTTPError, URLError, ValueError, json.JSONDecodeError):
+    except (HTTPError, URLError, OSError, ValueError, json.JSONDecodeError):
+        # OSError cubre socket.timeout (read-timeout): degradar, nunca lanzar.
         return None
 
 

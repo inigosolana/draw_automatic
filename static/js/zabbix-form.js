@@ -267,6 +267,7 @@
       if (groupIdInput) groupIdInput.value = p.groupid || "";
       setStatus(groupStatus, "Grupo: " + (p.name || province), "ok");
     } catch (e) {
+      _lastGroupKey = null;  // permite reintentar el mismo (rol, provincia) tras un fallo transitorio
       if (groupIdInput) groupIdInput.value = "";
       setStatus(groupStatus, e.message || "Provincia no encontrada en Zabbix.", "error");
     }

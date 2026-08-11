@@ -19,6 +19,16 @@
 const fs = require("fs");
 const http = require("http");
 const path = require("path");
+const crypto = require("crypto");
+
+// Compara el token de la cabecera con TOKEN en tiempo constante (evita timing oracle).
+// Devuelve false si no hay cabecera o TOKEN no está configurado.
+function tokenMatches(req) {
+  const got = req.headers["x-helper-token"];
+  if (typeof got !== "string" || !TOKEN) return false;
+  const a = Buffer.from(got), b = Buffer.from(TOKEN);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
 
 // --- Config (del entorno; el instalador la deja en /etc/ausarta-credential-helper.env) ---
 const NOP_DIR = process.env.NOP_DIR || "/home/ubuntu/Network Operations Platform Marcos";
@@ -363,7 +373,7 @@ const server = http.createServer((req, res) => {
   // GET de lectura (token opcional): token → parsear query → fn(query) → {ok:true,...}.
   // fn puede devolver un valor o una promesa; los errores degradan a 502.
   function handleGet(fn) {
-    if (TOKEN && req.headers["x-helper-token"] !== TOKEN) {
+    if (TOKEN && !tokenMatches(req)) {
       return send(res, 401, { ok: false, error: "token inválido" });
     }
     Promise.resolve()
@@ -383,7 +393,7 @@ const server = http.createServer((req, res) => {
   }
   if (req.method === "POST" && req.url.replace(/\/$/, "") === "/credential/create") {
     // Escritura de credenciales: FAIL-CLOSED. Sin token configurado NO se permite crear.
-    if (!TOKEN || req.headers["x-helper-token"] !== TOKEN) {
+    if (!tokenMatches(req)) {
       return send(res, 401, { ok: false, error: "token requerido para crear credenciales" });
     }
     let body = "";
@@ -407,7 +417,7 @@ const server = http.createServer((req, res) => {
   if (req.method !== "POST" || req.url.replace(/\/$/, "") !== "/credential") {
     return send(res, 404, { ok: false, error: "not found" });
   }
-  if (TOKEN && req.headers["x-helper-token"] !== TOKEN) {
+  if (TOKEN && !tokenMatches(req)) {
     return send(res, 401, { ok: false, error: "token inválido" });
   }
   let data = "";
