@@ -37,7 +37,7 @@ with app.app_context():
         cc=rev(a,o); time.sleep(1.1)
         if cc=="es" or cc=="ERR": continue
         fr+=1
-        prov=Z.group_province(h.get("hostGroups",[]))
+        prov=Z.group_province(h.get("hostgroups",[]))
         site,_=Z.match_host(h["host"],prov,sites,inv,weight)
         print(f"  FRANCIA({cc}) {h['host'][:50]} {a},{o}  town={site['town'] if site else '?'}",flush=True)
         if not site or not site["town"]: continue

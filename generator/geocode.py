@@ -86,7 +86,10 @@ def geocode_es(calle: str = "", localidad: str = "", provincia: str = "", *, tim
             r = _photon(q, timeout) or _nominatim(q, timeout)
             with _cache_lock:
                 if len(_cache) >= _CACHE_MAX:
-                    _cache.clear()  # tope simple: evita crecimiento indefinido
+                    # expulsa el ~10% más antiguo (orden de inserción) en vez de
+                    # vaciar todo, para no re-geocodificar direcciones ya resueltas
+                    for _old in list(_cache)[: max(1, _CACHE_MAX // 10)]:
+                        _cache.pop(_old, None)
                 _cache[q] = r
         if r:
             try:

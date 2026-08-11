@@ -249,9 +249,15 @@
     updateNamePreview();
   }
 
+  let _lastGroupKey = null;
   async function lookupGroup(province) {
     if (!groupLookupUrl) return;
-    if (!province) { if (groupIdInput) groupIdInput.value = ""; setStatus(groupStatus, "Selecciona una provincia para asignar el grupo en Zabbix.", ""); return; }
+    if (!province) { _lastGroupKey = null; if (groupIdInput) groupIdInput.value = ""; setStatus(groupStatus, "Selecciona una provincia para asignar el grupo en Zabbix.", ""); return; }
+    // Evita la doble petición idéntica: el prefill llama onProvince() y applyTipo()
+    // seguidos, ambos con el mismo (rol, provincia). Si el par no cambió, no repetimos.
+    const key = groupRole() + "|" + province;
+    if (key === _lastGroupKey) return;
+    _lastGroupKey = key;
     setStatus(groupStatus, "Buscando grupo en Zabbix...", "loading");
     try {
       const url = groupLookupUrl + "?role=" + encodeURIComponent(groupRole()) + "&provincia=" + encodeURIComponent(province);
