@@ -62,5 +62,34 @@ class DominantProxyTests(unittest.TestCase):
         self.assertEqual(c.calls, 1)  # segunda vez desde caché
 
 
+class NopHelperDegradationTests(unittest.TestCase):
+    """Sin PASSBOLT_HELPER_URL, el cliente del sidecar degrada a None/vacío."""
+
+    def setUp(self):
+        import os
+        self._saved = {k: os.environ.pop(k, None) for k in
+                       ("PASSBOLT_HELPER_URL", "PASSBOLT_HELPER_TOKEN")}
+
+    def tearDown(self):
+        import os
+        for k, v in self._saved.items():
+            if v is not None:
+                os.environ[k] = v
+
+    def test_get_post_none_sin_helper(self):
+        from generator.nop_helper import helper_get, helper_post, helper_configured
+        self.assertFalse(helper_configured())
+        self.assertIsNone(helper_get("routers", {"cif": "x"}))
+        self.assertIsNone(helper_post("credential", {"ip": "1.2.3.4"}))
+
+    def test_modulos_degradan_a_vacio(self):
+        from generator import nop_inventory as ni, passbolt_credentials as pc
+        self.assertEqual(ni.fetch_client_routers("B1", "ACME"), [])
+        self.assertEqual(ni.fetch_client_services("B1", "ACME"), {})
+        self.assertEqual(ni.fetch_backup_ip("ACME"), "")
+        self.assertEqual(pc.fetch_router_password("1.2.3.4"), "")
+        self.assertFalse(pc.create_router_credential(cliente="ACME", password="x")["ok"])
+
+
 if __name__ == "__main__":
     unittest.main()

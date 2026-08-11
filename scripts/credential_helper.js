@@ -242,7 +242,7 @@ async function _folderIndex() {
   const now = Date.now();
   if (_folderIdx.list.length && (now - _folderIdx.at) <= 300000) return _folderIdx.list;
   const resp = await provider.apiRequest({ method: "GET", url: "/folders.json" });
-  const data = (resp && resp.data && resp.data.body) || (resp && resp.data) || [];
+  const data = B(resp) || [];
   const list = [];
   for (const fol of data) {
     let name = fol.name || "";
@@ -270,10 +270,21 @@ async function usersKeyById() {
   const now = Date.now();
   if (_usersCache.map && (now - _usersCache.at) <= 300000) return _usersCache.map;
   const resp = await provider.apiRequest({ method: "GET", url: "/users.json", params: { "contain[gpgkey]": 1 } });
-  const users = (resp && resp.data && resp.data.body) || (resp && resp.data) || [];
+  const users = B(resp) || [];
   const map = new Map((users || []).map((u) => [u.id, u.gpgkey && u.gpgkey.armored_key]));
   _usersCache = { at: now, map };
   return map;
+}
+
+// Registro (con gpgkey) del propio usuario API, cacheado (TTL 5 min): no cambia y
+// se pedía en cada createResource para cifrar el secreto del propietario.
+let _meCache = { at: 0, val: null };
+async function apiUserRecord(uid) {
+  const now = Date.now();
+  if (_meCache.val && (now - _meCache.at) <= 300000) return _meCache.val;
+  const val = B(await provider.apiRequest({ method: "GET", url: `/users/${uid}.json`, params: { "contain[gpgkey]": 1 } }));
+  _meCache = { at: now, val };
+  return val;
 }
 
 const B = (r) => (r && r.data && r.data.body) || (r && r.data) || r;
@@ -298,7 +309,7 @@ async function createResource({ cliente, cif, ip, username, password, folderId }
   const mkPub = shared.privateKey.toPublic();
   const parent = folderId || await findClientFolder(cliente, cif);
 
-  const me = B(await provider.apiRequest({ method: "GET", url: `/users/${uid}.json`, params: { "contain[gpgkey]": 1 } }));
+  const me = await apiUserRecord(uid);
   const ownerArmored = me.gpgkey.armored_key;
 
   const name = `${cliente}${cif ? " - " + cif : ""} — ${ip}`.slice(0, 250);
@@ -349,39 +360,26 @@ const server = http.createServer((req, res) => {
   if (req.method === "GET" && req.url.replace(/\/$/, "") === "/health") {
     return send(res, 200, { ok: true, service: "credential-helper" });
   }
-  if (req.method === "GET" && req.url.split("?")[0].replace(/\/$/, "") === "/routers") {
+  // GET de lectura (token opcional): token → parsear query → fn(query) → {ok:true,...}.
+  // fn puede devolver un valor o una promesa; los errores degradan a 502.
+  function handleGet(fn) {
     if (TOKEN && req.headers["x-helper-token"] !== TOKEN) {
       return send(res, 401, { ok: false, error: "token inválido" });
     }
-    try {
-      const u = new URL(req.url, "http://local.invalid");
-      const routers = resolveClientRouters(u.searchParams.get("cif") || "", u.searchParams.get("cliente") || "");
-      return send(res, 200, { ok: true, routers });
-    } catch (e) {
-      return send(res, 502, { ok: false, error: String(e && e.message || e) });
-    }
-  }
-  if (req.method === "GET" && req.url.split("?")[0].replace(/\/$/, "") === "/tunnel-ip") {
-    if (TOKEN && req.headers["x-helper-token"] !== TOKEN) {
-      return send(res, 401, { ok: false, error: "token inválido" });
-    }
-    const u = new URL(req.url, "http://local.invalid");
-    tunnelBackupIps(u.searchParams.get("cliente") || "")
-      .then((matches) => send(res, 200, { ok: true, matches }))
+    Promise.resolve()
+      .then(() => fn(new URL(req.url, "http://local.invalid").searchParams))
+      .then((ret) => send(res, 200, { ok: true, ...ret }))
       .catch((e) => send(res, 502, { ok: false, error: String(e && e.message || e) }));
-    return;
   }
-  if (req.method === "GET" && req.url.split("?")[0].replace(/\/$/, "") === "/services") {
-    if (TOKEN && req.headers["x-helper-token"] !== TOKEN) {
-      return send(res, 401, { ok: false, error: "token inválido" });
-    }
-    try {
-      const u = new URL(req.url, "http://local.invalid");
-      const svc = yeastarServices(u.searchParams.get("cif") || "", u.searchParams.get("cliente") || "");
-      return send(res, 200, { ok: true, ...svc });
-    } catch (e) {
-      return send(res, 502, { ok: false, error: String(e && e.message || e) });
-    }
+  const getPath = req.method === "GET" ? req.url.split("?")[0].replace(/\/$/, "") : "";
+  if (getPath === "/routers") {
+    return handleGet((q) => ({ routers: resolveClientRouters(q.get("cif") || "", q.get("cliente") || "") }));
+  }
+  if (getPath === "/tunnel-ip") {
+    return handleGet((q) => tunnelBackupIps(q.get("cliente") || "").then((matches) => ({ matches })));
+  }
+  if (getPath === "/services") {
+    return handleGet((q) => ({ ...yeastarServices(q.get("cif") || "", q.get("cliente") || "") }));
   }
   if (req.method === "POST" && req.url.replace(/\/$/, "") === "/credential/create") {
     // Escritura de credenciales: FAIL-CLOSED. Sin token configurado NO se permite crear.

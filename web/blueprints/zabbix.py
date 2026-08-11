@@ -96,10 +96,21 @@ def _enrich_prefill(prefill: dict, cif: str, cliente: str) -> dict:
 
     if not inventory_configured():
         return prefill
-    try:
-        routers = fetch_client_routers(cif or "", cliente or "")
-    except Exception:  # noqa: BLE001
-        routers = []
+    # routers (NOP) y services (Yeastar) son dos consultas al sidecar independientes:
+    # se lanzan en paralelo para no sumar sus latencias en una ruta interactiva.
+    from concurrent.futures import ThreadPoolExecutor
+
+    def _safe(fn, default):
+        try:
+            return fn()
+        except Exception:  # noqa: BLE001
+            return default
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        fut_routers = pool.submit(_safe, lambda: fetch_client_routers(cif or "", cliente or ""), [])
+        fut_svc = pool.submit(_safe, lambda: fetch_client_services(cif or "", cliente or ""), {})
+        routers = fut_routers.result()
+        svc = fut_svc.result()
     fiber = [r for r in routers if (r.get("type") or "fiber") == "fiber"]
     backup = [r for r in routers if r.get("type") == "backup"]
 
@@ -115,10 +126,6 @@ def _enrich_prefill(prefill: dict, cif: str, cliente: str) -> dict:
     if backup and not prefill.get("backup_ip"):
         prefill["backup_ip"] = backup[0].get("ip", "")
 
-    try:
-        svc = fetch_client_services(cif or "", cliente or "")
-    except Exception:  # noqa: BLE001
-        svc = {}
     # CHATEAU: equipo integrado (fibra+backup en uno) -> 1 host, se detecta por el board de NOP.
     is_chateau = bool(fiber) and "chateau" in (fiber[0].get("board") or "").lower()
     if is_chateau and prefill.get("tipo") in ("fibra", "fibra_backup"):

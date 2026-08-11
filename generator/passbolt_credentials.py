@@ -10,33 +10,16 @@ cadena vacía y el alta sigue (el técnico pega la contraseña o se completa lue
 """
 from __future__ import annotations
 
-import json
-import os
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from generator.nop_helper import helper_configured, helper_post
 
-
-def helper_configured() -> bool:
-    return bool(os.environ.get("PASSBOLT_HELPER_URL", "").strip())
+__all__ = ["helper_configured", "fetch_router_password", "create_router_credential"]
 
 
 def fetch_router_password(ip: str, *, username: str = "", timeout: float | None = None) -> str:
-    base = os.environ.get("PASSBOLT_HELPER_URL", "").strip().rstrip("/")
-    if not base or not ip:
+    if not ip:
         return ""
-    token = os.environ.get("PASSBOLT_HELPER_TOKEN", "").strip()
-    if timeout is None:
-        timeout = float(os.environ.get("PASSBOLT_HELPER_TIMEOUT_S", "15"))
-    body = json.dumps({"ip": ip, "username": username}).encode("utf-8")
-    headers = {"Content-Type": "application/json"}
-    if token:
-        headers["X-Helper-Token"] = token
-    req = Request(f"{base}/credential", data=body, headers=headers, method="POST")
-    try:
-        with urlopen(req, timeout=timeout) as resp:
-            data = json.loads(resp.read().decode("utf-8", errors="replace"))
-    except (HTTPError, URLError, ValueError, json.JSONDecodeError):
-        return ""
+    data = helper_post("credential", {"ip": ip, "username": username},
+                       timeout=timeout, timeout_default=15.0)
     if not isinstance(data, dict) or not data.get("ok"):
         return ""
     return str(data.get("password") or "")
@@ -51,23 +34,12 @@ def create_router_credential(
     Devuelve {'ok': bool, ...}. Nunca lanza: si el helper no está o falla, {'ok': False,
     'error': ...} y el alta del host NO se rompe (es opt-in y no bloqueante).
     """
-    base = os.environ.get("PASSBOLT_HELPER_URL", "").strip().rstrip("/")
-    if not base or not password:
+    if not password:
         return {"ok": False, "error": "helper no configurado o sin contraseña"}
-    token = os.environ.get("PASSBOLT_HELPER_TOKEN", "").strip()
-    if timeout is None:
-        timeout = float(os.environ.get("PASSBOLT_HELPER_TIMEOUT_S", "20"))
-    body = json.dumps({
+    data = helper_post("credential/create", {
         "cliente": cliente, "cif": cif, "ip": ip,
         "username": username, "password": password, "folder_id": folder_id,
-    }).encode("utf-8")
-    headers = {"Content-Type": "application/json"}
-    if token:
-        headers["X-Helper-Token"] = token
-    req = Request(f"{base}/credential/create", data=body, headers=headers, method="POST")
-    try:
-        with urlopen(req, timeout=timeout) as resp:
-            data = json.loads(resp.read().decode("utf-8", errors="replace"))
-    except (HTTPError, URLError, ValueError, json.JSONDecodeError) as exc:
-        return {"ok": False, "error": str(exc)}
+    }, timeout=timeout, timeout_default=20.0)
+    if data is None:
+        return {"ok": False, "error": "el helper no respondió"}
     return data if isinstance(data, dict) else {"ok": False, "error": "respuesta inválida"}
