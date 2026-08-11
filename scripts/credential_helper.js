@@ -253,6 +253,17 @@ async function findClientFolder(cliente, cif) {
   return "";
 }
 
+const B = (r) => (r && r.data && r.data.body) || (r && r.data) || r;
+
+async function _encryptSecret(secJson, armoredKey, signKey) {
+  const key = await openpgp.readKey({ armoredKey });
+  return openpgp.encrypt({ message: await openpgp.createMessage({ text: secJson }), encryptionKeys: key, signingKeys: signKey });
+}
+
+// Patrón correcto Passbolt v5: (1) crear el recurso (propietario = usuario API),
+// (2) simular el compartir con los usuarios de la carpeta para saber a quién cifrar,
+// (3) compartir, (4) mover a la carpeta. Degradación segura: si (2-4) fallan, el
+// recurso YA está creado (propiedad del usuario API) y se devuelve un aviso.
 async function createResource({ cliente, cif, ip, username, password, folderId }) {
   if (!password) throw new Error("falta la contraseña (la teclea el técnico)");
   const uid = process.env.PASSBOLT_USER_ID;
@@ -262,39 +273,54 @@ async function createResource({ cliente, cif, ip, username, password, folderId }
   const shared = [...mkMap.values()].find((k) => k.metadataKeyType === "shared_key") || [...mkMap.values()][0];
   if (!shared) throw new Error("sin metadata key compartida");
   const mkPub = shared.privateKey.toPublic();
-
   const parent = folderId || await findClientFolder(cliente, cif);
-  // destinatarios del secreto = usuarios con acceso a la carpeta (o solo el usuario API)
-  const recipients = new Map();  // user_id -> armoredKey
-  const meBody = (r) => (r && r.data && r.data.body) || (r && r.data) || r;
-  const me = meBody(await provider.apiRequest({ method: "GET", url: `/users/${uid}.json`, params: { "contain[gpgkey]": 1 } }));
-  recipients.set(uid, me.gpgkey.armored_key);
-  if (parent) {
-    try {
-      const fol = meBody(await provider.apiRequest({ method: "GET", url: `/folders/${parent}.json`, params: { "contain[permissions]": 1 } }));
-      const users = meBody(await provider.apiRequest({ method: "GET", url: "/users.json", params: { "contain[gpgkey]": 1 } }));
-      const byId = new Map((users || []).map((u) => [u.id, u.gpgkey && u.gpgkey.armored_key]));
-      for (const p of (fol.permissions || [])) {
-        const aroId = p.aro_foreign_key;
-        if (String(p.aro) === "User" && byId.get(aroId)) recipients.set(aroId, byId.get(aroId));
-      }
-    } catch (e) { /* si no se pueden leer permisos, queda solo el propietario */ }
-  }
+
+  const me = B(await provider.apiRequest({ method: "GET", url: `/users/${uid}.json`, params: { "contain[gpgkey]": 1 } }));
+  const ownerArmored = me.gpgkey.armored_key;
 
   const name = `${cliente}${cif ? " - " + cif : ""} — ${ip}`.slice(0, 250);
   const metaJson = JSON.stringify({ object_type: "PASSBOLT_RESOURCE_METADATA", resource_type_id: V5_DEFAULT_RT, name, username: username || "Ausarta", uris: ip ? [ip] : [], description: "Router (alta draw_automatic)" });
   const secJson = JSON.stringify({ object_type: "PASSBOLT_SECRET_DATA", password, description: "" });
   const metadata = await openpgp.encrypt({ message: await openpgp.createMessage({ text: metaJson }), encryptionKeys: mkPub, signingKeys: userPriv });
-  const secrets = [];
-  for (const [userId, armored] of recipients) {
-    const key = await openpgp.readKey({ armoredKey: armored });
-    const data = await openpgp.encrypt({ message: await openpgp.createMessage({ text: secJson }), encryptionKeys: key, signingKeys: userPriv });
-    secrets.push({ user_id: userId, data });
+
+  // (1) crear (propietario = usuario API, secreto solo para él) — esto funciona.
+  const ownerSecret = await _encryptSecret(secJson, ownerArmored, userPriv);
+  const created = B(await provider.apiRequest({ method: "POST", url: "/resources.json",
+    data: { resource_type_id: V5_DEFAULT_RT, metadata, metadata_key_id: shared.id, metadata_key_type: "shared_key", secrets: [{ data: ownerSecret }] } }));
+  const resId = created && created.id;
+  if (!resId) throw new Error("no se creó el recurso");
+  if (!parent) return { id: resId, folder: "", shared_with: 1, moved: false };
+
+  try {
+    // permisos deseados = propietario (usuario API) + los usuarios de la carpeta.
+    const fol = B(await provider.apiRequest({ method: "GET", url: `/folders/${parent}.json`, params: { "contain[permissions]": 1 } }));
+    const users = B(await provider.apiRequest({ method: "GET", url: "/users.json", params: { "contain[gpgkey]": 1 } }));
+    const keyById = new Map((users || []).map((u) => [u.id, u.gpgkey && u.gpgkey.armored_key]));
+    // permisos = los ACTUALES del recurso (owner, sin is_new) + usuarios de la carpeta (is_new, con aco).
+    const cur = B(await provider.apiRequest({ method: "GET", url: `/resources/${resId}.json`, params: { "contain[permissions]": 1 } }));
+    const perms = (cur.permissions || []).map((p) => ({ id: p.id, aro: p.aro, aro_foreign_key: p.aro_foreign_key, aco: p.aco, aco_foreign_key: p.aco_foreign_key, type: p.type }));
+    const already = new Set(perms.map((p) => p.aro_foreign_key));
+    for (const p of (fol.permissions || [])) {
+      if (String(p.aro) === "User" && !already.has(p.aro_foreign_key) && keyById.get(p.aro_foreign_key)) {
+        perms.push({ is_new: true, aro: "User", aro_foreign_key: p.aro_foreign_key, aco: "Resource", aco_foreign_key: resId, type: p.type || 1 });
+      }
+    }
+    // (2) simular → qué usuarios hay que cifrar.
+    const sim = B(await provider.apiRequest({ method: "POST", url: `/share/simulate/resource/${resId}.json`, data: { permissions: perms } }));
+    const added = (sim && sim.changes && sim.changes.added) || [];
+    const secrets = [];
+    for (const a of added) {
+      const userId = (a.User && a.User.id) || a.id || a.aro_foreign_key;
+      const armored = keyById.get(userId);
+      if (userId && armored) secrets.push({ user_id: userId, data: await _encryptSecret(secJson, armored, userPriv) });
+    }
+    // (3) compartir y (4) mover a la carpeta.
+    await provider.apiRequest({ method: "PUT", url: `/share/resource/${resId}.json`, data: { permissions: perms, secrets } });
+    await provider.apiRequest({ method: "POST", url: `/move/resource/${resId}.json`, data: { folder_parent_id: parent } });
+    return { id: resId, folder: parent, shared_with: perms.length, moved: true };
+  } catch (e) {
+    return { id: resId, folder: parent, shared_with: 1, moved: false, warn: "creado pero no se pudo compartir/mover a la carpeta: " + ((e && e.message) || e) };
   }
-  const payload = { resource_type_id: V5_DEFAULT_RT, metadata, metadata_key_id: shared.id, metadata_key_type: "shared_key", secrets };
-  if (parent) payload.folder_parent_id = parent;
-  const res = meBody(await provider.apiRequest({ method: "POST", url: "/resources.json", data: payload }));
-  return { id: res && res.id, folder: parent || "", shared_with: secrets.length };
 }
 
 const server = http.createServer((req, res) => {

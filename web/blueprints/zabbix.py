@@ -608,6 +608,8 @@ def create_zabbix_blueprint(limiter: Limiter) -> Blueprint:
                 )
                 if r.get("ok"):
                     passbolt_note = "Contraseña guardada en Passbolt."
+                    if r.get("warn"):  # creado pero no compartido/movido a la carpeta
+                        passbolt_note += " AVISO: " + public_error_message(str(r.get("warn")), context="Passbolt")
                 else:
                     # Error saneado (nunca refleja el secreto).
                     passbolt_note = "AVISO: no se pudo guardar en Passbolt (" + public_error_message(
