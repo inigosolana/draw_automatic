@@ -21,6 +21,9 @@ class FakeZabbix:
     def list_proxies(self):
         return [{"proxyid": "10613", "name": "zbxproxy01"}]
 
+    def dominant_proxy(self, groupid):
+        return ""
+
     def find_host_by_name(self, host):
         return {"hostid": "1", "host": host} if host in self.existing else None
 

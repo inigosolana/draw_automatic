@@ -49,6 +49,7 @@ from generator.host_matching import (  # noqa: E402
 )
 from generator.host_matching import tokenize as toks  # noqa: E402
 from generator.host_matching import strip_accents as _strip_accents  # noqa: E402
+from generator.geocode import parse_address  # noqa: E402
 
 CACHE_PATH = os.environ.get("GEOCODE_CACHE") or "/app/data/geocode_cache.json"
 NOMINATIM = "https://nominatim.openstreetmap.org/search"
@@ -190,10 +191,7 @@ class Geocoder:
     def resolve(self, address: str, town: str, prov: str, bias, cache_only=False):
         town = str(town or "").strip()
         prov = str(prov or "").strip()
-        street = str(address or "").strip().strip(",")
-        street = re.split(r",\s*(?:local|bajo|piso|planta|pab|nave|puerta)", street, flags=re.I)[0]
-        street_first = street.split(",")[0].strip()
-        street_nonum = re.sub(r"\d.*$", "", street_first).strip(" ,-")
+        street_first, street_nonum = parse_address(address)
         attempts = []
         if street_first and town:
             attempts.append((f"{street_first}, {town}, {prov}", "calle"))
@@ -215,10 +213,7 @@ class Geocoder:
         Devuelve (lat, lon) o None (para no degradar lo que ya hay)."""
         town = str(town or "").strip()
         prov = str(prov or "").strip()
-        street = str(address or "").strip().strip(",")
-        street = re.split(r",\s*(?:local|bajo|piso|planta|pab|nave|puerta)", street, flags=re.I)[0]
-        first = street.split(",")[0].strip()
-        nonum = re.sub(r"\d.*$", "", first).strip(" ,-")
+        first, nonum = parse_address(address)
         if not first or not town:
             return None
         variants = [f"{first}, {town}, {prov}", f"{first}, {town}"]

@@ -198,20 +198,6 @@ def _cached_proxies(client):
     return data
 
 
-def _dominant_proxy(client, groupid: str) -> str:
-    """Proxy más usado por los hosts de ese grupo (para no fallar de zona)."""
-    if not groupid:
-        return ""
-    try:
-        from collections import Counter
-        hosts = client._jsonrpc("host.get", {"groupids": groupid, "output": ["proxyid"]})
-        c = Counter(str(h.get("proxyid") or "") for h in (hosts or [])
-                    if str(h.get("proxyid") or "") not in ("", "0"))
-        return c.most_common(1)[0][0] if c else ""
-    except Exception:  # noqa: BLE001
-        return ""
-
-
 def _router_index(client):
     """(routers, inv, weight) del índice IDF de hosts FTTH/BACKUP, cacheado."""
     now = _time.time()
@@ -541,7 +527,7 @@ def create_zabbix_blueprint(limiter: Limiter) -> Blueprint:
                     group = client.resolve_router_group(form_data["provincia"], spec.group_role)
                     gid = str(group.get("groupid", ""))
                     # Proxy: el elegido a mano, o el dominante de la zona (evita proxy erróneo).
-                    pid = manual_proxy or _dominant_proxy(client, gid)
+                    pid = manual_proxy or client.dominant_proxy(gid)
                     _grp_memo[spec.group_role] = (group, gid, pid)
                 result = client.create_host(
                     host=spec.host,

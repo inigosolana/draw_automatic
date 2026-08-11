@@ -38,26 +38,6 @@ def _norm(s: str) -> str:
     return re.sub(r"[^A-Z0-9]+", "", s)
 
 
-_PROXY_CACHE: dict = {}
-
-
-def dominant_proxy(client, groupid: str) -> str:
-    """Proxy más usado por los hosts existentes de ese grupo (para no fallar de zona)."""
-    if not groupid:
-        return ""
-    if groupid in _PROXY_CACHE:
-        return _PROXY_CACHE[groupid]
-    try:
-        hosts = client._jsonrpc("host.get", {"groupids": groupid, "output": ["proxyid"]})
-    except Exception:  # noqa: BLE001
-        hosts = []
-    from collections import Counter
-    c = Counter(str(h.get("proxyid") or "") for h in (hosts or []) if str(h.get("proxyid") or "") not in ("", "0"))
-    pid = c.most_common(1)[0][0] if c else ""
-    _PROXY_CACHE[groupid] = pid
-    return pid
-
-
 def _glpi_site(cat, cif, cliente):
     tgt = _norm(cliente)
     for prov in cat or []:
@@ -162,7 +142,7 @@ def main() -> int:
                         ok += 1
                         continue
                     group = client.resolve_router_group(prov_glpi, spec.group_role)
-                    pid = args.proxyid or dominant_proxy(client, str(group.get("groupid", "")))
+                    pid = args.proxyid or client.dominant_proxy(str(group.get("groupid", "")))
                     res = client.create_host(host=spec.host, name=spec.name, ip=spec.ip,
                                              groupid=str(group.get("groupid", "")),
                                              template_ids=spec.template_ids, macros=spec.macros,

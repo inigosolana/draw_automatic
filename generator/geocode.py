@@ -20,6 +20,24 @@ _cache_lock = threading.Lock()
 _CACHE_MAX = 5000
 
 
+_ADDR_TAIL = re.compile(r",\s*(?:local|bajo|piso|planta|pab|nave|puerta)", re.I)
+
+
+def parse_address(address: str) -> tuple[str, str]:
+    """De una dirección de calle → (primer_tramo, tramo_sin_número).
+
+    Recorta el sufijo de local/piso/planta..., se queda con el primer tramo antes
+    de la coma, y una variante sin el número de portal (para reintentar). Ambos
+    ``geocode_es`` y el geocoder de ``zabbix_coords`` construyen sus intentos con
+    esto, así que vive aquí una sola vez.
+    """
+    street = str(address or "").strip().strip(",")
+    street = _ADDR_TAIL.split(street)[0]
+    first = street.split(",")[0].strip()
+    nonum = re.sub(r"\d.*$", "", first).strip(" ,-")
+    return first, nonum
+
+
 def _in_spain(lat, lon) -> bool:
     try:
         la, lo = float(lat), float(lon)
@@ -67,8 +85,7 @@ def geocode_es(calle: str = "", localidad: str = "", provincia: str = "", *, tim
     provincia = str(provincia or "").strip()
     if not (localidad or calle):
         return ("", "")
-    street = re.split(r",\s*(?:local|bajo|piso|planta|pab|nave|puerta)", calle, flags=re.I)[0].split(",")[0].strip()
-    nonum = re.sub(r"\d.*$", "", street).strip(" ,-")
+    street, nonum = parse_address(calle)
     attempts = []
     if street and localidad:
         attempts.append(f"{street}, {localidad}, {provincia}")

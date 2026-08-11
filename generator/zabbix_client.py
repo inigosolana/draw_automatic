@@ -4,6 +4,7 @@ import json
 import os
 import unicodedata
 import warnings
+from collections import Counter
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -55,6 +56,7 @@ class ZabbixClient:
         self.api_url = api_url.rstrip("/")
         self.api_token = api_token.strip()
         self.timeout = max(timeout_ms, 1000) / 1000.0
+        self._proxy_by_group: dict[str, str] = {}
         allow_insecure = os.environ.get("ZABBIX_ALLOW_INSECURE", "").strip().lower() in (
             "1",
             "true",
@@ -187,6 +189,26 @@ class ZabbixClient:
     def list_proxies(self) -> list[dict]:
         result = self._jsonrpc("proxy.get", {"output": ["proxyid", "name"]})
         return result if isinstance(result, list) else []
+
+    def dominant_proxy(self, groupid: str) -> str:
+        """Proxy más usado por los hosts de ese grupo (para no fallar de zona).
+
+        Al crear un router conviene asignarle el proxy que ya usan los demás
+        hosts de su provincia. Degrada a "" si no hay datos. Nunca lanza.
+        """
+        if not groupid:
+            return ""
+        if groupid in self._proxy_by_group:
+            return self._proxy_by_group[groupid]
+        try:
+            hosts = self._jsonrpc("host.get", {"groupids": groupid, "output": ["proxyid"]})
+        except ZabbixError:
+            hosts = []
+        c = Counter(str(h.get("proxyid") or "") for h in (hosts or [])
+                    if str(h.get("proxyid") or "") not in ("", "0"))
+        pid = c.most_common(1)[0][0] if c else ""
+        self._proxy_by_group[groupid] = pid
+        return pid
 
     def find_host_by_name(self, host: str) -> dict | None:
         result = self._jsonrpc(
