@@ -6,6 +6,13 @@ from flask import Blueprint, jsonify, render_template, request, url_for
 from flask_limiter import Limiter
 
 from app_context import current_technician, login_required, technician_can_use_zabbix
+from generator.host_matching import (
+    DISTINCT,
+    MATCH_MIN,
+    build_idf_index,
+    score_candidates,
+    tokenize,
+)
 from generator.routeros_version import fetch_router_version, helper_configured
 from generator.safe_errors import public_error_message
 from generator.zabbix_client import ZabbixClient, ZabbixError
@@ -155,14 +162,6 @@ def _router_ip_ok(ip: str) -> bool:
                 or a.is_unspecified or a.is_reserved)
 
 
-def _host_tokens(s: str) -> set:
-    import re
-    import unicodedata
-    s = "".join(c for c in unicodedata.normalize("NFKD", str(s or "").upper()) if not unicodedata.combining(c))
-    stop = {"SEDE", "MATRIZ", "PRINCIPAL", "CENTRAL", "OFICINA", "EMPRESA", "SEDE1"}
-    return {t for t in re.split(r"[^A-Z0-9]+", s) if len(t) >= 4 and t not in stop}
-
-
 # Índice IDF de hosts FTTH/BACKUP cacheado a nivel de proceso (evita traer ~3.800
 # hosts y reconstruir el índice en cada "cargar datos"). TTL + invalidación al crear.
 import threading as _threading
@@ -215,8 +214,6 @@ def _dominant_proxy(client, groupid: str) -> str:
 
 def _router_index(client):
     """(routers, inv, weight) del índice IDF de hosts FTTH/BACKUP, cacheado."""
-    import math
-    from collections import defaultdict
     now = _time.time()
     with _INDEX_LOCK:
         if _INDEX_CACHE["inv"] is not None and (now - _INDEX_CACHE["at"]) < _INDEX_TTL:
@@ -224,12 +221,7 @@ def _router_index(client):
     hs = client._jsonrpc("host.get", {"output": ["host"]})
     routers = [h["host"] for h in hs
                if h["host"].upper().startswith(("FTTH", "FTHH", "BACKUP", "BACK_UP"))]
-    inv = defaultdict(set)
-    for i, n in enumerate(routers):
-        for t in _host_tokens(n):
-            inv[t].add(i)
-    N = max(1, len(routers))
-    weight = {t: math.log(N / len(s)) for t, s in inv.items()}
+    inv, weight = build_idf_index([tokenize(n, drop_prov=True) for n in routers])
     with _INDEX_LOCK:
         _INDEX_CACHE.update(at=now, routers=routers, inv=inv, weight=weight)
     return routers, inv, weight
@@ -242,29 +234,19 @@ def _existing_zabbix_hosts(cliente: str) -> dict:
     para no confundir con genéricos ("CONSULTING", "EXPRESS"...). Devuelve
     {'fibra': <host o "">, 'backup': <host o "">}. Nunca rompe.
     """
-    from collections import defaultdict
-
     out = {"fibra": "", "backup": ""}
     try:
         client = ZabbixClient.from_environment()
         if not client or not cliente:
             return out
-        ct = _host_tokens(cliente)
+        ct = tokenize(cliente, drop_prov=True)
         if not ct:
             return out
         routers, inv, weight = _router_index(client)
-        namew = defaultdict(float)
-        maxw = defaultdict(float)
-        for t in ct:
-            w = weight.get(t, 0)
-            if w <= 0:
-                continue
-            for i in inv.get(t, ()):
-                namew[i] += w
-                if w > maxw[i]:
-                    maxw[i] = w
-        for i in sorted(namew, key=lambda i: -namew[i]):
-            if namew[i] < 4.0 or maxw[i] < 3.0:  # exige coincidencia sólida + token distintivo
+        scored = score_candidates(ct, inv, weight)
+        for i in sorted(scored, key=lambda i: -scored[i][0]):
+            namew, maxw = scored[i]
+            if namew < MATCH_MIN or maxw < DISTINCT:  # coincidencia sólida + token distintivo
                 break
             up = routers[i].upper()
             if not out["fibra"] and up.startswith(("FTTH", "FTHH")):

@@ -25,19 +25,30 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import os
 import re
 import sys
 import threading
 import time
-import unicodedata
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from generator.host_matching import (  # noqa: E402
+    DISTINCT,
+    MATCH_MIN,
+    PROV_TOK,
+    STOP,
+    build_idf_index,
+    norm,
+    score_candidates,
+    sede_num,
+)
+from generator.host_matching import tokenize as toks  # noqa: E402
+from generator.host_matching import strip_accents as _strip_accents  # noqa: E402
 
 CACHE_PATH = os.environ.get("GEOCODE_CACHE") or "/app/data/geocode_cache.json"
 NOMINATIM = "https://nominatim.openstreetmap.org/search"
@@ -61,44 +72,9 @@ PROV_CENTROID = {
     "GUADALAJARA": (40.6300, -3.1600), "BARCELONA": (41.3900, 2.1700),
 }
 
-# Palabras genéricas que no ayudan a identificar cliente/sede.
-STOP = {
-    "SEDE", "MATRIZ", "PRINCIPAL", "CENTRAL", "OFICINA", "OFICINAS", "EMPRESA", "CASA",
-    "LOCAL", "PISO", "PLANTA", "BAJO", "PAB", "PABELLON", "NAVE", "PORTAL", "EDIFICIO",
-    "CALLE", "AVENIDA", "AVDA", "PLAZA", "POLIGONO", "PARQUE", "BARRIO", "CAMINO",
-    "CARRETERA", "CTRA", "LUGAR", "URBANIZACION", "RESIDENCIAL", "GRUPO", "PZA",
-    "KALEA", "KALE", "AUZOA", "BAILARA", "ENEA", "ETORBIDEA", "PLAZUELA", "PASEO",
-    "IP44", "IP", "DERECHA", "IZQUIERDA", "DCHA", "IZDA", "CONSULTORIO", "ALMACEN",
-    "DE", "DEL", "LA", "EL", "LOS", "LAS", "Y", "EN", "CON", "POR",
-}
-# Tokens de operador/prefijo que aparecen delante y no están en GLPI.
-PROV_TOK = {
-    "FTTH", "FTHH", "BACKUP", "BACK", "UP", "LTE", "KIT", "KITE", "TEL", "TELTONIKA",
-    "AIR", "AIRE", "ADA", "ADAMO", "MM", "MAS", "MOVIL", "MASMOVIL", "SAR", "EUS",
-    "EUSKALTEL", "VDF", "VODAFONE", "MOV", "MOVISTAR", "TELEFONICA", "ORANGE", "O2",
-    "DIGI", "PEPEPHONE", "JAZZTEL", "YOIGO", "CHATEAU", "DUAL", "SNMP", "IMPAGO",
-    "CHECKPOINT", "PROXMOX", "GESTION", "THO", "PTV", "TAS", "VAD", "SOA",
-}
-
-
-def _strip_accents(s: str) -> str:
-    s = unicodedata.normalize("NFKD", str(s or ""))
-    return "".join(c for c in s if not unicodedata.combining(c))
-
-
-def norm(s: str) -> str:
-    return _strip_accents(s).upper().strip()
-
-
-def toks(s: str, *, drop_prov: bool = False) -> set[str]:
-    out = set()
-    for t in re.split(r"[^A-Z0-9]+", norm(s)):
-        if len(t) < 3 or t in STOP or t.isdigit():
-            continue
-        if drop_prov and t in PROV_TOK:
-            continue
-        out.add(t)
-    return out
+# STOP, PROV_TOK, _strip_accents, norm, toks (=tokenize) y sede_num viven en
+# generator.host_matching (importados arriba). Aquí solo la lógica específica de
+# geoposicionamiento (provincia y sufijo de grupo).
 
 
 def prov_key(p: str) -> str:
@@ -107,11 +83,6 @@ def prov_key(p: str) -> str:
     if n.startswith("A CORUNA") or n == "CORUNA":
         return "CORUNA"
     return {"VIZCAYA": "BIZKAIA", "GUIPUZCOA": "GIPUZKOA", "ARABA": "ALAVA"}.get(n, n)
-
-
-def sede_num(s: str) -> str:
-    m = re.search(r"\bSEDE[_ ]?(\d+)\b", norm(s))
-    return m.group(1) if m else ""
 
 
 def group_province(groups: list[dict]) -> str:
@@ -302,19 +273,8 @@ def build_glpi_index(entities: list[dict]):
             "tokens": t, "prov": prov_key(state), "num": sede_num(e.get("name", "")),
         })
 
-    inv = defaultdict(set)
-    for i, s in enumerate(sites):
-        for tk in s["tokens"]:
-            inv[tk].add(i)
-    inv = {k: sorted(v) for k, v in inv.items()}
-    n = max(1, len(sites))
-    df = {tk: len(idxs) for tk, idxs in inv.items()}
-    weight = {tk: math.log(n / d) for tk, d in df.items()}
+    inv, weight = build_idf_index([s["tokens"] for s in sites])
     return sites, inv, weight
-
-
-MATCH_MIN = 4.0     # peso de nombre mínimo total para aceptar
-DISTINCT = 3.0      # al menos un token compartido con este peso (df <= ~190)
 
 
 def match_host(hostname: str, prov: str, sites, inv, weight):
@@ -322,22 +282,15 @@ def match_host(hostname: str, prov: str, sites, inv, weight):
     if not htoks:
         return None, 0
     hnum = sede_num(hostname)
-    cand = defaultdict(list)
-    for tk in htoks:
-        if weight.get(tk, 0) <= 0:
-            continue
-        for i in inv.get(tk, ()):
-            cand[i].append(tk)
-    if not cand:
+    scored = score_candidates(htoks, inv, weight)
+    if not scored:
         return None, 0
     best = None
     best_score = 0.0
     best_namew = 0.0
     best_maxw = 0.0
-    for i, shared in cand.items():
+    for i, (namew, maxw) in scored.items():
         s = sites[i]
-        namew = sum(weight.get(tk, 0) for tk in shared)
-        maxw = max(weight.get(tk, 0) for tk in shared)
         score = namew
         if prov and s["prov"] == prov:
             score += 1.0
