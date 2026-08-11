@@ -32,6 +32,10 @@
 
   const otEl = $("zabbix-ot");
   const otBtn = $("zabbix-ot-load");
+  const cifEl = $("zabbix-cif");
+  // Estado inicial del fieldset de versión manual (oculto si el helper está
+  // configurado); se usa para re-mostrarlo/ocultarlo según el tipo.
+  const versionManualDefaultHidden = versionManual ? versionManual.hidden : true;
   const otStatus = $("zabbix-ot-status");
 
   const groupLookupUrl = document.body.dataset.groupLookupUrl;
@@ -55,6 +59,7 @@
     if (tipoEl && p.tipo) tipoEl.value = p.tipo;
     if (provinceSelect && p.provincia) { setVal(provinceSelect, p.provincia); onProvince(); }
     if (clienteEl && p.cliente) { setVal(clienteEl, p.cliente); onCliente(); }
+    if (cifEl && p.cif) cifEl.value = p.cif;  // el CIF de la OT/cliente manda sobre el del catálogo
     if (sedeEl && p.sede) setVal(sedeEl, p.sede);
     if (localidadEl) localidadEl.value = p.localidad || localidadEl.value || "";
     if (calleEl) calleEl.value = p.calle || calleEl.value || "";
@@ -191,6 +196,12 @@
     if (backupIp) backupIp.required = false;
     if (backupTipo) backupTipo.required = t === "fibra_backup" && !!(backupIp && backupIp.value.trim());
     if (routerPassword) routerPassword.disabled = !isBGP();
+    // Radios de versión manual: solo tienen sentido en tipos BGP. Se ocultan para
+    // no-BGP (lte); en BGP se muestran si el helper no está (estado por defecto).
+    if (versionManual) {
+      if (!isBGP()) versionManual.hidden = true;
+      else if (!versionManualDefaultHidden) versionManual.hidden = false;
+    }
     if (proveedorLabel) proveedorLabel.textContent = (t === "lte") ? "Operador" : "Proveedor";
     if (ipLabel) ipLabel.textContent = (t === "lte") ? "IP del equipo LTE / 4G" : "IP pública del router";
     lookupGroup(provinceSelect ? provinceSelect.value.trim() : "");
@@ -241,6 +252,7 @@
       const c = cliObj();
       fillSel(sedeEl, c ? (c.sedes || []) : [], "Selecciona sede", (s) => s.nombre, (s) => s.nombre);
       if (localidadEl) localidadEl.value = ""; if (calleEl) calleEl.value = "";
+      if (cifEl) cifEl.value = (c && c.cif) || "";  // CIF para el guardado en Passbolt / propiedad NOP
     }
     updateNamePreview();
   }

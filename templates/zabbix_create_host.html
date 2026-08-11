@@ -72,6 +72,7 @@
         <form method="post" class="zabbix-form" id="zabbix-form" {% if not configured %}data-disabled="true"{% endif %}>
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="groupid" id="zabbix-groupid" value="">
+          <input type="hidden" name="cif" id="zabbix-cif" value="{{ form_data.cif or '' }}">
 
           <div class="zabbix-ot-row">
             <label class="full-width">
@@ -235,7 +236,7 @@
             <div class="form-grid two-col">
               <label>
                 <span>Comunidad SNMP</span>
-                <input type="text" name="snmp_community" value="{{ form_data.snmp_community }}" required autocomplete="off">
+                <input type="text" name="snmp_community" value="{{ form_data.snmp_community }}" autocomplete="off" placeholder="public">
               </label>
               <label>
                 <span>Proxy</span>

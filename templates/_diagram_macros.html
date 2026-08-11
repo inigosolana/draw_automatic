@@ -47,15 +47,17 @@
         {% endif %}
       </dl>
     </div>
-    {% if diagram.url %}
+    {% if diagram.url or owner_delete or admin_delete %}
     <div class="diagram-card-actions">
       <a
         class="button diagram-action-preview"
         href="{{ url_for('diagrams.preview_glpi_diagram', diagram_id=diagram_id, next=back_url) }}"
         title="Abre el diagrama en el editor: cámbialo y guarda una nueva versión en GLPI"
       >Ver / Editar</a>
+      {% if diagram.url %}
       <a class="button glpi diagram-action-glpi" href="{{ diagram.url }}" target="_blank" rel="noopener">Abrir en GLPI</a>
       <button type="button" class="button secondary diagram-action-copy" data-copy-url="{{ diagram.url }}">Copiar enlace</button>
+      {% endif %}
       {% if owner_delete %}
       <form
         method="post"

@@ -184,6 +184,10 @@
           internetProveedor.addEventListener("change", renderMetricOptions);
           routerModel.addEventListener("change", updateBackupSelector);
           document.querySelector(".creation-form").addEventListener("submit", function (event) {
+            // Si otro listener ya canceló el envío (p. ej. device-picker por puertos
+            // duplicados), NO bloquear el botón: si no, quedaría deshabilitado con el
+            // spinner para siempre y el técnico tendría que recargar.
+            if (event.defaultPrevented) return;
             const btn = this.querySelector('button[type="submit"]');
             if (btn && btn.dataset.busy) {
               event.preventDefault();
