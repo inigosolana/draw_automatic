@@ -234,23 +234,46 @@ function send(res, code, obj) {
 // --- Crear un recurso en Passbolt v5 (la contraseña la teclea el técnico) ---
 const openpgp = require(path.join(NOP_DIR, "node_modules", "openpgp"));
 const V5_DEFAULT_RT = process.env.PASSBOLT_V5_RESOURCE_TYPE || "dd1f723d-0d1e-513f-8218-4055dc0530d0";
-let _foldersCache = { at: 0, data: [] };  // reutiliza normName() definido más arriba
+// Índice de carpetas normalizado nombre->id, CACHEADO (TTL 5 min). Antes se
+// recorrían/normalizaban las ~3.790 carpetas (con await por carpeta) en CADA alta;
+// ahora el descifrado/normalización se hace UNA vez por refresco y el match es síncrono.
+let _folderIdx = { at: 0, list: [] };
+async function _folderIndex() {
+  const now = Date.now();
+  if (_folderIdx.list.length && (now - _folderIdx.at) <= 300000) return _folderIdx.list;
+  const resp = await provider.apiRequest({ method: "GET", url: "/folders.json" });
+  const data = (resp && resp.data && resp.data.body) || (resp && resp.data) || [];
+  const list = [];
+  for (const fol of data) {
+    let name = fol.name || "";
+    if (fol.metadata) { try { const nr = await provider.normalizeFolderRecord(fol); name = nr.name || name; } catch (e) { /* metadata v5 */ } }
+    list.push({ id: fol.id, nn: normName(name) });
+  }
+  _folderIdx = { at: now, list };
+  return list;
+}
 
 async function findClientFolder(cliente, cif) {
-  const now = Date.now();
-  if (now - _foldersCache.at > 300000) {
-    const resp = await provider.apiRequest({ method: "GET", url: "/folders.json" });
-    _foldersCache = { at: now, data: (resp && resp.data && resp.data.body) || (resp && resp.data) || [] };
-  }
-  const cifU = String(cif || "").toUpperCase().trim();
+  const idx = await _folderIndex();
+  const cifN = normName(cif);
   const cliN = normName(cliente);
-  for (const fol of _foldersCache.data || []) {
-    let name = fol.name || "";
-    try { const nr = await provider.normalizeFolderRecord(fol); name = nr.name || name; } catch (e) { /* metadata v5 */ }
-    const nn = normName(name);
-    if ((cifU && nn.includes(normName(cifU))) || (cliN.length >= 5 && nn.includes(cliN))) return fol.id;
+  for (const f of idx) {
+    if ((cifN && f.nn.includes(cifN)) || (cliN.length >= 5 && f.nn.includes(cliN))) return f.id;
   }
   return "";
+}
+
+// Mapa id->clave pública de usuarios, cacheado (TTL 5 min): cambia poco y se usa
+// en cada createResource para cifrar los secretos a los usuarios de la carpeta.
+let _usersCache = { at: 0, map: null };
+async function usersKeyById() {
+  const now = Date.now();
+  if (_usersCache.map && (now - _usersCache.at) <= 300000) return _usersCache.map;
+  const resp = await provider.apiRequest({ method: "GET", url: "/users.json", params: { "contain[gpgkey]": 1 } });
+  const users = (resp && resp.data && resp.data.body) || (resp && resp.data) || [];
+  const map = new Map((users || []).map((u) => [u.id, u.gpgkey && u.gpgkey.armored_key]));
+  _usersCache = { at: now, map };
+  return map;
 }
 
 const B = (r) => (r && r.data && r.data.body) || (r && r.data) || r;
@@ -294,8 +317,7 @@ async function createResource({ cliente, cif, ip, username, password, folderId }
   try {
     // permisos deseados = propietario (usuario API) + los usuarios de la carpeta.
     const fol = B(await provider.apiRequest({ method: "GET", url: `/folders/${parent}.json`, params: { "contain[permissions]": 1 } }));
-    const users = B(await provider.apiRequest({ method: "GET", url: "/users.json", params: { "contain[gpgkey]": 1 } }));
-    const keyById = new Map((users || []).map((u) => [u.id, u.gpgkey && u.gpgkey.armored_key]));
+    const keyById = await usersKeyById();
     // permisos = los ACTUALES del recurso (owner, sin is_new) + usuarios de la carpeta (is_new, con aco).
     const cur = B(await provider.apiRequest({ method: "GET", url: `/resources/${resId}.json`, params: { "contain[permissions]": 1 } }));
     const perms = (cur.permissions || []).map((p) => ({ id: p.id, aro: p.aro, aro_foreign_key: p.aro_foreign_key, aco: p.aco, aco_foreign_key: p.aco_foreign_key, type: p.type }));
