@@ -273,7 +273,9 @@
     progress.appendChild(list);
 
     const csrf = (form.querySelector('input[name="csrf_token"]') || {}).value || "";
-    const fileUrl = form.action.replace(/\/+$/, "") + "/file";
+    // URL inyectada por el backend (url_for). Fallback: derivarla de form.action
+    // (compat), aunque eso se rompería si la página se sirviera con querystring.
+    const fileUrl = config.fileUrl || (form.action.replace(/\/+$/, "") + "/file");
     const clientName = (document.getElementById("upload-client-name") || {}).value || "";
     const siteName = (document.getElementById("upload-site-name") || {}).value || "";
     const address = (document.getElementById("upload-direccion") || {}).value || "";

@@ -401,7 +401,9 @@ def create_diagrams_blueprint(limiter: Limiter, csrf: CSRFProtect) -> Blueprint:
             **_preview_template_context(
                 token=token,
                 filename=payload["filename"],
-                xml=payload["xml"],
+                # Normalizado igual que la ruta /xml (ajusta tamaño de página y
+                # resetea scroll) para que el pendiente abra encuadrado como el de GLPI.
+                xml=_normalize_preview_xml(payload["xml"]),
                 xml_url=url_for("diagrams.preview_drawio_xml", token=token),
                 save_url=url_for("diagrams.preview_save", token=token),
                 close_url=_preview_close_url(),
