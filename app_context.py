@@ -39,6 +39,42 @@ def _load_admin_users() -> set[str]:
 
 ADMIN_USERS = _load_admin_users()
 
+
+def _load_zabbix_users() -> set[str]:
+    """Usuarios autorizados a dar de alta hosts en Zabbix (Paso 2).
+
+    Configurable con ZABBIX_ALLOWED_USERS (lista separada por comas). Por defecto,
+    solo Iñigo Solana, Alberto Ferez y Marcos Medina. Se incluyen tanto la forma
+    usuario.punto como nombre-con-espacio porque el login puede devolver cualquiera.
+    """
+    raw = os.environ.get("ZABBIX_ALLOWED_USERS", "").strip()
+    if raw:
+        return {u.strip() for u in raw.split(",") if u.strip()}
+    return {
+        "inigo.solana", "inigo solana",
+        "alberto.ferez", "alberto ferez",
+        "marcos.medina", "marcos medina",
+    }
+
+
+ZABBIX_ALLOWED_USERS = _load_zabbix_users()
+
+
+def technician_can_use_zabbix(technician: dict | None = None) -> bool:
+    """¿El técnico puede usar el alta de Zabbix? Bypass en dev (sin auth)."""
+    from flask import current_app
+
+    try:
+        if not current_app.config.get("AUTH_REQUIRED", True):
+            return True
+    except RuntimeError:
+        pass  # fuera de contexto de app: se decide solo por la lista
+    from generator.utils import technician_is_admin
+
+    tech = technician if technician is not None else current_technician()
+    return technician_is_admin(tech, ZABBIX_ALLOWED_USERS)
+
+
 DEFAULT_HOST = os.environ.get("DRAWIO_HOST", "0.0.0.0")
 DEFAULT_PORT = int(os.environ.get("DRAWIO_PORT", os.environ.get("PORT", "8000")))
 

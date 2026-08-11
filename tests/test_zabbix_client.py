@@ -5,7 +5,13 @@ import os
 import unittest
 from unittest.mock import patch
 
-from generator.zabbix_client import ZabbixClient, ZabbixError, resolve_zabbix_api_url, zabbix_form_defaults
+from generator.zabbix_client import (
+    ZabbixClient,
+    ZabbixError,
+    _normalize_province,
+    resolve_zabbix_api_url,
+    zabbix_form_defaults,
+)
 
 
 class ZabbixClientTests(unittest.TestCase):
@@ -55,26 +61,34 @@ class ZabbixClientTests(unittest.TestCase):
             captured["timeout"] = timeout
             return FakeResponse()
 
+        from generator.zabbix_profiles import ZabbixMacro
+
         with patch("generator.zabbix_client.urlopen", side_effect=fake_urlopen):
             result = client.create_host(
-                host="router-demo",
-                name="Router Demo",
-                ip="10.0.0.1",
-                groupid="4",
-                proxyid="2",
-                snmp_community="public",
-                templateid="10186",
-                monitored_by="1",
-                router_username="admin",
-                router_password="secret",
+                host="FTTH_SAR_DEMO_SEDE",
+                name="FTTH_SAR_DEMO_SEDE",
+                ip="45.13.211.99",
+                groupid="36",
+                template_ids=["10747", "11208"],
+                macros=[
+                    ZabbixMacro("{$SNMP_COMMUNITY}", "ausarta@conecta"),
+                    ZabbixMacro("{$ROUTEROS_USERNAME}", "Ausarta"),
+                    ZabbixMacro("{$ROUTEROS_PASSWORD}", "secret"),
+                ],
+                tags=[("PROVEEDOR", "SARENET")],
+                proxyid="10613",
             )
 
         self.assertEqual(result["hostids"], ["10442"])
         self.assertEqual(captured["headers"]["Authorization"], "Bearer token-abc")
         params = captured["body"]["params"]
-        self.assertEqual(params["host"], "router-demo")
-        self.assertEqual(params["interfaces"][0]["ip"], "10.0.0.1")
-        self.assertEqual(len(params["templates"]), 1)
+        self.assertEqual(params["host"], "FTTH_SAR_DEMO_SEDE")
+        self.assertEqual(params["interfaces"][0]["ip"], "45.13.211.99")
+        self.assertEqual(len(params["templates"]), 2)
+        self.assertEqual(params["tags"], [{"tag": "PROVEEDOR", "value": "SARENET"}])
+        # Con proxy: monitored_by=1 (proxy en Zabbix 7) y proxyid presente
+        self.assertEqual(params["monitored_by"], "1")
+        self.assertEqual(params["proxyid"], "10613")
         macro_names = {item["macro"] for item in params["macros"]}
         self.assertEqual(macro_names, {"{$SNMP_COMMUNITY}", "{$ROUTEROS_USERNAME}", "{$ROUTEROS_PASSWORD}"})
 
@@ -105,10 +119,7 @@ class ZabbixClientTests(unittest.TestCase):
                     name="x",
                     ip="1.1.1.1",
                     groupid="1",
-                    proxyid="1",
-                    snmp_community="public",
-                    templateid="1",
-                    monitored_by="1",
+                    template_ids=["1"],
                 )
         self.assertIn("Host already exists", str(ctx.exception))
 
@@ -135,6 +146,28 @@ class ZabbixClientTests(unittest.TestCase):
         with patch("generator.zabbix_client.urlopen", return_value=FakeResponse()):
             groups = client.find_host_groups_by_province("Bizkaia")
         self.assertEqual(groups[0]["groupid"], "12")
+
+    def test_normalize_province_aliases_and_accents(self) -> None:
+        self.assertEqual(_normalize_province("Vizcaya"), "bizkaia")
+        self.assertEqual(_normalize_province("A Coruña"), "coruna")
+        self.assertEqual(_normalize_province("Jaen"), _normalize_province("Jaén"))
+        self.assertEqual(_normalize_province("Leon"), _normalize_province("León"))
+        self.assertEqual(_normalize_province("Cantabria"), "cantabria")
+
+    def test_resolve_router_group_matches_mismatched_province(self) -> None:
+        client = ZabbixClient("http://zabbix/api_jsonrpc.php", "token")
+        calls = {"n": 0}
+
+        def fake(method, params, request_id=1):
+            calls["n"] += 1
+            if calls["n"] == 1:  # filtro exacto: no encuentra "Routers Fibra Vizcaya"
+                return []
+            return [{"groupid": "22", "name": "Routers Fibra Bizkaia"},
+                    {"groupid": "36", "name": "Routers Fibra Cantabria"}]
+
+        client._jsonrpc = fake
+        group = client.resolve_router_group("Vizcaya", "Fibra")
+        self.assertEqual(group["groupid"], "22")
 
     def test_resolve_host_group_prefers_exact_name(self) -> None:
         client = ZabbixClient("http://zabbix/api_jsonrpc.php", "token")

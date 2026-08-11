@@ -1,98 +1,89 @@
 from __future__ import annotations
 
-import os
 import unittest
-from unittest.mock import patch
 
 from generator.zabbix_profiles import (
     ZabbixProfileError,
     build_install_plan,
-    resolve_template_id,
+    needs_version,
+    template_routeros_bgp,
 )
 
 
+def _plan(**kw):
+    base = dict(tipo="fibra", cliente="Cliente", sede="Central", proveedor="AIRE",
+                router_ip="1.2.3.4", is_v7=False)
+    base.update(kw)
+    return build_install_plan(**base)
+
+
 class ZabbixProfileTests(unittest.TestCase):
-    def test_hap_fibra_backup_creates_two_hosts(self) -> None:
-        with patch.dict(
-            os.environ,
-            {
-                "ZABBIX_TEMPLATE_ROUTER_AIRE": "100",
-                "ZABBIX_TEMPLATE_BACKUP_WAP": "200",
-            },
-            clear=False,
-        ):
-            plan = build_install_plan(
-                cliente="Cliente",
-                sede="Central",
-                internet_tipo="FIBRA + BACK UP",
-                internet_proveedor="AIRE",
-                router_modelo="MikroTik hAP ac2",
-                backup_modelo="WAP LTE",
-                router_ip="192.168.0.1/24",
-                backup_ip="192.168.88.1",
-            )
+    def test_fibra_two_templates_tag_and_macros(self) -> None:
+        h = _plan(tipo="fibra", proveedor="SARENET", router_password="secret",
+                  localidad="Santander", calle="Calle Castilla 17").hosts[0]
+        self.assertEqual(h.host, "FTTH_SAR_CLIENTE_CENTRAL_SANTANDER_CALLE_CASTILLA_17")
+        self.assertEqual(h.template_ids, ("10747", "11208"))
+        self.assertEqual(h.tags, (("PROVEEDOR", "SARENET"),))
+        self.assertEqual({m.macro for m in h.macros},
+                         {"{$SNMP_COMMUNITY}", "{$ROUTEROS_USERNAME}", "{$ROUTEROS_PASSWORD}"})
+
+    def test_fibra_v7_uses_bgp_v7(self) -> None:
+        h = _plan(tipo="fibra", is_v7=True).hosts[0]
+        self.assertEqual(h.template_ids, ("10747", "13463"))
+        self.assertEqual(template_routeros_bgp(True)[1], "Template RouterOS BGP V7")
+
+    def test_fibra_backup_mikrotik(self) -> None:
+        plan = _plan(tipo="fibra_backup", backup_tipo="KITE", backup_ip="172.17.0.30")
         self.assertEqual(len(plan.hosts), 2)
-        self.assertEqual(plan.hosts[0].templateid, "100")
-        self.assertEqual(plan.hosts[1].templateid, "200")
-        self.assertEqual(plan.hosts[0].ip, "192.168.0.1")
-        self.assertEqual(plan.hosts[1].ip, "192.168.88.1")
+        b = plan.hosts[1]
+        self.assertEqual(b.role, "backup")
+        self.assertEqual(b.group_role, "Backup")
+        self.assertEqual(b.template_ids, ("10758",))  # Mikrotik SNMP BACKUP
+        self.assertEqual({m.macro for m in b.macros}, {"{$SNMP_COMMUNITY}"})
 
-    def test_chateau_fibra_backup_creates_one_host(self) -> None:
-        with patch.dict(
-            os.environ,
-            {"ZABBIX_TEMPLATE_CHATEAU_FIBRA_BACKUP": "301"},
-            clear=False,
-        ):
-            plan = build_install_plan(
-                cliente="Cliente",
-                sede="Central",
-                internet_tipo="FIBRA + BACK UP",
-                internet_proveedor="SARENET",
-                router_modelo="CHATEAU",
-                backup_modelo="",
-                router_ip="10.0.0.1",
-            )
-        self.assertEqual(len(plan.hosts), 1)
-        self.assertEqual(plan.hosts[0].templateid, "301")
+    def test_backup_teltonika_uses_teltonika_template(self) -> None:
+        plan = _plan(tipo="fibra_backup", backup_tipo="TELTONIKA", backup_ip="172.17.0.30")
+        b = plan.hosts[1]
+        self.assertEqual(b.template_ids, ("13483",))  # Teltonika SNMP any device, NO 10758
+        self.assertEqual(b.tags, (("PROVEEDOR", "TELTONIKA"),))
 
-    def test_chateau_4g_uses_dedicated_template(self) -> None:
-        with patch.dict(os.environ, {"ZABBIX_TEMPLATE_CHATEAU_4G": "401"}, clear=False):
-            plan = build_install_plan(
-                cliente="Cliente",
-                sede="Central",
-                internet_tipo="SOLO 4G MONITORIZADO",
-                internet_proveedor="",
-                router_modelo="CHATEAU",
-                backup_modelo="",
-                router_ip="10.0.0.5",
-            )
-        self.assertEqual(len(plan.hosts), 1)
-        self.assertEqual(plan.hosts[0].templateid, "401")
+    def test_chateau_single_host_two_providers(self) -> None:
+        h = _plan(tipo="chateau", is_v7=True, proveedor="AIRE",
+                  proveedor_backup="PTV", router_password="x").hosts[0]
+        self.assertEqual(h.template_ids, ("14924", "13463"))  # FIBRA CHATEAU + BGP V7
+        self.assertEqual(h.tags, (("PROVEEDOR", "AIRE"), ("PROVEEDOR", "PTV")))
 
-    def test_provider_specific_router_template(self) -> None:
-        with patch.dict(os.environ, {"ZABBIX_TEMPLATE_ROUTER_ADAMO": "501"}, clear=False):
-            template_id, label = resolve_template_id(
-                role="router",
-                internet_tipo="SOLO FIBRA",
-                router_model="MikroTik hAP ac2",
-                provider="ADAMO",
-                backup_model="",
-            )
-        self.assertEqual(template_id, "501")
-        self.assertIn("ADAMO", label)
+    def test_dual_prefix_and_templates(self) -> None:
+        h = _plan(tipo="dual", is_v7=True, proveedor="SARENET", proveedor_backup="ORANGE").hosts[0]
+        self.assertTrue(h.host.startswith("FTTH_DUAL_"))
+        self.assertEqual(h.template_ids, ("15558", "13463"))  # FIBRA DUAL + BGP V7
+        self.assertEqual(len(h.tags), 2)
 
-    def test_hap_without_backup_raises(self) -> None:
-        with patch.dict(os.environ, {"ZABBIX_TEMPLATE_ROUTER_AIRE": "100"}, clear=False):
-            with self.assertRaises(ZabbixProfileError):
-                build_install_plan(
-                    cliente="Cliente",
-                    sede="Central",
-                    internet_tipo="FIBRA + BACK UP",
-                    internet_proveedor="AIRE",
-                    router_modelo="MikroTik hAP ac2",
-                    backup_modelo="",
-                    router_ip="192.168.0.1",
-                )
+    def test_lte_single_template_community_only(self) -> None:
+        h = _plan(tipo="lte", proveedor="MOVISTAR", lte_templateid="11998",
+                  lte_label="Mikrotik SNMP LTE 400Gb").hosts[0]
+        self.assertEqual(h.group_role, "LTE")
+        self.assertEqual(h.template_ids, ("11998",))
+        self.assertEqual({m.macro for m in h.macros}, {"{$SNMP_COMMUNITY}"})
+        self.assertTrue(h.host.startswith("LTE_MOV_"))
+
+    def test_needs_version(self) -> None:
+        self.assertTrue(needs_version("fibra"))
+        self.assertTrue(needs_version("chateau"))
+        self.assertTrue(needs_version("dual"))
+        self.assertFalse(needs_version("lte"))
+
+    def test_missing_ip_raises(self) -> None:
+        with self.assertRaises(ZabbixProfileError):
+            _plan(tipo="fibra", router_ip="")
+
+    def test_fibra_backup_requires_type(self) -> None:
+        with self.assertRaises(ZabbixProfileError):
+            _plan(tipo="fibra_backup", backup_ip="172.17.0.30", backup_tipo="")
+
+    def test_invalid_tipo(self) -> None:
+        with self.assertRaises(ZabbixProfileError):
+            _plan(tipo="satelite")
 
 
 if __name__ == "__main__":

@@ -1059,16 +1059,44 @@ class WebAppTests(unittest.TestCase):
         self.assertIn("Pronto", body)
         self.assertIn("próximamente", body)
 
-    def test_zabbix_page_redirects_to_soon(self) -> None:
+    def test_zabbix_page_renders_form(self) -> None:
         self.app.config["AUTH_REQUIRED"] = False
         with patch.dict(
             os.environ,
             {"ZABBIX_BASE_URL": "http://zabbix", "ZABBIX_API_TOKEN": "tok"},
             clear=False,
         ):
+            with patch("web.blueprints.zabbix.ZabbixClient.list_proxies", return_value=[]):
+                response = self.client.get("/zabbix")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Subir a Zabbix", response.get_data(as_text=True))
+
+    def test_zabbix_denied_for_non_allowed_user(self) -> None:
+        self.app.config["AUTH_REQUIRED"] = True
+        with self.client.session_transaction() as browser_session:
+            browser_session["technician"] = {"username": "otro.tecnico", "name": "Otro Tecnico"}
+        with patch.dict(
+            os.environ,
+            {"ZABBIX_BASE_URL": "http://zabbix", "ZABBIX_API_TOKEN": "tok"},
+            clear=False,
+        ):
             response = self.client.get("/zabbix")
-        self.assertEqual(response.status_code, 302)
-        self.assertIn("/zabbix-soon", response.headers["Location"])
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("restringida", response.get_data(as_text=True))
+
+    def test_zabbix_allowed_for_listed_user(self) -> None:
+        self.app.config["AUTH_REQUIRED"] = True
+        with self.client.session_transaction() as browser_session:
+            browser_session["technician"] = {"username": "inigo.solana", "name": "Iñigo Solana"}
+        with patch.dict(
+            os.environ,
+            {"ZABBIX_BASE_URL": "http://zabbix", "ZABBIX_API_TOKEN": "tok"},
+            clear=False,
+        ):
+            with patch("web.blueprints.zabbix.ZabbixClient.list_proxies", return_value=[]):
+                response = self.client.get("/zabbix")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Subir a Zabbix", response.get_data(as_text=True))
 
     def test_zabbix_group_lookup_api(self) -> None:
         self.app.config["AUTH_REQUIRED"] = False
@@ -1078,14 +1106,14 @@ class WebAppTests(unittest.TestCase):
             clear=False,
         ):
             with patch(
-                "web.blueprints.zabbix.ZabbixClient.resolve_host_group_for_province",
-                return_value={"groupid": "15", "name": "Bizkaia"},
+                "web.blueprints.zabbix.ZabbixClient.resolve_router_group",
+                return_value={"groupid": "36", "name": "Routers Fibra Cantabria"},
             ):
-                response = self.client.get("/zabbix/api/group?provincia=Bizkaia")
+                response = self.client.get("/zabbix/api/group?provincia=Cantabria&role=Fibra")
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
-        self.assertEqual(payload["groupid"], "15")
-        self.assertEqual(payload["name"], "Bizkaia")
+        self.assertEqual(payload["groupid"], "36")
+        self.assertEqual(payload["name"], "Routers Fibra Cantabria")
 
     def test_glpi_login_stores_technician_identity(self) -> None:
         self.app.config["AUTH_REQUIRED"] = True

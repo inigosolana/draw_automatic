@@ -1,0 +1,21 @@
+[Unit]
+Description=Ausarta RouterOS version helper (consulta versión RouterOS por el túnel wg para el alta en Zabbix)
+After=network-online.target wg-quick@wg-mikrotik-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+EnvironmentFile=/etc/ausarta-routeros-helper.env
+ExecStart=/usr/bin/python3 /home/ubuntu/draw_automatic/scripts/routeros_version_helper.py
+Restart=on-failure
+RestartSec=3
+# Endurecido: solo lee de la red, no necesita escribir en disco
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

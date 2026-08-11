@@ -3608,3 +3608,8 @@ así que en SO oscuro la UI quedaba ilegible (paneles
 #import-work-order-warnings li.imp-warn-find{background:#eef4fb;border-left-color:#1668b8;}
 #import-work-order-warnings li.imp-warn-fix{background:#f2eefb;border-left-color:#7a4fd0;}
 #import-work-order-warnings li.imp-warn-ok{background:#eef8ee;border-left-color:#2f9e44;}
+
+/* Alta Zabbix: fila de carga por OT */
+.zabbix-ot-row { margin-bottom: var(--space-4, 16px); }
+.zabbix-ot-input { display: flex; gap: 8px; align-items: center; }
+.zabbix-ot-input input { flex: 1; }
