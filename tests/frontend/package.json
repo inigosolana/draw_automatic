@@ -2,8 +2,9 @@
   "name": "draw-automatic-frontend-tests",
   "version": "1.0.0",
   "private": true,
-  "description": "Arnés jsdom para verificar creation-form*.js. Instalar con `npm install` en esta carpeta; el test de pytest se salta solo si falta node/jsdom.",
+  "description": "Arnés jsdom + ESLint para verificar el JS de front (creation-form*.js, upload-glpi-form.js, ...). Instalar con npm install en esta carpeta; los tests de pytest se saltan solos si falta node/jsdom/eslint.",
   "dependencies": {
+    "eslint": "^9.39.5",
     "jsdom": "^24.0.0"
   }
 }

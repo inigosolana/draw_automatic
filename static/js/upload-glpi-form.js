@@ -242,6 +242,15 @@
 (function () {
   const form = document.getElementById("upload-draw-form");
   if (!form) return;
+  // El `config` se define en el otro IIFE de este archivo, así que aquí NO
+  // existe. Lo releemos del <script id="upload-glpi-config"> para poder usar
+  // fileUrl. (Antes se referenciaba `config` y saltaba un ReferenceError que
+  // dejaba el botón "Subiendo…" colgado para siempre.)
+  let uploadCfg = {};
+  try {
+    const cfgEl = document.getElementById("upload-glpi-config");
+    if (cfgEl) uploadCfg = JSON.parse(cfgEl.textContent) || {};
+  } catch (_e) { uploadCfg = {}; }
   const fileInput = form.querySelector('input[name="drawio_files"]');
   const submitBtn = form.querySelector('button[type="submit"]');
   const actions = form.querySelector(".upload-form-actions");
@@ -275,7 +284,7 @@
     const csrf = (form.querySelector('input[name="csrf_token"]') || {}).value || "";
     // URL inyectada por el backend (url_for). Fallback: derivarla de form.action
     // (compat), aunque eso se rompería si la página se sirviera con querystring.
-    const fileUrl = config.fileUrl || (form.action.replace(/\/+$/, "") + "/file");
+    const fileUrl = uploadCfg.fileUrl || (form.action.replace(/\/+$/, "") + "/file");
     const clientName = (document.getElementById("upload-client-name") || {}).value || "";
     const siteName = (document.getElementById("upload-site-name") || {}).value || "";
     const address = (document.getElementById("upload-direccion") || {}).value || "";
