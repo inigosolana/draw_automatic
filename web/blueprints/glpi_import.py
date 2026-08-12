@@ -15,7 +15,7 @@ from app_context import (
     security_logger,
     technician_label,
 )
-from web.services.glpi_catalog import glpi_diagram_rows, index_context, load_glpi_catalog, relevant_entity_ids
+from web.services.glpi_catalog import glpi_catalog_asset_url, glpi_diagram_rows, index_context, load_glpi_catalog, relevant_entity_ids
 from generator.comms_client import CommsError, import_products_text
 from generator.glpi_client import GlpiClient, GlpiError
 from generator.work_order_import import import_work_order_by_id
@@ -433,6 +433,17 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
             mimetype="application/json; charset=utf-8",
         )
 
+    @bp.get("/assets/glpi-catalog.js")
+    @login_required
+    def glpi_catalog_js() -> Response:
+        """Catalogo GLPI como JS externo cacheable (ver glpi_catalog_asset_url).
+        Evita embeber ~1 MB inline en cada pagina."""
+        glpi_customers, _ = load_glpi_catalog()
+        body = "window.__GLPI_CATALOG=" + json.dumps(glpi_customers or [], ensure_ascii=False) + ";"
+        resp = current_app.response_class(body, mimetype="application/javascript")
+        resp.headers["Cache-Control"] = "private, max-age=86400"
+        return resp
+
     @bp.post("/api/refresh-catalog")
     @login_required
     @limiter.limit("20 per hour")
@@ -713,6 +724,7 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
             upload_errors=upload_errors,
             upload_results=upload_results,
             technician=current_technician(),
+            glpi_catalog_url=glpi_catalog_asset_url(glpi_customers),
             site_diagrams_url=url_for("glpi_import.upload_draw_site_diagrams"),
             missing_sites_xlsx_url=url_for("glpi_import.upload_draw_missing_sites_xlsx"),
         )

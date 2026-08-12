@@ -409,6 +409,7 @@
         <script type="application/json" id="drawio-page-config"{% if csp_nonce is defined %} nonce="{{ csp_nonce() }}"{% endif %}>{{ page_config | tojson }}</script>
         <script src="{{ url_for('static', filename='js/page-bootstrap.js') }}?v={{ static_v }}"></script>
         {% if glpi_customers %}
+        <script src="{{ glpi_catalog_url }}"></script>
         <script src="{{ url_for('static', filename='js/glpi-select.js') }}?v={{ static_v }}"></script>
         {% endif %}
         <script src="{{ url_for('static', filename='js/device-picker.js') }}?v={{ static_v }}"></script>

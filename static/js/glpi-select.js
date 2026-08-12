@@ -1,5 +1,5 @@
 (function () {
-  const glpiCustomers = window.__DRAWIO_PAGE_CONFIG.glpiCustomers || [];
+  const glpiCustomers = window.__GLPI_CATALOG || window.__DRAWIO_PAGE_CONFIG.glpiCustomers || [];
   const provinceElement = document.getElementById("glpi-province");
   if (!provinceElement || !glpiCustomers.length) {
     return;

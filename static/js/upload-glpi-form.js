@@ -11,7 +11,7 @@
     return;
   }
 
-  const catalog = config.catalog || [];
+  const catalog = window.__GLPI_CATALOG || config.catalog || [];
   const siteDiagramsUrl = config.siteDiagramsUrl || "";
   const createSearchSelect = window.__drawioCreateSearchSelect;
   const existingPanel = document.getElementById("upload-existing-panel");

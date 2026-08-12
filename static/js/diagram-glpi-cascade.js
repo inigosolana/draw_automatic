@@ -11,7 +11,7 @@
     return;
   }
 
-  const catalog = config.catalog || [];
+  const catalog = window.__GLPI_CATALOG || config.catalog || [];
   const selectedEntityId = String(config.selectedEntityId || "");
   const createSearchSelect = window.__drawioCreateSearchSelect;
   const entityId = document.getElementById("diagram-entity-id");

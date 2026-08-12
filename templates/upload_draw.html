@@ -171,7 +171,8 @@
       </section>
     </main>
     {% if glpi_customers and not upload_results %}
-    <script type="application/json" id="upload-glpi-config"{% if csp_nonce is defined %} nonce="{{ csp_nonce() }}"{% endif %}>{{ {"catalog": glpi_customers, "siteDiagramsUrl": site_diagrams_url, "fileUrl": url_for('glpi_import.upload_draw_file')} | tojson }}</script>
+    <script type="application/json" id="upload-glpi-config"{% if csp_nonce is defined %} nonce="{{ csp_nonce() }}"{% endif %}>{{ {"catalog": [], "siteDiagramsUrl": site_diagrams_url, "fileUrl": url_for('glpi_import.upload_draw_file')} | tojson }}</script>
+    <script src="{{ glpi_catalog_url }}"></script>
     <script src="{{ url_for('static', filename='js/search-select.js') }}?v={{ static_v }}"></script>
     <script src="{{ url_for('static', filename='js/upload-glpi-form.js') }}?v={{ static_v }}"></script>
     {% endif %}

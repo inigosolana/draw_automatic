@@ -67,7 +67,8 @@
       </section>
     </main>
     {% if glpi_customers %}
-    <script type="application/json" id="diagram-glpi-config"{% if csp_nonce is defined %} nonce="{{ csp_nonce() }}"{% endif %}>{{ {"catalog": glpi_customers, "selectedEntityId": selected_entity} | tojson }}</script>
+    <script type="application/json" id="diagram-glpi-config"{% if csp_nonce is defined %} nonce="{{ csp_nonce() }}"{% endif %}>{{ {"catalog": [], "selectedEntityId": selected_entity} | tojson }}</script>
+    <script src="{{ glpi_catalog_url }}"></script>
     <script src="{{ url_for('static', filename='js/search-select.js') }}?v={{ static_v }}"></script>
     <script src="{{ url_for('static', filename='js/diagram-glpi-cascade.js') }}?v={{ static_v }}"></script>
     {% endif %}

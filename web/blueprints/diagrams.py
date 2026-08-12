@@ -18,7 +18,7 @@ from app_context import (
     login_required,
     security_logger,
 )
-from web.services.glpi_catalog import glpi_diagram_rows, load_glpi_catalog, relevant_entity_ids
+from web.services.glpi_catalog import glpi_catalog_asset_url, glpi_diagram_rows, load_glpi_catalog, relevant_entity_ids
 from generator.diagram_metadata import enrich_activity_rows
 from generator.drawio_reverse import parse_drawio_to_form
 from generator.glpi_client import GlpiClient, GlpiError
@@ -224,6 +224,7 @@ def create_diagrams_blueprint(limiter: Limiter, csrf: CSRFProtect) -> Blueprint:
         return render_template(
             "diagrams.html",
             glpi_customers=glpi_customers,
+            glpi_catalog_url=glpi_catalog_asset_url(glpi_customers),
             glpi_error=glpi_error,
             diagrams=diagram_rows,
             selected_entity=selected_entity,

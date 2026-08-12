@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import hashlib
+import json
+
 from flask import current_app, url_for
 from flask_limiter.util import get_remote_address
 
@@ -9,6 +12,20 @@ from generator.diagram_metadata import enrich_diagram_row
 from generator.glpi_client import GlpiClient, GlpiError, build_customer_catalog
 from generator.safe_errors import public_error_message
 from generator.site_directory import apply_saved_addresses
+
+
+def glpi_catalog_asset_url(glpi_customers) -> str:
+    """URL del catalogo GLPI servido como JS externo CACHEABLE por el navegador.
+
+    En vez de embeber ~1 MB de catalogo inline en cada pagina (lo que obligaba al
+    navegador a descargarlo y re-parsearlo en cada navegacion), se sirve como un
+    <script src> con ?v=<hash del contenido>: el navegador lo descarga UNA vez y
+    lo reutiliza entre paginas; si el catalogo cambia, cambia el hash y se
+    refresca solo. Carga sincrona -> los selectores lo siguen leyendo por global.
+    """
+    blob = json.dumps(glpi_customers or [], ensure_ascii=False, sort_keys=True)
+    digest = hashlib.sha1(blob.encode("utf-8")).hexdigest()[:16]
+    return url_for("glpi_import.glpi_catalog_js") + "?v=" + digest
 
 
 def relevant_entity_ids(entity_id: int, catalog: list[dict]) -> set[int]:
@@ -99,12 +116,12 @@ def index_context(**extra):
     context = {
         "device_catalog": device_catalog,
         "glpi_customers": glpi_customers,
+        "glpi_catalog_url": glpi_catalog_asset_url(glpi_customers),
         "glpi_error": glpi_error,
         "comms_configured": comms_configured(),
         "crm_configured": crm_configured(),
         "technician": current_technician(),
         "page_config": {
-            "glpiCustomers": glpi_customers or [],
             "deviceCatalog": device_catalog,
             "importWorkOrderUrl": url_for("glpi_import.import_work_order"),
             "createSiteUrl": url_for("glpi_import.create_glpi_site"),
