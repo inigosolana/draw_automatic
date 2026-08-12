@@ -1056,8 +1056,8 @@ class WebAppTests(unittest.TestCase):
         self.assertIn("Paso 3", body)
         self.assertIn("Zabbix", body)
         self.assertIn("Passbolt", body)
-        self.assertIn("Pronto", body)
-        self.assertIn("próximamente", body)
+        # Passbolt ya no es "próximamente": se integró en el alta (Paso 2).
+        self.assertIn("Se guarda al crear el host", body)
 
     def test_zabbix_page_renders_form(self) -> None:
         self.app.config["AUTH_REQUIRED"] = False
