@@ -15,7 +15,6 @@ from dataclasses import dataclass
 
 from .cable_routing import (
     SWITCH_ANCHOR_KEYS,
-    _anchor_exit_x,
     _bus_waypoints,
     _cable_label_offset,
     _device_bus_y,

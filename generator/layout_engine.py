@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from .dect_layout import count_dect_handsets_per_base
 from .geometry import (
-    DEVICE_HEIGHT,
-    DEVICE_WIDTH,
     PAGE_RIGHT,
     SUMMARY_X,
     canvas_bounds as _canvas_bounds,
@@ -35,9 +33,6 @@ from .placement_engine import (
     _compute_dual_switch_row_layouts,
     _compute_single_switch_row_layouts,
     _count_device_slots,
-    _device_anchor,
-    _is_telephony_equipment,
-    _layout_anchor_node,
     _place_equipment_rows,
     _router_anchored_equipos,
 )
