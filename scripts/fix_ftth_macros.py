@@ -56,7 +56,7 @@ def main():
                 if need_user:
                     c._jsonrpc("usermacro.create", {"hostid": h["hostid"], "macro": "{$ROUTEROS_USERNAME}", "value": "Ausarta"})
                 if need_pw:
-                    c._jsonrpc("usermacro.create", {"hostid": h["hostid"], "macro": "{$ROUTEROS_PASSWORD}", "value": pw, "type": "1"})  # Secret
+                    c._jsonrpc("usermacro.create", {"hostid": h["hostid"], "macro": "{$ROUTEROS_PASSWORD}", "value": pw, "type": "0"})  # Texto (ver fix_macro_password_a_texto.py)
                 set_ok += 1
                 if done % 50 == 0:
                     print(f"  ... {done}/{len(target)}  puestas={set_ok} sin_pw={nopw}", flush=True)

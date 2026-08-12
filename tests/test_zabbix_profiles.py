@@ -27,6 +27,14 @@ class ZabbixProfileTests(unittest.TestCase):
         self.assertEqual({m.macro for m in h.macros},
                          {"{$SNMP_COMMUNITY}", "{$ROUTEROS_USERNAME}", "{$ROUTEROS_PASSWORD}"})
 
+    def test_password_macro_no_es_secreta(self) -> None:
+        # Regresion: como macro secreta el valor no es legible ni reutilizable y las
+        # plantillas RouterOS BGP se quedan sin monitorizar. Debe ir en texto.
+        h = _plan(tipo="fibra", router_password="secret").hosts[0]
+        pw = [m for m in h.macros if m.macro == "{$ROUTEROS_PASSWORD}"][0]
+        self.assertFalse(pw.secret)
+        self.assertEqual(pw.value, "secret")
+
     def test_fibra_v7_uses_bgp_v7(self) -> None:
         h = _plan(tipo="fibra", is_v7=True).hosts[0]
         self.assertEqual(h.template_ids, ("10747", "13463"))

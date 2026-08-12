@@ -144,8 +144,11 @@ class ZabbixInstallPlan:
 def _routeros_macros(community: str, username: str, password: str) -> tuple[ZabbixMacro, ...]:
     macros = [ZabbixMacro("{$SNMP_COMMUNITY}", community), ZabbixMacro("{$ROUTEROS_USERNAME}", username)]
     if password:
-        # La contraseña del router va como macro SECRET (no legible en la UI/API).
-        macros.append(ZabbixMacro("{$ROUTEROS_PASSWORD}", password, secret=True))
+        # La contraseña del router va como macro de TEXTO a proposito: las plantillas
+        # RouterOS BGP la pasan como parametro a scripts externos y el NOC necesita
+        # poder verla/corregirla en la UI. Como macro secreta el valor no se puede
+        # leer ni re-exportar y el BGP se queda sin monitorizar. No poner secret=True.
+        macros.append(ZabbixMacro("{$ROUTEROS_PASSWORD}", password))
     return tuple(macros)
 
 
