@@ -1,29 +1,39 @@
 :root {
-  --primary: #146c94;
-  --primary-dark: #0f5878;
-  --accent: #01696f;
-  --accent-soft: #e6f3f4;
-  --ink: #0f1d28;
-  --muted: #526572;
-  --border: #d5e0ea;
+  /* Sistema de diseño Ausarta:
+     - verde #34B56A = acento / CTAs (nunca relleno de secciones enteras)
+     - azul #3F7FBF = interactivo/técnico (enlaces, controles)
+     - grafito #25303B = titulares; fondos claros por defecto */
+  --brand: #34b56a;          /* verde Ausarta (acento / CTAs) */
+  --brand-hover: #2aa25d;
+  --brand-dark: #248a4f;
+  --brand-on: #ffffff;
+  --primary: #3f7fbf;        /* azul tecnológico Ausarta (interactivo) */
+  --primary-dark: #356fa8;
+  --accent: #34b56a;         /* acento = verde Ausarta */
+  --accent-soft: #e3f4ea;    /* verde muy suave (fondos de estado positivo) */
+  --ink: #25303b;            /* grafito (titulares y texto fuerte) */
+  --muted: #5a6b78;
+  --border: #e1e7ec;
   --panel-bg: #ffffff;
-  /* Acentos para tarjetas de métricas del admin */
-  --stat-blue: #2563eb;
-  --stat-teal: #0d9488;
+  --surface-page: #f5f7f9;
+  --ring-focus: 0 0 0 3px rgba(52, 181, 106, 0.35);
+  /* Acentos para tarjetas de métricas del admin (escalas de marca) */
+  --stat-blue: #3f7fbf;
+  --stat-teal: #34b56a;
   --stat-violet: #7c3aed;
-  --stat-slate: #475569;
+  --stat-slate: #5a6b78;
   --stat-red: #dc2626;
 }
 
 body {
   margin: 0;
   min-height: 100vh;
-  font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+  font-family: "Aptos", "Segoe UI", "Inter", system-ui, "Helvetica Neue", sans-serif;
   background:
-    radial-gradient(circle at 1px 1px, rgba(20, 108, 148, 0.08) 1px, transparent 1px),
-    linear-gradient(135deg, #f7f9ff 0%, #eef4fb 100%);
+    radial-gradient(circle at 1px 1px, rgba(37, 48, 59, 0.05) 1px, transparent 1px),
+    var(--surface-page);
   background-size: 18px 18px, auto;
-  color: #0f1d28;
+  color: var(--ink);
   overflow-x: hidden;
 }
 
@@ -41,6 +51,15 @@ svg {
   max-width: 100%;
 }
 
+/* Iconos lineales Lucide inline (heredan color y tamaño del texto). */
+.ico {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.125em;
+  flex: none;
+}
+
 .page {
   display: flex;
   justify-content: center;
@@ -50,7 +69,7 @@ svg {
 .panel {
   width: min(1024px, 100%);
   background: #ffffff;
-  border: 1px solid #d8e2ec;
+  border: 1px solid var(--border);
   border-radius: 16px;
   box-shadow: 0 1px 2px rgba(15, 29, 40, 0.04), 0 18px 44px -20px rgba(15, 29, 40, 0.22);
   padding: 28px;
@@ -85,7 +104,7 @@ svg {
   min-width: 0;
   padding: 0;
   overflow: visible;
-  border-color: #d5e0ea;
+  border-color: var(--border);
   background: rgba(247, 249, 255, 0.88);
   box-shadow: 0 8px 22px rgba(26, 52, 77, 0.05);
 }
@@ -93,7 +112,7 @@ svg {
 .creation-form .form-section > h2 {
   margin: 0;
   padding: 13px 16px;
-  border-bottom: 1px solid #d5e0ea;
+  border-bottom: 1px solid var(--border);
   color: #142633;
   font-size: 1rem;
   font-weight: 600;
@@ -105,8 +124,8 @@ svg {
   height: 28px;
   border-radius: 8px;
   place-items: center;
-  background: #e6f3f4;
-  color: #01696f;
+  background: var(--accent-soft);
+  color: var(--accent);
   font-size: 0.95rem;
 }
 
@@ -166,14 +185,14 @@ svg {
 .autofill-box {
   margin: 18px 16px 14px;
   padding: 18px 16px 14px;
-  border: 1px solid #d5e0ea;
+  border: 1px solid var(--border);
   border-radius: 10px;
   background: rgba(237, 244, 255, 0.72);
 }
 
 .autofill-box legend {
   padding: 0 8px;
-  color: #0f1d28;
+  color: var(--ink);
   font-weight: 700;
 }
 
@@ -207,7 +226,7 @@ svg {
   padding: 14px 16px;
   align-items: flex-start;
   gap: 12px;
-  border-top: 1px solid #d5e0ea;
+  border-top: 1px solid var(--border);
   background: #edf4ff;
   color: #263d4c;
   line-height: 1.45;
@@ -246,7 +265,7 @@ svg {
 
 .devices-heading p {
   margin: 5px 0 0;
-  color: #526572;
+  color: var(--muted);
   font-size: 0.82rem;
   font-style: italic;
   overflow-wrap: anywhere;
@@ -327,7 +346,7 @@ svg {
   gap: 10px;
   padding: 10px;
   align-items: center;
-  border: 1px solid #d5e0ea;
+  border: 1px solid var(--border);
   border-radius: 9px;
   background: #fff;
   box-shadow: 0 3px 9px rgba(26, 52, 77, 0.04);
@@ -394,7 +413,7 @@ svg {
 
 .terminal-heading p {
   margin: 5px 0 0;
-  color: #526572;
+  color: var(--muted);
   font-size: 0.82rem;
   font-style: italic;
   overflow-wrap: anywhere;
@@ -422,7 +441,7 @@ svg {
   gap: 10px;
   padding: 10px;
   align-items: center;
-  border: 1px solid #d5e0ea;
+  border: 1px solid var(--border);
   border-radius: 9px;
   background: #fff;
   box-shadow: 0 3px 9px rgba(26, 52, 77, 0.04);
@@ -446,8 +465,8 @@ svg {
 .paste-bar-wrap {
   margin-bottom: 18px;
   padding: 16px 18px;
-  border: 1px solid #d8e2ec;
-  border-left: 4px solid #01696f;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
   border-radius: 14px;
   background: #ffffff;
   box-shadow: 0 1px 2px rgba(15, 29, 40, 0.04), 0 10px 26px -16px rgba(15, 29, 40, 0.16);
@@ -460,19 +479,19 @@ svg {
   margin-bottom: 10px;
   font-weight: 800;
   font-size: 0.98rem;
-  color: #0f1d28;
+  color: var(--ink);
   letter-spacing: -0.01em;
 }
 .paste-bar-optional {
   font-weight: 600;
-  color: #526572;
+  color: var(--muted);
 }
 .or-divider {
   display: flex;
   align-items: center;
   gap: 14px;
   margin: 18px 0;
-  color: #526572;
+  color: var(--muted);
   font-size: 0.78rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -484,7 +503,7 @@ svg {
   content: "";
   flex: 1;
   height: 1px;
-  background: #d8e2ec;
+  background: var(--border);
 }
 
 .paste-bar {
@@ -513,8 +532,8 @@ svg {
 
 .paste-bar textarea:focus {
   outline: none;
-  border-color: #146c94;
-  box-shadow: 0 0 0 3px rgba(20, 108, 148, 0.15);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37, 48, 59, 0.15);
 }
 
 .paste-bar-button {
@@ -523,12 +542,12 @@ svg {
   padding: 0 24px;
   border: none;
   border-radius: 10px;
-  background: linear-gradient(135deg, #146c94, #0f5878);
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
   color: #fff;
   font-size: 1rem;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 8px 18px -8px rgba(20, 108, 148, 0.6);
+  box-shadow: 0 8px 18px -8px rgba(37, 48, 59, 0.6);
 }
 
 .paste-bar-button:hover {
@@ -586,7 +605,7 @@ svg {
   border: 1px solid #e8c88a;
   border-radius: 10px;
   background: #fff;
-  color: #0f1d28;
+  color: var(--ink);
   font: inherit;
   text-align: left;
   cursor: pointer;
@@ -594,24 +613,24 @@ svg {
 }
 
 .glpi-suggestion-card:hover {
-  border-color: #146c94;
+  border-color: var(--primary);
   background: #f7fbff;
-  box-shadow: 0 4px 12px rgba(20, 108, 148, 0.12);
+  box-shadow: 0 4px 12px rgba(37, 48, 59, 0.12);
 }
 
 .glpi-suggestion-card strong {
   font-size: 0.92rem;
-  color: #0f5878;
+  color: var(--primary-dark);
 }
 
 .glpi-suggestion-meta {
-  color: #526572;
+  color: var(--muted);
   font-size: 0.78rem;
   line-height: 1.35;
 }
 
 .glpi-suggestion-address {
-  color: #526572;
+  color: var(--muted);
   font-size: 0.8rem;
   line-height: 1.35;
 }
@@ -638,12 +657,12 @@ svg {
 
 .button.quiet {
   background: transparent;
-  color: #0f1d28;
+  color: var(--ink);
 }
 
 .creation-actions .button.primary {
   padding-inline: 28px;
-  box-shadow: 0 7px 18px rgba(20, 108, 148, 0.2);
+  box-shadow: 0 7px 18px rgba(37, 48, 59, 0.2);
 }
 
 .sr-only {
@@ -669,7 +688,7 @@ svg {
 
 .panel-header p {
   margin: 0;
-  color: #526572;
+  color: var(--muted);
 }
 
 .panel-header h1,
@@ -687,7 +706,7 @@ svg {
   z-index: 100;
   top: 0;
   width: 100%;
-  border-bottom: 1px solid #d5e0ea;
+  border-bottom: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 8px 28px rgba(26, 52, 77, 0.09);
   -webkit-backdrop-filter: blur(14px);
@@ -732,7 +751,7 @@ svg {
   white-space: nowrap;
   padding: 8px 12px;
   border-radius: 8px;
-  color: #526572;
+  color: var(--muted);
   font-size: 0.82rem;
   font-weight: 700;
   text-decoration: none;
@@ -740,13 +759,13 @@ svg {
 }
 
 .topbar-link:hover {
-  background: #e6f3f4;
-  color: #0f1d28;
+  background: var(--accent-soft);
+  color: var(--ink);
 }
 
 .topbar-link.active {
-  background: #e6f3f4;
-  color: #146c94;
+  background: var(--accent-soft);
+  color: var(--primary);
 }
 
 .topbar-actions {
@@ -824,7 +843,7 @@ svg {
   flex-direction: column;
   gap: 8px;
   margin-bottom: 26px;
-  color: #01696f;
+  color: var(--accent);
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -1346,8 +1365,8 @@ svg {
 }
 
 .source-badge-generated {
-  background: #e6f3f4;
-  color: #146c94;
+  background: var(--accent-soft);
+  color: var(--primary);
 }
 
 .source-badge-upload {
@@ -1412,7 +1431,7 @@ svg {
 
 .diagram-table-wrap {
   overflow-x: auto;
-  border: 1px solid #d5e0ea;
+  border: 1px solid var(--border);
   border-radius: 10px;
   background: #fff;
 }
@@ -1434,8 +1453,8 @@ svg {
 
 .diagram-table th {
   background: transparent;
-  border-bottom: 1px solid #d8e2ec;
-  color: #526572;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
   font-size: 0.72rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -1461,7 +1480,7 @@ svg {
 
 .form-section {
   background: #ffffff;
-  border: 1px solid #d8e2ec;
+  border: 1px solid var(--border);
   border-radius: 14px;
   padding: 22px;
   box-shadow: 0 1px 2px rgba(15, 29, 40, 0.04), 0 10px 26px -16px rgba(15, 29, 40, 0.16);
@@ -1474,7 +1493,7 @@ svg {
   padding-bottom: 12px;
   margin-bottom: 4px;
   border-bottom: 1px solid #eaf0f6;
-  color: #0f1d28;
+  color: var(--ink);
   font-size: 1.1rem;
   letter-spacing: -0.01em;
 }
@@ -1513,8 +1532,8 @@ input:focus,
 select:focus,
 
 textarea:focus {
-  border-color: #146c94;
-  outline: 2px solid rgba(20, 108, 148, 0.18);
+  border-color: var(--primary);
+  outline: 2px solid rgba(37, 48, 59, 0.18);
   outline-offset: 0;
 }
 
@@ -1642,13 +1661,13 @@ textarea {
 }
 
 .button.primary {
-  background: linear-gradient(135deg, #146c94, #0f5878);
-  color: #fff;
-  box-shadow: 0 8px 18px -8px rgba(20, 108, 148, 0.6);
+  background: linear-gradient(135deg, var(--brand), var(--brand-dark));
+  color: var(--brand-on);
+  box-shadow: 0 8px 18px -8px rgba(52, 181, 106, 0.55);
 }
 
 .button.primary:hover {
-  filter: brightness(1.06);
+  filter: brightness(1.04);
 }
 
 .button.is-busy {
@@ -1677,47 +1696,47 @@ textarea {
   border-left: 4px solid transparent;
 }
 .confirm-status:empty { display: none; }
-.confirm-working { background: #e6f3f4; color: #0f1d28; border-left-color: #146c94; }
+.confirm-working { background: var(--accent-soft); color: var(--ink); border-left-color: var(--primary); }
 .confirm-ok { background: #e7f4ec; color: #15803d; border-left-color: #15803d; }
-.confirm-ok a { color: #0f5878; }
+.confirm-ok a { color: var(--primary-dark); }
 .confirm-warn { background: #fbf0e2; color: #b45309; border-left-color: #b45309; }
 .confirm-bad { background: #fdeaea; color: #dc2626; border-left-color: #dc2626; }
 
 /* Progreso de subida por archivo */
 .upload-progress { margin: 16px 0; }
-.upload-progress-head { font-weight: 700; margin-bottom: 10px; color: #0f1d28; }
+.upload-progress-head { font-weight: 700; margin-bottom: 10px; color: var(--ink); }
 .upload-progress-head .up-fail { color: #dc2626; }
 .up-list { display: flex; flex-direction: column; gap: 8px; }
 .up-item {
   display: flex; align-items: center; gap: 12px;
-  padding: 11px 14px; border: 1px solid #d8e2ec; border-radius: 11px; background: #fff;
+  padding: 11px 14px; border: 1px solid var(--border); border-radius: 11px; background: #fff;
 }
 .up-item .up-info { flex: 1; min-width: 0; }
 .up-item .up-name { font-weight: 600; font-size: 0.9rem; }
-.up-item .up-sub { font-size: 0.8rem; color: #526572; }
+.up-item .up-sub { font-size: 0.8rem; color: var(--muted); }
 .up-ico {
   width: 30px; height: 30px; border-radius: 8px; flex: none;
-  display: grid; place-items: center; font-size: 0.85rem; background: #eef3f8; color: #526572;
+  display: grid; place-items: center; font-size: 0.85rem; background: #eef3f8; color: var(--muted);
 }
-.up-item.run .up-ico { background: #e6f3f4; color: #01696f; }
+.up-item.run .up-ico { background: var(--accent-soft); color: var(--accent); }
 .up-item.ok .up-ico { background: #e7f4ec; color: #15803d; }
 .up-item.bad .up-ico { background: #fdeaea; color: #dc2626; }
 .up-item.bad .up-sub { color: #dc2626; }
 .up-spin {
   display: inline-block; width: 14px; height: 14px;
-  border: 2px solid rgba(1, 105, 111, 0.3); border-top-color: #01696f;
+  border: 2px solid rgba(52, 181, 106, 0.3); border-top-color: var(--accent);
   border-radius: 50%; animation: btn-spin 0.7s linear infinite;
 }
 
 .button.secondary {
   background: #ffffff;
-  border: 1px solid #d8e2ec;
-  color: #0f1d28;
+  border: 1px solid var(--border);
+  color: var(--ink);
 }
 
 .button.secondary:hover {
-  border-color: #146c94;
-  color: #146c94;
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
 .button.glpi {
@@ -2284,7 +2303,7 @@ ul {
   border-radius: 50%;
   background: currentColor;
 }
-.sec-badge-info { background: #e6f3f4; color: #146c94; }
+.sec-badge-info { background: var(--accent-soft); color: var(--primary); }
 .sec-badge-warning { background: #fbf0e2; color: #b45309; }
 .sec-badge-error { background: #fdeaea; color: #dc2626; }
 .sec-badge-critical { background: #fce7f3; color: #9d174d; }
@@ -3405,14 +3424,14 @@ label[hidden],
   padding: 0;
   border: 0;
   font-size: 1.1rem;
-  color: #0f1d28;
+  color: var(--ink);
 }
 .box-toolbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .be-btn {
   appearance: none;
-  border: 1px solid #d8e2ec;
+  border: 1px solid var(--border);
   background: #fff;
-  color: #0f1d28;
+  color: var(--ink);
   border-radius: 8px;
   padding: 7px 12px;
   font: inherit;
@@ -3420,16 +3439,16 @@ label[hidden],
   font-weight: 700;
   cursor: pointer;
 }
-.be-btn:hover { border-color: #146c94; color: #146c94; }
-.be-btn.on { background: #01696f; border-color: #01696f; color: #fff; }
+.be-btn:hover { border-color: var(--primary); color: var(--primary); }
+.be-btn.on { background: var(--accent); border-color: var(--accent); color: #fff; }
 .be-btn.be-icon { padding: 7px 11px; line-height: 1; }
-.be-sep { width: 1px; height: 22px; background: #d8e2ec; margin: 0 3px; }
-.be-zoom { min-width: 46px; text-align: center; font-size: 0.8rem; font-weight: 700; color: #526572; font-variant-numeric: tabular-nums; }
-.be-hint { font-size: 0.8rem; color: #526572; margin: 0 0 10px; }
+.be-sep { width: 1px; height: 22px; background: var(--border); margin: 0 3px; }
+.be-zoom { min-width: 46px; text-align: center; font-size: 0.8rem; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+.be-hint { font-size: 0.8rem; color: var(--muted); margin: 0 0 10px; }
 .be-canvas {
   position: relative;
   min-height: 460px;
-  border: 1px solid #d8e2ec;
+  border: 1px solid var(--border);
   border-radius: 14px;
   overflow: hidden;
   touch-action: none;
@@ -3447,18 +3466,18 @@ label[hidden],
   user-select: none;
   margin: 0;
   background: #fff;
-  border: 1.5px solid #146c94;
+  border: 1.5px solid var(--primary);
   border-radius: 9px;
   padding: 8px 11px;
   font-size: 0.7rem;
   font-weight: 700;
   text-align: center;
-  color: #0f1d28;
+  color: var(--ink);
   box-shadow: 0 1px 2px rgba(15, 29, 40, 0.06), 0 8px 22px -14px rgba(15, 29, 40, 0.4);
   min-width: 64px;
 }
 .be-canvas .ebox:active { cursor: grabbing; }
-.be-canvas .ebox.sel { box-shadow: 0 0 0 3px rgba(1, 105, 111, 0.4); border-color: #01696f; }
+.be-canvas .ebox.sel { box-shadow: 0 0 0 3px rgba(52, 181, 106, 0.4); border-color: var(--accent); }
 .be-canvas.linkmode,
 
 .be-canvas.linkmode .ebox { cursor: crosshair; }
@@ -3473,9 +3492,10 @@ así que en SO oscuro la UI quedaba ilegible (paneles
    blancos con texto claro). Mejor un tema claro consistente hasta migrar todo
    a variables. */
 
-/* Foco de teclado visible en todos los controles (accesibilidad WCAG 2.4.7). */
+/* Foco de teclado visible en todos los controles (accesibilidad WCAG 2.4.7).
+   Anillo verde Ausarta. */
 :focus-visible {
-  outline: 2px solid var(--primary);
+  outline: 2px solid var(--brand);
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -3525,7 +3545,7 @@ así que en SO oscuro la UI quedaba ilegible (paneles
   margin-left: 8px;
   border-radius: 50%;
   background: #d8e3e6;
-  color: #01696f;
+  color: var(--accent);
   font-size: 0.72rem;
   font-weight: 700;
   font-style: normal;
