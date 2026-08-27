@@ -73,7 +73,12 @@ def publish_uploaded_files(
     """
     results: list[dict] = []
     errors: list[str] = []
-    existing_diagrams = client.list_network_diagrams(entity_id)
+    # El indice UNIQUE de Archimap es GLOBAL, no por sede: para elegir un
+    # nombre libre hay que mirar TODOS los diagramas, no solo los de esta sede
+    # (mirar solo la sede era lo que dejaba pasar nombres ya cogidos por otra).
+    # No cuesta una llamada extra: list_network_diagrams(entity_id) ya se los
+    # trae todos y filtra en Python.
+    existing_diagrams = client.list_network_diagrams()
     for uploaded_file in files:
         if not uploaded_file or not uploaded_file.filename:
             continue
@@ -98,7 +103,7 @@ def publish_uploaded_files(
             diagram_name = unique_diagram_name(
                 Path(uploaded_file.filename).stem, existing_diagrams
             )
-            diagram_id, url = publish_diagram(
+            diagram_id, url, diagram_name = publish_diagram(
                 client,
                 stores,
                 entity_id=entity_id,

@@ -43,7 +43,7 @@ class FakeClient:
         self._existing = existing or []
         self.updated_addresses: list[tuple] = []
 
-    def list_network_diagrams(self, entity_id):
+    def list_network_diagrams(self, entity_id=None):
         return list(self._existing)
 
     def update_entity_address(self, entity_id, address):
@@ -55,7 +55,7 @@ MXFILE = "<mxfile><diagram>x</diagram></mxfile>"
 
 class PublishUploadedFilesTests(unittest.TestCase):
     def _publish_ok(self, *args, **kwargs):
-        return 4242, "https://glpi.test/diagram/4242"
+        return 4242, "https://glpi.test/diagram/4242", kwargs.get("diagram_name", "")
 
     def test_valid_drawio_is_published(self) -> None:
         client = FakeClient()

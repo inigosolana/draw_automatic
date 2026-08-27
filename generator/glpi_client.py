@@ -13,7 +13,12 @@ from urllib.parse import quote, unquote
 from urllib.request import Request, urlopen
 
 from .address_formatter import to_glpi_ascii
-from .diagram_metadata import build_diagram_description, diagram_base_name, versioned_diagram_name
+from .diagram_metadata import (
+    build_diagram_description,
+    diagram_base_name,
+    suffixed_diagram_name,
+    versioned_diagram_name,
+)
 
 
 class GlpiError(RuntimeError):
@@ -620,12 +625,30 @@ class GlpiClient:
         # Creamos primero la copia fechada (backup) y DESPUÉS actualizamos el
         # diagrama original. Así, si el segundo paso falla, la copia ya existe y
         # no perdemos el contenido nuevo (evita un estado sin respaldo).
-        version_id = self.create_network_diagram(
-            entity_id=entity_id,
-            name=version_name,
-            description=description,
-            graph_xml=graph_xml,
-        )
+        # Igual que en la publicacion normal: si GLPI rechaza el nombre (ya
+        # cogido, o demasiado largo para su columna de 45), se reescribe y se
+        # reintenta en vez de perder la version.
+        tried: set[str] = set()
+        version_id = None
+        for _ in range(4):
+            try:
+                version_id = self.create_network_diagram(
+                    entity_id=entity_id,
+                    name=version_name,
+                    description=description,
+                    graph_xml=graph_xml,
+                )
+                break
+            except GlpiError as exc:
+                message = str(exc).lower()
+                if "duplicate entry" not in message and "data too long" not in message:
+                    raise
+                tried.add(version_name.lower())
+                version_name = suffixed_diagram_name(version_name, tried)
+        if version_id is None:
+            raise GlpiError(
+                "GLPI ha rechazado el nombre de la nueva version del diagrama."
+            )
         self.update_network_diagram_graph(diagram_id, graph_xml)
         return int(version_id), version_name
 

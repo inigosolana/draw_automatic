@@ -225,9 +225,10 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
                 # todos los diagramas cuelgan del cliente, no de la sede).
                 catalog, _ = load_glpi_catalog(client)
                 relevant = relevant_entity_ids(entity_id, catalog)
+                all_diagrams = client.list_network_diagrams(None)
                 existing = [
                     d
-                    for d in client.list_network_diagrams(None)
+                    for d in all_diagrams
                     if str(d.get("entities_id", "")).isdigit() and int(d["entities_id"]) in relevant
                 ]
                 # Diagrama ya en la MISMA sede: se versiona (actualiza + copia fechada).
@@ -269,11 +270,13 @@ def create_glpi_import_blueprint(limiter: Limiter) -> Blueprint:
                     except Exception:  # noqa: BLE001 - invalidar caché nunca debe romper
                         pass
                 else:
+                    # Contra TODOS los diagramas: el UNIQUE de Archimap es
+                    # global, no por cliente ni por sede.
                     diagram_name = unique_diagram_name(
                         f"{payload['cliente']} - {payload['sede']}",
-                        existing,
+                        all_diagrams,
                     )
-                    diagram_id, diagram_url = publish_diagram(
+                    diagram_id, diagram_url, diagram_name = publish_diagram(
                         client,
                         drawio_stores,
                         entity_id=entity_id,
