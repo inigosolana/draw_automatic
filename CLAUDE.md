@@ -30,31 +30,28 @@ Versión actual: ver fichero `VERSION` (1.5.0). CLI heredada en `app.py` sigue f
 4. **NO introducir credenciales/contraseñas.** Está prohibido. Las credenciales GLPI solo
    se leen de variables de entorno; nunca en el repo.
 
+## Skills del proyecto
+
+`draw-deploy`, `draw-glpi`, `draw-auditar-ot` y `draw-verificar` (en `.claude/skills/`)
+tienen el detalle operativo y los gotchas. **Invócalas en vez de explorar el repo a mano**:
+ya sabes cuándo por su descripción, y este fichero no repite lo que hay en ellas.
+
 ## Despliegue
 
-El contenedor tiene **rootfs de solo lectura**; `docker cp` a `/app` falla.
-
-Deploy estándar (tras cambios con efecto en runtime):
+El código se **hornea en la imagen**: sin `docker compose build` la web sigue sirviendo lo
+viejo. Deploy estándar (tras cambios con efecto en runtime):
 ```bash
 cd /home/ubuntu/draw_automatic && docker compose build drawio-generator && docker compose up -d
 ```
-Comprobar salud: `curl -s http://127.0.0.1:8000/health` → `{"status":"ok"}`
 
-- Contenedor: `ausarta-drawio` (+ `ausarta-drawio-redis`, `ausarta-drawio-backup`).
-- Cambios solo cosméticos (p.ej. quitar imports sin usar) no requieren rebuild.
-- Portainer también puede desplegar desde GitHub (`main`), ver `DESPLIEGUE_INTERNO.md`,
-  pero el flujo habitual en esta rama es el `docker compose build/up` de arriba.
+Contenedor `ausarta-drawio` (+ `ausarta-drawio-redis`, `ausarta-drawio-backup`). Portainer
+también despliega desde GitHub (`main`), ver `DESPLIEGUE_INTERNO.md`.
 
-### Servir/verificar código en el contenedor
-- Para probar código nuevo sin rebuild, usar el volumen escribible: staging en
-  `/app/data/gp/generator`. Ejecutar scripts vía
-  `docker exec -i ausarta-drawio sh -c "cd /app && python -"` usa el código **baked/desplegado**.
-- Al correr scripts sueltos por ssh: `PYTHONPATH=/home/ubuntu/draw_automatic` (si no,
-  `ModuleNotFoundError: app_factory`).
-
-### Gotcha de shell (ssh)
-Los heredocs / python inline con comillas o regex sobre ssh se rompen por el quoting.
-Preferir: escribir el script con la tool Write al scratchpad y luego `scp` al remoto.
+→ **Invoca la skill `draw-deploy`** para desplegar o comprobar si algo está en producción:
+tiene la verificación de salud (el `/health` da 403 desde el host, hay que consultarlo por
+`docker exec`), el rootfs de solo lectura, la caché de 12 h del JS en el navegador y cómo
+ejecutar código contra el contenedor (`PYTHONPATH=/app` y stdin en vez de heredoc, que se
+rompe por el quoting sobre ssh).
 
 ## Producción: gunicorn + nginx
 
@@ -99,18 +96,16 @@ Preferir: escribir el script con la tool Write al scratchpad y luego `scp` al re
 
 ## Tests y análisis estático
 
-- Suite pytest (~332 tests): `python -m pytest` (o `-m unittest` para los antiguos).
-- Golden hashes en `test_layout_golden.py` excluyen `node.meta`.
-- Frontend jsdom (tests/frontend/): harnesses que renderizan páginas y simulan interacción
-  (`creation_form_harness.js`, `upload_form_harness.js`, `zabbix_form_harness.js`).
-  Node/ESLint/jsdom instalados en `tests/frontend/node_modules` (vía npm).
-- **ESLint 9** flat config (`eslint.config.mjs`) con `no-undef` (error) + recommended.
-  Corre desde `test_frontend_eslint.py` (se salta si falta node). Caza la clase de bug
-  "variable no definida" en JS. Ignora `*.min.js` y `chart-*.js`.
-- **pyflakes** para Python: sin nombres no definidos en producción.
-- Al limpiar imports "sin usar": VERIFICAR con grep que no sean re-exports usados por tests.
-  Ejemplo: `comms_client.normalize_work_order_payload` parece sin usar pero lo usan
-  `test_offer_import.py` y `test_crm_import.py` — NO borrar.
+Suite pytest (~362 tests) + pyflakes + ESLint 9 + arneses jsdom que ejecutan el frontend
+real sin login. Ojo: `python` no existe en el sistema, hay que usar `.venv/bin/python`.
+
+```bash
+.venv/bin/python -m pytest -q
+```
+
+→ **Invoca la skill `draw-verificar`** antes de dar un cambio por terminado: tiene los
+comandos completos, los golden hashes del layout, el re-export que pyflakes marca y que
+**no** hay que borrar, y cómo comprobar que un test falla sin su arreglo.
 
 ## Historial reciente (rama mejoras-draws-telefonia-2026-07)
 
