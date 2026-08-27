@@ -143,6 +143,14 @@ def parse_equipment_line(line: str) -> dict | None:
         tipo = "router"
     elif "ata" in lowered:
         tipo = "ata"
+    elif any(token in lowered for token in ("gsc3506", "gsc 3506", "horn speaker")) or (
+        any(token in lowered for token in ("altavoz", "megafon", "bocina"))
+        and any(token in lowered for token in ("sip", "poe", "grandstream", "gsc"))
+    ):
+        # El altavoz de megafonia SIP va ANTES de la rama de telefonos: lleva
+        # "Grandstream" en el nombre, asi que si no se atrapa aqui se dibuja
+        # como un telefono de sobremesa en vez de colgar del switch.
+        tipo = "otro"
     elif (
         "telefono" in lowered
         or "fanvil" in lowered

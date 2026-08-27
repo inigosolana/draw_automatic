@@ -177,6 +177,17 @@ def _detect_device_category(name: str) -> tuple[str, str, str] | None:
         return ("switch", "switch", model)
     if any(token in lowered for token in ("deco", "mesh", "access point", "punto de acceso", " gwn", " ruijie", " wifi")):
         return ("ap", "wifi", _normalize_wifi_ap_model(name))
+    # Altavoz de megafonia SIP. Se comprueba ANTES de "ata": el nombre de
+    # catalogo del GSC3506 no lo contiene, pero un futuro "altavoz con ATA" si
+    # podria, y aqui el equipo es el altavoz.
+    if any(token in lowered for token in ("gsc3506", "gsc 3506", "horn speaker")) or (
+        any(token in lowered for token in ("altavoz", "megafon", "bocina"))
+        # "megafonia" a secas puede ser el nombre del servicio en la oferta, no
+        # un equipo; pedimos que sea SIP/PoE o Grandstream para no inventarse
+        # un altavoz donde solo se contrata el servicio.
+        and any(token in lowered for token in ("sip", "poe", "grandstream", "gsc"))
+    ):
+        return ("megafonia", "otro", "Grandstream GSC3506")
     if "ata" in lowered:
         return ("ata", "ata", "ATA")
     if "nas" in lowered:

@@ -80,6 +80,14 @@ DEVICE_CATEGORIES: list[dict] = [
         "models": ["CAMARA"],
     },
     {
+        # Altavoz de megafonia SIP: se alimenta y conecta por PoE, asi que en el
+        # diagrama cuelga del switch como el resto de dispositivos de red.
+        "id": "megafonia",
+        "label": "Altavoz / megafonía SIP",
+        "tipo": "otro",
+        "models": ["Grandstream GSC3506"],
+    },
+    {
         "id": "smarttv",
         "label": "Smart TV",
         "tipo": "otro",

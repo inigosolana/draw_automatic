@@ -102,6 +102,16 @@ ALIASES = {
     "punto acceso grandstream": "Grandstream AP",
     "punto de acceso grandstream": "Grandstream AP",
     "ap grandstream": "Grandstream AP",
+    # Altavoz de megafonia SIP (bocina PoE). El CRM lo nombra de varias
+    # formas; todas apuntan al modelo canonico, que es el titulo del icono.
+    "gsc3506": "Grandstream GSC3506",
+    "gsc 3506": "Grandstream GSC3506",
+    "grandstream gsc3506": "Grandstream GSC3506",
+    "altavoz sip": "Grandstream GSC3506",
+    "altavoz megafonia": "Grandstream GSC3506",
+    "megafonia sip": "Grandstream GSC3506",
+    "bocina sip": "Grandstream GSC3506",
+    "horn speaker": "Grandstream GSC3506",
 }
 
 
