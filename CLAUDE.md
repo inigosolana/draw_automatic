@@ -30,6 +30,22 @@ Versión actual: ver fichero `VERSION` (1.5.0). CLI heredada en `app.py` sigue f
 4. **NO introducir credenciales/contraseñas.** Está prohibido. Las credenciales GLPI solo
    se leen de variables de entorno; nunca en el repo.
 
+## Antes de leer código: usa graft
+
+El repo está indexado con **graft** (`graft build`, ~6 s, 100 % local). Para localizar,
+entender o trazar cualquier cosa, consúltalo **antes** de `grep` o `Read`: una consulta
+cuesta unos cientos de tokens y ahorra decenas de miles. Medido aquí: un `graft ask
+--source` ahorró ~30.400 tokens (88 %).
+
+```bash
+graft ask "<pregunta>" --source        # localizar + entender de una vez
+graft callers <simbolo> --depth all    # ANTES de cambiar algo compartido
+graft grep "<literal>"                 # todas las ocurrencias
+```
+
+Detalle en la skill `graft`. **Nunca `--deep`** (manda código de clientes a un LLM
+externo). No indexa `templates/*.html`, CSS ni la librería XML: para eso, grep.
+
 ## Skills del proyecto
 
 `draw-deploy`, `draw-glpi`, `draw-auditar-ot` y `draw-verificar` (en `.claude/skills/`)
