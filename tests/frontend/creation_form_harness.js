@@ -180,6 +180,64 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     check("desplegable sede rellenado", siteLabel && siteLabel.textContent === "Sede 3 - COMEDOR", siteLabel && siteLabel.textContent);
   }
 
+  // 6.a UNA sola base: NO se numera. El desplegable no debe ofrecer "-1".
+  if (window.__drawioTerminals) {
+    window.__drawioTerminals.clear();
+    window.__drawioTerminals.addRow({ model: "W70B", serial: "BASE1" });
+    window.__drawioTerminals.addRow({ model: "W71H", extension: "3250", dect_base: "W70B" });
+    window.__drawioTerminals.sync();
+    const baseRow = d.querySelectorAll('#terminal-rows [data-field="dect-base"]')[0];
+    check("1 base DECT: sin numerar", baseRow.value === "W70B", baseRow.value);
+    const opts = Array.from(baseRow.options).map((o) => o.value);
+    check("1 base DECT: no ofrece unidades", !opts.some((o) => /-\d+$/.test(o)), opts.join(","));
+  }
+
+  // 6.b dos bases del mismo modelo: la aplicacion las numera SOLA ("W70B-1",
+  // "W70B-2") y conserva a que base va cada inalambrico.
+  if (window.__drawioTerminals) {
+    window.__drawioTerminals.clear();
+    // Las bases llegan SIN numero: numerarlas es cosa de la aplicacion.
+    window.__drawioTerminals.addRow({ model: "W70B", serial: "BASE1" });
+    window.__drawioTerminals.addRow({ model: "W70B", serial: "BASE2" });
+    window.__drawioTerminals.addRow({ model: "W71H", extension: "3250", dect_base: "W70B-1" });
+    window.__drawioTerminals.addRow({ model: "W71H", extension: "3251", dect_base: "W70B-2" });
+    window.__drawioTerminals.sync();
+    const dectValues = Array.from(d.querySelectorAll('#terminal-rows [data-field="dect-base"]')).map((s) => s.value);
+    check("2 bases DECT: valores preservados", dectValues.join(",") === "W70B-1,W70B-2,W70B-1,W70B-2", dectValues.join(","));
+    const options = Array.from(d.querySelectorAll('#terminal-rows [data-field="dect-base"]')[3].options).map((o) => o.value);
+    check("2 bases DECT: unidades ofrecidas", options.includes("W70B-1") && options.includes("W70B-2"), options.join(","));
+    // Y el tecnico puede mover un inalambrico de una base a la otra.
+    const handset = d.querySelectorAll('#terminal-rows [data-field="dect-base"]')[2];
+    handset.value = "W70B-2"; fire(handset, "change");
+    check("2 bases DECT: se puede reasignar", handset.value === "W70B-2", handset.value);
+    const details = $("terminal-details").value.split("\n");
+    check("2 bases DECT: detalle lleva la unidad", details[2].includes("W70B-2"), details[2]);
+    // La base es un equipo mas: su modelo debe llegar al texto de equipos. Sin
+    // W70B en el desplegable, la fila salia sin modelo y la base se perdia.
+    const rows = Array.from(d.querySelectorAll("#terminal-rows .terminal-row"));
+    check("base DECT conserva su modelo", rows[0].querySelector('[data-field="model"]').value === "W70B", rows[0].querySelector('[data-field="model"]').value);
+    const equipText = $("terminal-equipment-text").value;
+    check("base DECT llega al texto de equipos", (equipText.match(/W70B/g) || []).length >= 2, equipText.replace(/\n/g, " / "));
+    check("base DECT lleva su unidad en el texto", equipText.includes("base W70B-1") && equipText.includes("base W70B-2"), equipText.replace(/\n/g, " / "));
+  }
+
+  // 6.c un inalambrico apuntaba al modelo "a secas" y aparece una SEGUNDA base
+  // del mismo modelo: no puede quedarse sin base, se le asigna la primera.
+  if (window.__drawioTerminals) {
+    window.__drawioTerminals.clear();
+    window.__drawioTerminals.addRow({ model: "W70B", serial: "BASE1" });
+    window.__drawioTerminals.addRow({ model: "W71H", extension: "3250", dect_base: "W70B" });
+    window.__drawioTerminals.sync();
+    // Hasta aqui una sola base: el inalambrico se queda con "W70B".
+    const handset = d.querySelectorAll('#terminal-rows [data-field="dect-base"]')[1];
+    check("1 base: inalambrico en W70B", handset.value === "W70B", handset.value);
+    window.__drawioTerminals.addRow({ model: "W70B", serial: "BASE2" });
+    window.__drawioTerminals.sync();
+    const fields = Array.from(d.querySelectorAll('#terminal-rows [data-field="dect-base"]')).map((s) => s.value);
+    check("2a base: inalambrico no se queda sin base", fields[1] === "W70B-1", fields.join(","));
+    check("2a base: las bases se renumeran", fields[0] === "W70B-1" && fields[2] === "W70B-2", fields.join(","));
+  }
+
   // 7. reset
   window.__drawioResetForm();
   await sleep(10);

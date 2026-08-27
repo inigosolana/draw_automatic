@@ -95,6 +95,73 @@ class FormRoundTripTests(unittest.TestCase):
         composed = structured_to_generator_data(form_to_structured_data(self.BASE_FORM))
         self.assertEqual(direct, composed)
 
+    def _dect_form(self, detail_lines: list[str], equipment_lines: list[str]) -> dict:
+        return {
+            "cliente": "MEGAMOTOR SL",
+            "sede": "Sede 1 - Santander",
+            "direccion": "Avenida Parayas 42",
+            "internet_tipo": "SOLO FIBRA",
+            "internet_proveedor": "AIRE",
+            "terminal_equipment_text": "\n".join(equipment_lines),
+            "terminal_details": "\n".join(detail_lines),
+        }
+
+    def test_dect_base_keeps_its_own_serial_and_does_not_shift_the_rest(self) -> None:
+        """La base DECT consume SU linea de detalle.
+
+        Antes no la consumia: la base salia sin S/N ni MAC y todos los detalles
+        siguientes se corrian una posicion, asi que el S/N de la base acababa
+        etiquetando al primer inalambrico y el ultimo se quedaba sin numero.
+        """
+        form = self._dect_form(
+            [
+                "W70B |  | BASE1 | C4:FC:22:6E:2F:96 |  | propio | W70B |  |  | ",
+                "W71H | 3001 | HS1 |  |  | propio | W70B |  |  | ",
+                "W71H | 3002 | HS2 |  |  | propio | W70B |  |  | ",
+            ],
+            [
+                "1 W70B propio",
+                "1 W71H, extension 3001, base W70B propio",
+                "1 W71H, extension 3002, base W70B propio",
+            ],
+        )
+        equipos = form_to_data(form)["equipos"]
+        base = next(e for e in equipos if e["tipo"] == "base_dect")
+        self.assertEqual(base["serial_number"], "BASE1")
+        self.assertEqual(base["mac"], "C4:FC:22:6E:2F:96")
+        handsets = [e for e in equipos if e["tipo"] == "terminal_dect"]
+        self.assertEqual([h["serial_number"] for h in handsets], ["HS1", "HS2"])
+        self.assertEqual([h["extensiones"] for h in handsets], [["3001"], ["3002"]])
+
+    def test_two_dect_bases_keep_their_units_through_the_form(self) -> None:
+        """OT 9342: dos W70B y 9 inalambricos repartidos 5/4 llegan al layout."""
+        from generator.layout_engine import build_layout
+
+        details = [
+            "W70B |  | BASE1 | C4:FC:22:6E:2F:96 |  | propio | W70B-1 |  |  | ",
+            "W70B |  | BASE2 | C4:FC:22:6E:2F:DF |  | propio | W70B-2 |  |  | ",
+        ]
+        equipment = ["1 W70B, base W70B-1 propio", "1 W70B, base W70B-2 propio"]
+        for index in range(9):
+            unit = "W70B-1" if index < 5 else "W70B-2"
+            details.append(f"W71H | 325{index} | HS{index} |  |  | propio | {unit} |  |  | ")
+            equipment.append(f"1 W71H, extension 325{index}, base {unit} propio")
+
+        data = form_to_data(self._dect_form(details, equipment))
+        bases = [e for e in data["equipos"] if e["tipo"] == "base_dect"]
+        self.assertEqual([b["dect_base"] for b in bases], ["W70B-1", "W70B-2"])
+        self.assertEqual([b["serial_number"] for b in bases], ["BASE1", "BASE2"])
+
+        nodes, edges = build_layout(data)
+        base_nodes = [n for n in nodes if n.meta and n.meta.get("dect_role") == "base"]
+        self.assertEqual(len(base_nodes), 2)
+        handset_keys = {n.key for n in nodes if n.meta and n.meta.get("dect_role") == "handset"}
+        per_base: dict[str, int] = {}
+        for edge in edges:
+            if edge.target in handset_keys:
+                per_base[edge.source] = per_base.get(edge.source, 0) + 1
+        self.assertEqual(sorted(per_base.values()), [4, 5])
+
     def test_solo_4g_forces_chateau_and_capacity(self) -> None:
         form = dict(self.BASE_FORM)
         form["internet_tipo"] = "SOLO 4G MONITORIZADO"

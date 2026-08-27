@@ -46,6 +46,10 @@ from .parser import infer_template, parse_equipment_line, parse_natural_text
 
 
 REQUIRED_FIELDS = ("cliente", "sede", "direccion")
+# Marca interna (se borra antes de salir de _expand_terminal_equipment): senala
+# los equipos que vienen de la TABLA DE TERMINALES, los unicos que traen una
+# linea de detalle asociada.
+FROM_TERMINAL_TABLE = "_from_terminal_table"
 ALLOWED_EQUIPMENT_TYPES = {
     "router",
     "switch",
@@ -148,6 +152,9 @@ def _as_qty(value: object) -> int:
         return 1
 
 
+_DETAIL_KEYS = ("serial_number", "mac", "ip", "propiedad", "dect_base", "puerto", "piso", "expansor")
+
+
 def _expand_terminal_equipment(equipos: list[dict], details: list[dict]) -> list[dict]:
     expanded: list[dict] = []
     detail_index = 0
@@ -155,9 +162,29 @@ def _expand_terminal_equipment(equipos: list[dict], details: list[dict]) -> list
     for team in equipos:
         tipo = team.get("tipo", "pc")
         qty = _as_qty(team.get("cantidad", 1))
+        from_terminal_table = bool(team.get(FROM_TERMINAL_TABLE))
         if tipo not in terminal_types:
-            clean_team = {key: value for key, value in team.items() if key != "extensiones" or value}
+            clean_team = {
+                key: value
+                for key, value in team.items()
+                if key != FROM_TERMINAL_TABLE and (key != "extensiones" or value)
+            }
             clean_team["cantidad"] = qty
+            # Las bases DECT de la tabla de terminales TAMBIEN traen su linea de
+            # detalle (S/N, MAC, unidad). Si no se consumia, la base se quedaba
+            # sin esos datos Y todos los detalles siguientes se corrian una
+            # posicion: el S/N de la base acababa etiquetando al primer
+            # inalambrico, y el ultimo se quedaba sin numero de serie.
+            if from_terminal_table and tipo == "base_dect":
+                for _ in range(qty):
+                    detail = details[detail_index] if detail_index < len(details) else {}
+                    detail_index += 1
+                    item = dict(clean_team, cantidad=1)
+                    for key in _DETAIL_KEYS:
+                        if detail.get(key):
+                            item[key] = detail[key]
+                    expanded.append(item)
+                continue
             expanded.append(clean_team)
             continue
 
@@ -174,7 +201,7 @@ def _expand_terminal_equipment(equipos: list[dict], details: list[dict]) -> list
             extension = detail.get("extension") or (extensions[index] if index < len(extensions) else "")
             if extension:
                 item["extension"] = extension
-            for key in ("serial_number", "mac", "ip", "propiedad", "dect_base", "puerto", "piso", "expansor"):
+            for key in _DETAIL_KEYS:
                 if detail.get(key):
                     item[key] = detail[key]
             expanded.append(item)
@@ -321,6 +348,8 @@ def _form_to_legacy_data(form: dict) -> dict:
         if text
     )
     terminal_equipos = _parse_equipment_block(equipment_text) if equipment_text else []
+    for terminal in terminal_equipos:
+        terminal[FROM_TERMINAL_TABLE] = True
     if device_equipos or terminal_equipos:
         data["equipos"] = [*device_equipos, *terminal_equipos]
     else:

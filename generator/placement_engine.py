@@ -23,6 +23,7 @@ from .dect_layout import (
     _dect_handset_key,
     _dect_registry_key,
     _is_dect_base,
+    physical_base_registry_key,
     _resolve_dect_base,
 )
 from .geometry import (
@@ -805,7 +806,7 @@ def _place_device_row(
         )
     )
     if is_dect_base:
-        registry_key = _display_model(_safe(team.get("modelo"))).upper()
+        registry_key = physical_base_registry_key(team)
         if registry_key and registry_key not in state.dect_base_registry:
             state.dect_base_registry[registry_key] = key
             state.ordered_base_keys.append(key)
@@ -833,7 +834,7 @@ def _place_equipment_rows(
         is_dect_base = _is_dect_base(normalized_model)
         is_dect_handset = _dect_handset_key(normalized_model) is not None
         if is_dect_base:
-            registry_key = _display_model(_safe(team.get("modelo"))).upper()
+            registry_key = physical_base_registry_key(team)
             if registry_key in state.dect_base_registry:
                 continue
         for idx in range(qty):

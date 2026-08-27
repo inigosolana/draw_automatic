@@ -7,7 +7,11 @@
           if (!terminalRows || !terminalDetails || !terminalEquipmentText) {
             return;
           }
-          const terminalModels = ["FANVIL V62", "FANVIL V64", "FANVIL X303G", "T-30", "T-31", "T-33", "T-43", "T-44", "T-73", "W71H", "W72H", "W53H", "W73H"];
+          // Las BASES DECT van al final de la lista: la importación de OT las
+          // mete en esta misma tabla (llevan su propio S/N y MAC), y si el
+          // modelo no estaba entre las opciones el desplegable salía vacío y la
+          // base se perdía al sincronizar (no llegaba al diagrama).
+          const terminalModels = ["FANVIL V62", "FANVIL V64", "FANVIL X303G", "T-30", "T-31", "T-33", "T-43", "T-44", "T-73", "W71H", "W72H", "W53H", "W73H", "W60B", "W70B", "W80B", "YEALINK W90DM"];
           function brandOf(model) {
             const m = (model || "").toLowerCase();
             if (/fanvil/.test(m)) return { cls: "b-fanvil", txt: "F" };
@@ -39,6 +43,13 @@
 
           function isDectHandset(model) {
             return DECT_HANDSET_MODELS.includes(model);
+          }
+
+          function isDectBaseModel(model) {
+            const clean = String(model || "").trim().toUpperCase();
+            return DECT_BASE_MODELS.some(function (base) {
+              return String(base).toUpperCase() === clean;
+            });
           }
 
           // Estado de switches publicado por device-picker. Preferimos el
@@ -126,10 +137,15 @@
           function updateDectBaseField(row) {
             const model = row.querySelector('[data-field="model"]').value.trim();
             const dectField = row.querySelector('[data-field="dect-base"]');
-            const showDect = isDectHandset(model);
+            const isHandset = isDectHandset(model);
+            // Una fila de BASE tambien usa este campo, pero para decir QUE
+            // unidad es ("W70B-2"). Antes se vaciaba por no ser un inalambrico,
+            // y con dos bases del mismo modelo se perdia cual era cual.
+            const isBase = isDectBaseModel(model);
+            const showDect = isHandset || isBase;
             dectField.disabled = !showDect;
             dectField.classList.toggle("is-hidden", !showDect);
-            if (showDect && !dectField.value) {
+            if (isHandset && !dectField.value) {
               dectField.value = DEFAULT_DECT_BASE[model] || "W60B";
             }
             if (!showDect) {
@@ -201,8 +217,106 @@
             syncTerminalRows();
           });
 
+          // Bases DECT numeradas ("W70B-1", "W70B-2") presentes en el
+          // formulario. Con dos bases del mismo modelo hay que poder decir a
+          // CUAL va cada inalambrico, asi que las unidades se ofrecen como
+          // opciones ademas de los modelos.
+          const DECT_UNIT_RE = /\s*[-#]\s*\d+\s*$/;
+
+          function baseModelOf(value) {
+            return String(value || "").replace(DECT_UNIT_RE, "").trim().toUpperCase();
+          }
+
+          // Agrupa las filas que SON una base DECT por modelo, en el orden en
+          // que aparecen en la tabla.
+          function dectBaseRowsByModel() {
+            const groups = new Map();
+            terminalRows.querySelectorAll(".terminal-row").forEach(function (row) {
+              const model = row.querySelector('[data-field="model"]').value.trim();
+              if (!isDectBaseModel(model)) return;
+              const key = model.toUpperCase();
+              if (!groups.has(key)) groups.set(key, []);
+              groups.get(key).push(row);
+            });
+            return groups;
+          }
+
+          // Numera SOLO cuando hay mas de una base del mismo modelo: con una
+          // sola queda "W70B" a secas. La numeracion la pone la aplicacion a
+          // partir de las bases que realmente hay en la tabla, no la eligen a
+          // mano ni viene fija en el desplegable.
+          function dectBaseUnitsFor(groups) {
+            const units = [];
+            groups.forEach(function (rows, model) {
+              rows.forEach(function (_row, index) {
+                units.push(rows.length > 1 ? `${model}-${index + 1}` : model);
+              });
+            });
+            return units;
+          }
+
+          function dectBaseChoices() {
+            const units = dectBaseUnitsFor(dectBaseRowsByModel());
+            // Ademas de las bases presentes, los modelos sueltos: un tecnico
+            // puede indicar la base de un inalambrico sin haberla anadido.
+            return units.concat(
+              DECT_BASE_MODELS.filter(function (model) {
+                return !units.some(function (unit) {
+                  return baseModelOf(unit) === model.toUpperCase();
+                });
+              })
+            );
+          }
+
+          function refreshDectBaseOptions() {
+            const groups = dectBaseRowsByModel();
+            const units = dectBaseUnitsFor(groups);
+            const choices = dectBaseChoices();
+            // El valor definitivo de cada fila se decide ANTES de reconstruir
+            // los <option>: al cambiar el innerHTML, un valor que ya no figure
+            // entre las opciones se pierde, y despues ya no hay forma de saber
+            // cual era.
+            const wanted = new Map();
+            groups.forEach(function (rows, model) {
+              rows.forEach(function (row, index) {
+                // Cada fila de base recibe SU unidad.
+                wanted.set(
+                  row.querySelector('[data-field="dect-base"]'),
+                  rows.length > 1 ? `${model}-${index + 1}` : model
+                );
+              });
+            });
+            // Un inalambrico que apunte al modelo "a secas" cuando ese modelo
+            // tiene varias unidades se quedaria sin base valida: se le asigna la
+            // primera, y el tecnico la cambia si va a la otra.
+            terminalRows.querySelectorAll(".terminal-row").forEach(function (row) {
+              const model = row.querySelector('[data-field="model"]').value.trim();
+              if (!isDectHandset(model)) return;
+              const field = row.querySelector('[data-field="dect-base"]');
+              const current = field.value;
+              if (!current || choices.includes(current)) return;
+              const fallback = units.find(function (unit) {
+                return baseModelOf(unit) === baseModelOf(current);
+              });
+              if (fallback) {
+                wanted.set(field, fallback);
+              }
+            });
+            terminalRows.querySelectorAll('[data-field="dect-base"]').forEach(function (select) {
+              const value = wanted.has(select) ? wanted.get(select) : select.value;
+              select.innerHTML = ['<option value="">—</option>']
+                .concat(choices.map(function (choice) {
+                  // El modelo llega del CRM: se escapa tambien el texto visible.
+                  return `<option value="${escapeAttribute(choice)}"${value === choice ? " selected" : ""}>${escapeAttribute(choice)}</option>`;
+                }))
+                .join("");
+              select.value = value;
+            });
+          }
+
           function syncTerminalRows() {
             updateFloorVisibility();
+            refreshDectBaseOptions();
             const detailLines = [];
             const equipmentLines = [];
             terminalRows.querySelectorAll(".terminal-row").forEach(function (row) {
@@ -227,7 +341,9 @@
               detailLines.push([model, extension, serial, mac, ip, ownership, dectBase, puertoDetail, piso, expansor].join(" | "));
               if (model) {
                 const extensionText = extension ? `, extension ${extension}` : "";
-                const baseText = isDectHandset(model) && dectBase ? `, base ${dectBase}` : "";
+                // Para un inalambrico dice a que base va; para una base, cual
+                // de las unidades es. En los dos casos el motor la necesita.
+                const baseText = dectBase && (isDectHandset(model) || isDectBaseModel(model)) ? `, base ${dectBase}` : "";
                 // El puerto ETH solo aplica a terminales VoIP (no DECT) y solo si se ha elegido.
                 const puertoText = !isDectHandset(model) && puerto ? `, puerto ${puerto}` : "";
                 equipmentLines.push(`1 ${model}${extensionText}${baseText}${puertoText} ${ownership}`);
@@ -269,9 +385,17 @@
                 return `<option value="${model}"${values.model === model ? " selected" : ""}>${model}</option>`;
               }))
               .join("");
+            // Las filas se crean de una en una: cuando llega un inalambrico
+            // con "W70B-2", su base puede no estar aun en la tabla. Se anade su
+            // valor como opcion para no perderlo; al sincronizar, la numeracion
+            // definitiva se recalcula sobre las bases que haya.
+            const rowChoices = dectBaseChoices();
+            if (values.dectBase && !rowChoices.includes(values.dectBase)) {
+              rowChoices.unshift(values.dectBase);
+            }
             const dectBaseOptions = ['<option value="">—</option>']
-              .concat(DECT_BASE_MODELS.map(function (baseModel) {
-                return `<option value="${baseModel}"${values.dectBase === baseModel ? " selected" : ""}>${baseModel}</option>`;
+              .concat(rowChoices.map(function (baseModel) {
+                return `<option value="${escapeAttribute(baseModel)}"${values.dectBase === baseModel ? " selected" : ""}>${escapeAttribute(baseModel)}</option>`;
               }))
               .join("");
             const puertoOptions = puertoOptionsHtml(values.puerto);

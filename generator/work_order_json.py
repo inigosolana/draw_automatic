@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 
+from .dect_layout import DECT_BASE_SUFFIX_RE, dect_base_unit_label
 from .import_errors import CommsError
 from .equipment_detection import (
     _detect_backup_model,
@@ -126,13 +127,42 @@ def _iter_crm_equipment_items(equipments: object) -> list[dict]:
     return []
 
 
+def _keep_base_unit(raw_base: str) -> str:
+    """Normaliza el modelo de base CONSERVANDO el numero de unidad.
+
+    `_normalize_dect_base` extrae el modelo de un nombre de producto y por eso
+    se come el "-2" de "W70B-2"; aqui ese sufijo es justo el dato que distingue
+    una base de la otra, asi que se vuelve a pegar.
+    """
+    model = _normalize_dect_base(raw_base)
+    if not model:
+        return ""
+    unit = DECT_BASE_SUFFIX_RE.search(raw_base)
+    return f"{model}-{unit.group(1)}" if unit else model
+
+
 def _collect_crm_dect_bases(items: list[dict]) -> list[str]:
-    bases: list[str] = []
+    """Una entrada por base FISICA, no por modelo.
+
+    Antes se deduplicaba por modelo: dos W70B (con su propio S/N y MAC cada
+    una) contaban como una sola base, y los inalambricos acababan todos
+    colgados de la misma. Ahora cada unidad recibe su clave ("W70B-1",
+    "W70B-2"); con una sola base no se numera nada.
+    """
+    models: list[str] = []
     for item in items:
         product_name = _crm_equipment_field(item, "productName", "product_name", "name", "model")
         if not product_name:
             continue
         clean_name = _strip_vendor_prefix(product_name)
+        # Los MISMOS descartes que hace el bucle que consume esta lista: si aqui
+        # contaramos una base que alli se descarta (un cargador "para base DECT
+        # W70B" es un accesorio), los indices se desalinearian y los
+        # inalambricos irian a una unidad que no existe.
+        if is_headset(clean_name) or is_headset(product_name):
+            continue
+        if is_accessory(clean_name):
+            continue
         dect_base = _normalize_dect_base(clean_name)
         # Es base DECT si el nombre dice "base" O si el modelo NO es un terminal
         # (p. ej. "W60B", "YEALINK W90DM" no llevan la palabra "base"). Mismo
@@ -141,9 +171,9 @@ def _collect_crm_dect_bases(items: list[dict]) -> list[str]:
             re.search(r"\bbase\b", clean_name, re.IGNORECASE)
             or not _normalize_terminal_model(clean_name)
         ):
-            if dect_base not in bases:
-                bases.append(dect_base)
-    return bases
+            models.append(dect_base)
+    total = len(models)
+    return [dect_base_unit_label(model, index, total) for index, model in enumerate(models)]
 
 
 def _assign_dect_bases_to_handsets(
@@ -151,19 +181,31 @@ def _assign_dect_bases_to_handsets(
     dect_bases: list[str],
     handset_bases_from_order: list[str],
 ) -> None:
-    """Una base DECT puede alimentar varios terminales inalambricos (W71H, W53H...)."""
-    single_base = dect_bases[0] if len(dect_bases) == 1 else ""
-    handset_index = 0
-    for terminal in terminals:
-        if terminal.get("model") not in DECT_HANDSET_MODELS:
-            continue
-        if single_base:
-            terminal["dect_base"] = single_base
-        elif handset_index < len(handset_bases_from_order):
-            ordered_base = handset_bases_from_order[handset_index]
-            if ordered_base:
-                terminal["dect_base"] = ordered_base
-        handset_index += 1
+    """Reparte los inalambricos entre las bases DECT de la sede.
+
+    Una base alimenta varios inalambricos (W71H, W53H...). Con una sola base
+    van todos a ella. Con varias, el CRM NO dice cual cuelga de cual, asi que
+    se reparten a partes iguales (9 entre 2 bases -> 5 y 4) y el tecnico lo
+    corrige en el formulario si en la instalacion es distinto.
+    """
+    if not dect_bases:
+        return
+    handsets = [t for t in terminals if t.get("model") in DECT_HANDSET_MODELS]
+    if len(dect_bases) == 1:
+        for terminal in handsets:
+            terminal["dect_base"] = dect_bases[0]
+        return
+    per_base, remainder = divmod(len(handsets), len(dect_bases))
+    position = 0
+    for base_index, base in enumerate(dect_bases):
+        # El resto se reparte entre las primeras bases: 9/2 -> 5 y 4.
+        share = per_base + (1 if base_index < remainder else 0)
+        for terminal in handsets[position : position + share]:
+            terminal["dect_base"] = base
+        position += share
+    # Si sobra algun inalambrico por redondeo, a la ultima base.
+    for terminal in handsets[position:]:
+        terminal["dect_base"] = dect_bases[-1]
 
 
 def _parse_crm_equipments(equipments: object) -> dict:
@@ -172,6 +214,7 @@ def _parse_crm_equipments(equipments: object) -> dict:
     terminals: list[dict] = []
     connectivity_parts: list[str] = []
     active_dect_base = ""
+    bases_seen = 0
     handset_bases_from_order: list[str] = []
     expander_count = 0
     dect_bases_found = _collect_crm_dect_bases(items)
@@ -203,13 +246,19 @@ def _parse_crm_equipments(equipments: object) -> dict:
             # emitimos como terminal (no como producto de solo-nombre) para que
             # esos datos lleguen al diagrama. Antes se perdían y la base salía
             # en blanco (sin SN/MAC).
+            # Su clave de unidad ("W70B-2") la identifica frente a las otras
+            # bases del mismo modelo, y es la que emparejan sus inalambricos.
+            unit_key = (
+                dect_bases_found[bases_seen] if bases_seen < len(dect_bases_found) else dect_base
+            )
+            bases_seen += 1
             terminals.append(
                 {
                     "model": dect_base,
                     "extension": "",
                     "serial": serial,
                     "mac": mac,
-                    "dect_base": "",
+                    "dect_base": unit_key,
                     "ownership": "propio",
                 }
             )
@@ -445,7 +494,7 @@ def terminal_from_json_item(item: object) -> dict | None:
     ownership = _clean(item.get("ownership") or item.get("propiedad") or "propio").lower()
     if ownership not in {"propio", "ajeno"}:
         ownership = "propio"
-    dect_base = _normalize_dect_base(_clean(item.get("dect_base") or item.get("base_dect")))
+    dect_base = _keep_base_unit(_clean(item.get("dect_base") or item.get("base_dect")))
     terminal = {
         "model": model,
         "extension": _clean(

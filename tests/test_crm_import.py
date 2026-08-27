@@ -394,6 +394,102 @@ class CrmImportTests(unittest.TestCase):
         self.assertEqual(len(handsets), 2)
         self.assertEqual({terminal["dect_base"] for terminal in handsets}, {"W70B"})
 
+    def test_two_dect_bases_split_the_handsets_between_them(self) -> None:
+        """OT 9342 (MEGAMOTOR): dos bases W70B y 9 inalambricos.
+
+        Antes las dos bases se deduplicaban por modelo: los 9 W71H colgaban de
+        una sola y la otra quedaba vacia. El CRM no dice cual cuelga de cual,
+        asi que se reparten a partes iguales (5 y 4).
+        """
+        equipments = {}
+        # Mismo orden raro que la OT real: 6 handsets, base, 2 handsets, base, 1 handset.
+        layout = ["h"] * 6 + ["base"] + ["h"] * 2 + ["base"] + ["h"]
+        for index, kind in enumerate(layout):
+            if kind == "base":
+                equipments[str(index)] = {
+                    "productName": "Yealink - Base DECT W70B",
+                    "S/N": f"BASE{index}",
+                    "MAC": f"44DBD2F4120{index}",
+                    "service_name": "Puestos VoIP",
+                    "service_ext": "3250",
+                }
+            else:
+                equipments[str(index)] = {
+                    "productName": "Yealink - W71H",
+                    "S/N": f"HS{index}",
+                    "MAC": "",
+                    "service_name": "Puestos VoIP",
+                    "service_ext": "3250",
+                }
+        payload = {
+            "customer": {"document": "B39317797", "fullname": "MEGAMOTOR SL"},
+            "sede": {"name": "Sede 1 - Santander", "address": "Avenida Parayas, 42"},
+            "equipments": equipments,
+        }
+        result = import_result_from_json_payload(payload)
+
+        handsets = [t for t in result.terminals if t["model"] == "W71H"]
+        self.assertEqual(len(handsets), 9)
+        counts: dict[str, int] = {}
+        for handset in handsets:
+            counts[handset["dect_base"]] = counts.get(handset["dect_base"], 0) + 1
+        self.assertEqual(counts, {"W70B-1": 5, "W70B-2": 4})
+
+        # Cada base fisica conserva su propio S/N y su clave de unidad.
+        bases = [t for t in result.terminals if t["model"] == "W70B"]
+        self.assertEqual(len(bases), 2)
+        self.assertEqual([b["dect_base"] for b in bases], ["W70B-1", "W70B-2"])
+        self.assertEqual(len({b["serial"] for b in bases}), 2)
+
+        # Y en el diagrama: DOS bases dibujadas, ninguna vacia.
+        nodes, edges = build_layout(_layout_data_from_import_result(result))
+        base_nodes = [n for n in nodes if n.meta and n.meta.get("dect_role") == "base"]
+        self.assertEqual(len(base_nodes), 2)
+        handset_keys = {n.key for n in nodes if n.meta and n.meta.get("dect_role") == "handset"}
+        per_base: dict[str, int] = {}
+        for edge in edges:
+            if edge.target in handset_keys:
+                per_base[edge.source] = per_base.get(edge.source, 0) + 1
+        self.assertEqual(sorted(per_base.values()), [4, 5])
+
+    def test_accessory_naming_a_base_does_not_count_as_a_base(self) -> None:
+        """Un accesorio que menciona una base no cuenta como base.
+
+        Si contara, habria "2 bases" con una sola real: los inalambricos se
+        repartirian entre W70B-1 y W70B-2, y los de la segunda apuntarian a una
+        base inexistente (el layout les dibujaria una base fantasma).
+        """
+        payload = {
+            "customer": {"document": "B19532548", "fullname": "UN CLIENTE SL"},
+            "sede": {"name": "Sede 1", "address": "Calle Nueva, 5"},
+            "equipments": {
+                "1": {"productName": "Yealink - Base DECT W70B", "S/N": "B1", "MAC": "44DBD2F4120A"},
+                "2": {"productName": "Yealink - Cargador para Base DECT W70B", "S/N": "C1", "MAC": ""},
+                "3": {"productName": "Yealink - W71H", "S/N": "H1", "MAC": "", "service_ext": "3001"},
+                "4": {"productName": "Yealink - W71H", "S/N": "H2", "MAC": "", "service_ext": "3002"},
+            },
+        }
+        result = import_result_from_json_payload(payload)
+        bases = [t for t in result.terminals if t["model"] == "W70B"]
+        self.assertEqual(len(bases), 1, [t["model"] for t in result.terminals])
+        # Una sola base real -> sin numerar, y los dos inalambricos a ella.
+        handsets = [t for t in result.terminals if t["model"] == "W71H"]
+        self.assertEqual({t["dect_base"] for t in handsets}, {"W70B"})
+
+    def test_single_dect_base_is_not_numbered(self) -> None:
+        """Con una sola base no se numera nada: no cambia lo que ya funcionaba."""
+        payload = {
+            "customer": {"document": "B19532548", "fullname": "UN CLIENTE SL"},
+            "sede": {"name": "Sede 1", "address": "Calle Nueva, 5"},
+            "equipments": {
+                "1": {"productName": "Yealink - W71H", "S/N": "H1", "MAC": "", "service_ext": "3001"},
+                "2": {"productName": "Yealink - Base DECT W70B", "S/N": "B1", "MAC": "44DBD2F4120A"},
+            },
+        }
+        result = import_result_from_json_payload(payload)
+        handsets = [t for t in result.terminals if t["model"] == "W71H"]
+        self.assertEqual({t["dect_base"] for t in handsets}, {"W70B"})
+
     def test_crm_import_dect_handsets_draw_dect_links_not_eth(self) -> None:
         result = import_result_from_json_payload(RESTAURACION_ALBENZAIRE_CRM_PAYLOAD, work_order_id="9012")
         nodes, edges = build_layout(_layout_data_from_import_result(result))
